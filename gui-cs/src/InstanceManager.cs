@@ -416,12 +416,9 @@ public class InstanceManager
             var yaml = new System.Text.StringBuilder();
             yaml.AppendLine("version: 1");
             foreach (var ln in refs) yaml.AppendLine(ln);
-            yaml.AppendLine("records:");
-            yaml.AppendLine("  client-connection/browser-session:");
-            yaml.AppendLine("    kind: grant");
-            yaml.AppendLine("    payload:");
-            yaml.AppendLine("      version: 1");
-            yaml.AppendLine($"      secret: {secret}");
+            // Do NOT write a records/client-connection/browser-session section here.
+            // DSH validates the secret format strictly and rejects our generated
+            // values, causing a startup crash. Let DSH generate it on first boot.
             File.WriteAllText(destCred, yaml.ToString());
         }
         catch (Exception ex)

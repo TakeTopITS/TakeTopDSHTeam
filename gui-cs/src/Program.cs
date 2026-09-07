@@ -1262,7 +1262,7 @@ app.Use(async (ctx, next) =>
                 tu = dsh.WaitForTokenUrl(TimeSpan.FromSeconds(90));
             // If DSH is still not ready after waiting, return 503 instead of
             // attempting a doomed proxy that would show "connection refused".
-            if (string.IsNullOrEmpty(tu) && !dsh.IsRunning)
+            if (string.IsNullOrEmpty(tu) && !dsh.IsRunning && !DshService.IsPortInUse(proxyPort))
             {
                 ctx.Response.StatusCode = 503;
                 ctx.Response.ContentType = "text/plain; charset=utf-8";
@@ -1309,20 +1309,30 @@ app.UseStaticFiles();
 // and auto-start the dsh web process so it is ready to use immediately.
 _ = Task.Run(async () =>
 {
+    Console.WriteLine("[auto-start] Task started, root=" + root);
     await Task.Delay(500);
-    // Re-apply all DSH package patches on every launcher start, so a restart
-    // after a DSH upgrade keeps every feature working. The admin default dsh
-    // keeps its settings visible; per-user instances hide it.
+    Console.WriteLine("[auto-start] Applying patches...");
     DshPatcher.ApplyAll(root, hideSettings: false, m => Console.WriteLine("[patch] " + m));
-    // Start the dsh web process on the configured port (background; the
-    // control page's "Open DSH Web" button waits for its token on demand).
+    Console.WriteLine("[auto-start] Patches done. Starting DSH...");
     var cfgPort = dsh.DefaultPort();
+    // Use DshService.Start() so token URL is captured from DSH stdout.
     if (!dsh.IsRunning)
     {
         try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine("[auto-start] DSH start failed: " + ex.Message); }
     }
-    // Auto-restore any instance persisted as running so its dsh is actually up
-    // (otherwise the card shows "运行中" but the port is dead and "打开" fails).
+    // If DSH still not running, wait and retry once.
+    if (!dsh.IsRunning)
+    {
+        Console.WriteLine("[auto-start] DSH not running, waiting 5s then retrying...");
+        await Task.Delay(5000);
+        if (!dsh.IsRunning)
+        {
+            try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine("[auto-start] DSH retry failed: " + ex.Message); }
+        }
+    }
+    Console.WriteLine(dsh.IsRunning
+        ? $"[auto-start] DSH is running on port {cfgPort}, token={dsh.TokenUrl() != null}"
+        : $"[auto-start] DSH failed to start on port {cfgPort}");
     foreach (var inst in instMgr.List())
         if (inst.Running)
         {
