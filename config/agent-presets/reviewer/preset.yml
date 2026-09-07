@@ -1,0 +1,3 @@
+name: 审查Agent
+description: 负责代码审查和质量检查的Agent，可以检查代码质量、发现潜在问题并提供改进建议。
+order: 5

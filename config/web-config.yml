@@ -1,0 +1,130 @@
+﻿# Web鐣岄潰閰嶇疆
+# 璇ラ厤缃枃浠剁敤浜庤缃瓺eepSeek Harness鐨刉eb鐣岄潰
+
+# 鏈嶅姟鍣ㄩ厤缃?server:
+  # 鐩戝惉鍦板潃
+  host: "0.0.0.0"
+  # 鐩戝惉绔彛
+  port: 46000
+  # 鏄惁鍚敤HTTPS
+  https: false
+  # HTTPS璇佷功璺緞锛堝鏋滃惎鐢級
+  # cert: "/path/to/cert.pem"
+  # key: "/path/to/key.pem"
+
+# 璁よ瘉閰嶇疆
+auth:
+  # 鏄惁鍚敤璁よ瘉
+  enabled: false
+  # 璁よ瘉鏂瑰紡: "api_key" | "token" | "oauth"
+  method: "api_key"
+  # API瀵嗛挜锛堝鏋滀娇鐢╝pi_key鏂瑰紡锛?  api_key: "ph-demo-placeholder-key-change-me"
+  # Token杩囨湡鏃堕棿锛堢锛?  token_expiry: 86400
+
+# 浼氳瘽閰嶇疆
+session:
+  # 浼氳瘽瀛樺偍璺緞
+  storage_path: "./sessions"
+  # 浼氳瘽瓒呮椂鏃堕棿锛堢锛?  timeout: 3600
+  # 鏈€澶у苟鍙戜細璇濇暟锛堝浜哄悓鏃朵娇鐢級
+  max_concurrent: 50
+  # 鏄惁鍚敤浼氳瘽鎸佷箙鍖?  persistence: true
+
+# 鍏变韩鏁版嵁閰嶇疆锛堝浜哄崗浣滅粡楠屾暟鎹級
+shared_data:
+  # 鍏变韩鏁版嵁鐩綍
+  path: "./sharedata"
+  # 鏄惁鍚敤鍏变韩鏁版嵁
+  enabled: true
+  # 鍏变韩鏁版嵁鍚屾闂撮殧锛堢锛?  sync_interval: 30
+  # 鍏变韩鏁版嵁绫诲瀷
+  types:
+    - "skills"        # 鎶€鑳芥暟鎹?    - "prompts"       # 鎻愮ず璇嶆ā鏉?    - "code_snippets" # 浠ｇ爜鐗囨
+    - "best_practices" # 鏈€浣冲疄璺?    - "project_context" # 椤圭洰涓婁笅鏂?
+# Agent閰嶇疆
+agent:
+  # 榛樿Agent棰勮
+  default_preset: "multi-agent"
+  # 鍙敤鐨凙gent棰勮鍒楄〃
+  available_presets:
+    - "standard"
+    - "multi-agent"
+    - "coordinator"
+    - "developer"
+    - "reviewer"
+    - "tester"
+    - "documenter"
+  # Agent鎵ц閰嶇疆
+  execution:
+    # 鏈€澶у苟鍙慉gent鏁?    max_concurrent: 5
+    # Agent瓒呮椂鏃堕棿锛堢锛?    timeout: 300
+    # 鏄惁鍚敤鍚庡彴Agent
+    background_enabled: true
+
+# 宸ヤ綔鍖洪厤缃?workspace:
+  # 榛樿宸ヤ綔鍖鸿矾寰勶紙鐢辩鐞嗛〉閰嶇疆锛岃繖閲岀暀绌猴級
+  default_path: ""
+  # 鏄惁鍏佽璁块棶宸ヤ綔鍖哄鐨勬枃浠?  allow_external_access: false
+  # 鍙椾繚鎶ょ殑璺緞鍒楄〃锛堢姝gent璁块棶锛?  protected_paths:
+    - ".git"
+    - "node_modules"
+    - ".vs"
+
+# 鏃ュ織閰嶇疆
+logging:
+  # 鏃ュ織绾у埆: "debug" | "info" | "warn" | "error"
+  level: "info"
+  # 鏃ュ織瀛樺偍璺緞
+  path: "./logs"
+  # 鏄惁鍚敤鎺у埗鍙版棩蹇?  console: true
+  # 鏄惁鍚敤鏂囦欢鏃ュ織
+  file: true
+  # 鏃ュ織鏂囦欢鏈€澶уぇ灏忥紙MB锛?  max_size: 100
+  # 淇濈暀鐨勬棩蹇楁枃浠舵暟閲?  max_files: 10
+
+# 鎻掍欢閰嶇疆
+plugins:
+  # 鏄惁鍚敤鎻掍欢绯荤粺
+  enabled: true
+  # 鎻掍欢瀛樺偍璺緞
+  path: "./plugins"
+  # 鑷姩鍔犺浇鐨勬彃浠跺垪琛?  auto_load: []
+
+# 瀹夊叏閰嶇疆
+security:
+  # 鏄惁鍚敤娌欑妯″紡
+  sandbox_enabled: true
+  # 娌欑绫诲瀷: "local" | "docker" | "remote"
+  sandbox_type: "local"
+  # 鍛戒护鐧藉悕鍗曪紙鍏佽鎵ц鐨勫懡浠わ級
+  command_whitelist:
+    - "dotnet"
+    - "git"
+    - "npm"
+    - "pnpm"
+    - "node"
+  # 鍛戒护榛戝悕鍗曪紙绂佹鎵ц鐨勫懡浠わ級
+  command_blacklist:
+    - "rm -rf"
+    - "format"
+    - "del"
+
+# 鎬ц兘閰嶇疆
+performance:
+  # 鏄惁鍚敤缂撳瓨
+  cache_enabled: true
+  # 缂撳瓨澶у皬锛圡B锛?  cache_size: 1000
+  # 鏄惁鍚敤鍘嬬缉
+  compression_enabled: true
+  # 鏈€澶ц姹傚ぇ灏忥紙MB锛?  max_request_size: 50
+
+# 鐩戞帶閰嶇疆
+monitoring:
+  # 鏄惁鍚敤鐩戞帶
+  enabled: true
+  # 鐩戞帶绔彛
+  port: 46001
+  # 鏄惁鍚敤鎸囨爣鏀堕泦
+  metrics: true
+  # 鏄惁鍚敤鍋ュ悍妫€鏌?  health_check: true
+

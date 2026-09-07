@@ -1,0 +1,3 @@
+name: 文档Agent
+description: 负责文档编写和维护的Agent，可以编写技术文档、API文档和用户手册。
+order: 7

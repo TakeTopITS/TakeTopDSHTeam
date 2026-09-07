@@ -1,0 +1,3 @@
+name: 多Agent协作模式
+description: 支持多Agent协作的开发平台，包含任务协调、开发、审查、测试和文档等角色。
+order: 2

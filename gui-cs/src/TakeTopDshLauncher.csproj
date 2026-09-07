@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Host without a console window (no black cmd window when started). -->
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+</Project>

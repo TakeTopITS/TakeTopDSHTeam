@@ -1,0 +1,35 @@
+TakeTopDSH Team
+================
+
+Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
+EMail: service@taketopits.com
+
+This product is dual-licensed:
+
+  - The source code is licensed under the GNU General Public License,
+    version 3 (GPL-3.0). See the LICENSE file for the full text and
+    <https://www.gnu.org/licenses/>.
+
+  - A commercial license is free for **up to 10 users**. For larger teams
+    or those requiring commercial support, contact 泰顶拓鼎信息科技（上海）有限公司
+    (EMail: service@taketopits.com).
+
+
+Third-party components
+-----------------------
+
+This product bundles and relies on the following third-party software.
+They remain under their respective licenses:
+
+  - DeepSeek Harness (@deepseek-ai/dsh) and its related packages
+    (node_modules/@deepseek-ai/*) — see the package licenses under
+    node/node_modules/@deepseek-ai/dsh for details.
+
+  - highlight.js (https://highlightjs.org/) — MIT License
+  - marked (https://marked.js.org/) — MIT License
+  - Node.js runtime (bundled under node/) — its own licenses
+  - .NET / ASP.NET Core runtime (bundled in the self-contained launcher)
+    — MIT License.
+
+NOTICE — this file lists attribution and contact information as suggested
+by the GNU GPL. It does not alter the terms of the LICENSE file.

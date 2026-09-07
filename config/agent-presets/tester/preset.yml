@@ -1,0 +1,3 @@
+name: 测试Agent
+description: 负责测试编写和执行的Agent，可以编写单元测试、集成测试并执行测试用例。
+order: 6

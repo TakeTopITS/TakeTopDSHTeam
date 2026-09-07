@@ -1,0 +1,3 @@
+name: 开发Agent
+description: 负责代码编写和实现的Agent，可以执行开发任务、修复bug和实现新功能。
+order: 4
