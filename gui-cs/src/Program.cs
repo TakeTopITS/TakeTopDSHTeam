@@ -1260,6 +1260,15 @@ app.Use(async (ctx, next) =>
             var tu = dsh.TokenUrl();
             if (string.IsNullOrEmpty(tu))
                 tu = dsh.WaitForTokenUrl(TimeSpan.FromSeconds(90));
+            // If DSH is still not ready after waiting, return 503 instead of
+            // attempting a doomed proxy that would show "connection refused".
+            if (string.IsNullOrEmpty(tu) && !dsh.IsRunning)
+            {
+                ctx.Response.StatusCode = 503;
+                ctx.Response.ContentType = "text/plain; charset=utf-8";
+                await ctx.Response.WriteAsync("DSH is starting up, please wait a moment and refresh.");
+                return;
+            }
             if (!string.IsNullOrEmpty(tu) && tu.IndexOf("token=", StringComparison.Ordinal) > 0)
                 proxyToken = tu.Substring(tu.IndexOf("token=", StringComparison.Ordinal) + 6);
         }
@@ -1310,7 +1319,7 @@ _ = Task.Run(async () =>
     var cfgPort = dsh.DefaultPort();
     if (!dsh.IsRunning)
     {
-        try { dsh.Start(cfgPort); } catch { }
+        try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine("[auto-start] DSH start failed: " + ex.Message); }
     }
     // Auto-restore any instance persisted as running so its dsh is actually up
     // (otherwise the card shows "运行中" but the port is dead and "打开" fails).
