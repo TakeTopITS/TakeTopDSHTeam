@@ -128,18 +128,7 @@ A: In the DSH Web UI (after opening with the token) → **Settings → Models** 
 
 ---
 
-## 6. Task Assignment (multi-user)
-
-- The launcher UI has a **"Tasks"** button (top-right, admin) → `/tasks` page.
-- Left side is the member list (admin + all users). Click a member to see their task list on the right: task type / task name / status (Processing / Done / Cancelled) / related files — with add, edit, delete.
-- Tasks are stored as **XML** under the user's workspace `<workspace>/TaskData/tasks-<id>.xml`; "related files" are uploaded to `<workspace>/TaskData/Doc`.
-- Task content supports rich text (paste/insert images; images are also stored in `TaskData/Doc`). Double-click an image in the content to preview it full-screen.
-- Users see tasks assigned to them in the workspace's left pane **"My Tasks"** tab (task-name link shows details; related-file links open/download).
-- The launcher UI has a **"Task Assignment"** button (admin) → `/tasks`. Tasks are stored as XML under `<workspace>/TaskData/tasks-<id>.xml`; related files go to `<workspace>/TaskData/Doc`. Users see assigned tasks in the workbench **"My Tasks"** tab.
-
----
-
-## 7. Verified Environment
+## 6. Verified Environment
 
 - This package has been verified on Windows x64 end-to-end (start.bat → launcher → auto-start DSH Web → open with token).
 - The macOS / Linux builds were cross-published on Windows with `dotnet publish -r <rid> --self-contained` (no native GUI dependency); they still need to be run/verified on their respective platforms. Node and dsh deps are prepared automatically on first run.
