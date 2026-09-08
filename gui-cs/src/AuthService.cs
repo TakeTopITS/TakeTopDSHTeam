@@ -42,7 +42,7 @@ public class AuthService
     private readonly Dictionary<string, string> _sessions = new(); // token -> username
     private readonly object _gate = new();
     private const string AdminUser = "admin";
-    private const string AdminPass = "admin123";
+    private const string AdminPass = "12345678";
 
     public AuthService(string root)
     {
@@ -85,7 +85,7 @@ public class AuthService
                     Username = inst.Id,
                     Salt = Convert.ToBase64String(salt),
                     Iterations = 100000,
-                    PasswordHash = Convert.ToBase64String(PBKDF2("123456", salt, 100000)),
+                    PasswordHash = Convert.ToBase64String(PBKDF2("12345678", salt, 100000)),
                     Admin = false,
                     InstanceId = inst.Id,
                 });
