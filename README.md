@@ -1,6 +1,6 @@
 # TakeTopDSH Team
 
-TakeTopDSH Team is a **web-based multi-user AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
+TakeTopDSH Team turns [DeepSeek Harness] into a **team-ready, multi-user platform**,it is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
 **Key Features**:
 - 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
@@ -13,7 +13,7 @@ TakeTopDSH Team is a **web-based multi-user AI collaboration platform** designed
 
 ---
 
-TakeTopDSH Team turns [DeepSeek Harness] into a **team-ready, multi-user platform**: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
+TakeTopDSH Team is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
 
 > **Dual-licensed.** The source code is released under **GPL-3.0** (free for unlimited use/modification/redistribution under its terms). Commercial users or teams that need commercial support and private deployment terms can obtain a **commercial license** from 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai)(EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing extra support should contact us for a paid license.
 
