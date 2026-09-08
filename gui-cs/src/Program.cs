@@ -119,6 +119,7 @@ app.MapPost("/api/logout", (HttpContext ctx) =>
 {
     var token = ctx.Request.Cookies["tt_session"];
     auth.DestroySession(token);
+    ctx.Response.Cookies.Delete("tt_inst");
     return Results.Ok(new { ok = true });
 });
 app.MapGet("/api/auth/me", (HttpContext ctx) =>
@@ -190,7 +191,7 @@ app.MapPost("/api/start", (StartRequest req) =>
     return new { ok = true };
 });
 app.MapPost("/api/stop", () => { dsh.Stop(); return new { ok = true }; });
-app.MapPost("/api/config", (ConfigRequest req) =>
+app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
 {
     if (req.Url != null)
     {
@@ -204,7 +205,7 @@ app.MapPost("/api/config", (ConfigRequest req) =>
     }
     if (req.ExternalUrl != null) dsh.SaveExternalUrl(req.ExternalUrl);
     if (req.DefaultLanguage != null) dsh.SaveDefaultLanguage(req.DefaultLanguage);
-    return new { ok = true, url = dsh.ReadCfgUrl(), externalUrl = dsh.ExternalUrl(), defaultLanguage = dsh.ReadDefaultLanguage() };
+    return Results.Json(new { ok = true, url = dsh.ReadCfgUrl(), externalUrl = dsh.ExternalUrl(), defaultLanguage = dsh.ReadDefaultLanguage() });
 });
 app.MapGet("/api/update", () => new { current = dsh.CurrentVersion(), latest = dsh.NpmLatest() });
 
@@ -1238,8 +1239,55 @@ app.Use(async (ctx, next) =>
         bool isAdmin = auth.Find(user)?.Admin == true;
         // Allow routing to a specific instance via ?inst=<id> (admin opening a
         // user's DSH through the launcher so it stays same-origin + injectable).
+        // When ?inst= is present, persist it in a cookie so ALL subsequent sub-
+        // requests (plugin bundles, API calls, etc.) route to the same instance.
+        // Without this, DSH SPA sub-requests lose the ?inst= param and get
+        // routed to the admin's default instance, causing 404s on plugin bundles.
         var reqInstance = ctx.Request.Query["inst"].FirstOrDefault()
             ?? ctx.Request.Query["instance"].FirstOrDefault();
+        // Referer fallback: sub-requests (plugin bundles, API calls) created inside
+        // a DSH iframe that was opened with ?inst=send a Referer of the parent
+        // page, e.g. http://127.0.0.1:46001/?inst=ericliu. Parse it so routing
+        // survives even if the tt_inst cookie isn't sent. This never touches the
+        // upstream URL, so DSH's exact-match serveBundle still finds the bundle.
+        if (string.IsNullOrEmpty(reqInstance))
+        {
+            var referer = ctx.Request.Headers["Referer"].ToString();
+            if (!string.IsNullOrEmpty(referer) && Uri.TryCreate(referer, UriKind.Absolute, out var refUri))
+            {
+                var rInst = ExtractQueryParam(refUri.Query, "inst");
+                if (!string.IsNullOrEmpty(rInst)) reqInstance = rInst;
+            }
+        }
+        if (!string.IsNullOrEmpty(reqInstance))
+        {
+            // Persist the instance id in a cookie so ALL subsequent sub-
+            // requests (plugin bundles, API calls, etc.) route to the same instance.
+            ctx.Response.Cookies.Append("tt_inst", reqInstance, new CookieOptions
+            {
+                Path = "/",
+                HttpOnly = false,
+                SameSite = SameSiteMode.Lax,
+                MaxAge = TimeSpan.FromMinutes(30)
+            });
+        }
+        else if (isAdmin)
+        {
+            var isRootNav = path == "/" || path == "";
+            if (isRootNav)
+            {
+                // Root navigation without ?inst= → admin's own DSH.
+                // Clear any stale tt_inst cookie so sub-requests don't route
+                // to a previously-opened user instance.
+                ctx.Response.Cookies.Delete("tt_inst");
+            }
+            else if (ctx.Request.Cookies.TryGetValue("tt_inst", out var savedInst) && !string.IsNullOrEmpty(savedInst))
+            {
+                // Sub-request (plugin bundle, API call) without ?inst= →
+                // use the cookie so it routes to the same instance.
+                reqInstance = savedInst;
+            }
+        }
         if (!string.IsNullOrEmpty(reqInstance))
         {
             var inst2 = instMgr.Get(reqInstance);
@@ -1342,11 +1390,15 @@ app.UseStaticFiles(new StaticFileOptions
 // and auto-start the dsh web process so it is ready to use immediately.
 _ = Task.Run(async () =>
 {
-    Console.WriteLine("[auto-start] Task started, root=" + root);
     await Task.Delay(500);
-    Console.WriteLine("[auto-start] Applying patches...");
+    // Re-apply all DSH package patches on every launcher start, so a restart
+    // after a DSH upgrade keeps every feature working. The admin default dsh
+    // keeps its settings visible; per-user instances hide it.
     DshPatcher.ApplyAll(root, hideSettings: false, m => Console.WriteLine("[patch] " + m));
-    Console.WriteLine("[auto-start] Patches done. Starting DSH...");
+    // Start the dsh web process on the configured port (background; the
+    // control page's "Open DSH Web" button waits for its token on demand).
+    // Retry up to 3 times with delays since DSH may need a moment after
+    // patching to be ready.
     var cfgPort = dsh.DefaultPort();
     for (var attempt = 1; attempt <= 3; attempt++)
     {
@@ -1355,9 +1407,12 @@ _ = Task.Run(async () =>
         try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine($"[auto-start] DSH start failed (attempt {attempt}): {ex.Message}"); }
         if (!dsh.IsRunning && attempt < 3) await Task.Delay(3000);
     }
-    Console.WriteLine(dsh.IsRunning
-        ? $"[auto-start] DSH is running on port {cfgPort}, token={dsh.TokenUrl() != null}"
-        : $"[auto-start] DSH failed to start after 3 attempts on port {cfgPort}");
+    if (dsh.IsRunning)
+        Console.WriteLine($"[auto-start] DSH is running on port {cfgPort}");
+    else
+        Console.WriteLine($"[auto-start] DSH failed to start after 3 attempts on port {cfgPort}");
+    // Auto-restore any instance persisted as running so its dsh is actually up
+    // (otherwise the card shows "运行中" but the port is dead and "打开" fails).
     foreach (var inst in instMgr.List())
         if (inst.Running)
         {
@@ -1698,6 +1753,12 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
 </script>";
 
             // Inject before </head> if present, otherwise before </body>.
+            // Only inject the auto-open workspace script. We deliberately do NOT
+            // patch <script> src URLs to carry ?inst=: DSH's serveBundle does an
+            // exact string match on pathname+search, so appending &inst=<id> would
+            // break the combo-URL lookup (404). Sub-request routing is instead
+            // handled server-side via the tt_inst cookie (set below) plus a
+            // Referer fallback (see ProxyToPort caller).
             var autoOpenInjected = autoOpenScript.Replace("__WSID__", wsIdJs ?? "");
             if (html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase) >= 0)
                 html = html.Replace("</head>", autoOpenInjected + "</head>", StringComparison.OrdinalIgnoreCase);
@@ -1817,6 +1878,25 @@ static void ParseSetCookie(string raw, List<(string Name, string Value, string A
     var name = nameValue.Substring(0, eqIdx).Trim();
     var value = nameValue.Substring(eqIdx + 1).Trim();
     results.Add((name, value, attrs));
+}
+
+// Pull a single query parameter out of a raw "?a=1&b=2" string. Avoids a
+// dependency on System.Web.HttpUtility (not guaranteed in .NET Core).
+static string? ExtractQueryParam(string query, string key)
+{
+    if (string.IsNullOrEmpty(query)) return null;
+    var q = query.StartsWith('?') ? query.Substring(1) : query;
+    foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+    {
+        if (string.Equals(pair, key, StringComparison.OrdinalIgnoreCase)) return "";
+        var eq = pair.IndexOf('=');
+        if (eq > 0 && string.Equals(pair.Substring(0, eq), key, StringComparison.OrdinalIgnoreCase))
+        {
+            var val = pair.Substring(eq + 1);
+            return Uri.UnescapeDataString(val.Replace('+', ' '));
+        }
+    }
+    return null;
 }
 
 record StartRequest(int? Port);

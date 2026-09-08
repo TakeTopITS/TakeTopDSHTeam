@@ -79,7 +79,8 @@
     + (inst ? '?inst=' + encodeURIComponent(inst) : '')
     + (token ? ((inst ? '&' : '?') + 'launcher_token=' + encodeURIComponent(token)) : '');
   var dshSrc = proto + '/'
-    + (inst ? '?inst=' + encodeURIComponent(inst) : '') + '?launcher_token=' + encodeURIComponent(token);
+    + (inst ? '?inst=' + encodeURIComponent(inst) : '')
+    + (token ? ((inst ? '&' : '?') + 'launcher_token=' + encodeURIComponent(token)) : '');
   document.getElementById('fmPane').src = fmSrc;
   document.getElementById('dshPane').src = dshSrc;
   document.getElementById('dshPane').onload = function() { applyWorkbarLang(); };

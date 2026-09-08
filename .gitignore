@@ -424,3 +424,18 @@ gui-cs/src/obj/
 # Local secrets
 .env
 *.local
+
+# ---- Runtime / credential data (auto-regenerated on first launch) ----
+# These are rebuilt automatically by the launcher, so they are safe to exclude
+# from the repo. Applies to clone-and-run: the app creates/derives them on boot.
+config/instances.json
+config/users.json
+# NOTE: .dsh/.credentials.yaml IS tracked (placeholder ph- keys, safe to share),
+# because DSH needs the template to seed per-instance credentials on first run.
+.dsh/launcher-token.txt
+.dsh/.anonymous-user-id
+.dsh/sessions/
+.dsh/storages/
+instances/
+logs/
+*.log

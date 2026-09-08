@@ -1,51 +1,61 @@
-﻿# Web鐣岄潰閰嶇疆
-# 璇ラ厤缃枃浠剁敤浜庤缃瓺eepSeek Harness鐨刉eb鐣岄潰
+# Web界面配置
+# 该配置文件用于设置DeepSeek Harness的Web界面
 
-# 鏈嶅姟鍣ㄩ厤缃?server:
-  # 鐩戝惉鍦板潃
+# 服务器配置
+server:
+  # 监听地址
   host: "0.0.0.0"
-  # 鐩戝惉绔彛
+  # 监听端口
   port: 46000
-  # 鏄惁鍚敤HTTPS
+  # 是否启用HTTPS
   https: false
-  # HTTPS璇佷功璺緞锛堝鏋滃惎鐢級
+  # HTTPS证书路径（如果启用）
   # cert: "/path/to/cert.pem"
   # key: "/path/to/key.pem"
 
-# 璁よ瘉閰嶇疆
+# 认证配置
 auth:
-  # 鏄惁鍚敤璁よ瘉
+  # 是否启用认证
   enabled: false
-  # 璁よ瘉鏂瑰紡: "api_key" | "token" | "oauth"
+  # 认证方式: "api_key" | "token" | "oauth"
   method: "api_key"
-  # API瀵嗛挜锛堝鏋滀娇鐢╝pi_key鏂瑰紡锛?  api_key: "ph-demo-placeholder-key-change-me"
-  # Token杩囨湡鏃堕棿锛堢锛?  token_expiry: 86400
+  # API密钥（如果使用api_key方式）
+  api_key: "ph-demo-placeholder-key-change-me"
+  # Token过期时间（秒）
+  token_expiry: 86400
 
-# 浼氳瘽閰嶇疆
+# 会话配置
 session:
-  # 浼氳瘽瀛樺偍璺緞
+  # 会话存储路径
   storage_path: "./sessions"
-  # 浼氳瘽瓒呮椂鏃堕棿锛堢锛?  timeout: 3600
-  # 鏈€澶у苟鍙戜細璇濇暟锛堝浜哄悓鏃朵娇鐢級
+  # 会话超时时间（秒）
+  timeout: 3600
+  # 最大并发会话数（多人同时使用）
   max_concurrent: 50
-  # 鏄惁鍚敤浼氳瘽鎸佷箙鍖?  persistence: true
+  # 是否启用会话持久化
+  persistence: true
 
-# 鍏变韩鏁版嵁閰嶇疆锛堝浜哄崗浣滅粡楠屾暟鎹級
+# 共享数据配置（多人协作经验数据）
 shared_data:
-  # 鍏变韩鏁版嵁鐩綍
+  # 共享数据目录
   path: "./sharedata"
-  # 鏄惁鍚敤鍏变韩鏁版嵁
+  # 是否启用共享数据
   enabled: true
-  # 鍏变韩鏁版嵁鍚屾闂撮殧锛堢锛?  sync_interval: 30
-  # 鍏变韩鏁版嵁绫诲瀷
+  # 共享数据同步间隔（秒）
+  sync_interval: 30
+  # 共享数据类型
   types:
-    - "skills"        # 鎶€鑳芥暟鎹?    - "prompts"       # 鎻愮ず璇嶆ā鏉?    - "code_snippets" # 浠ｇ爜鐗囨
-    - "best_practices" # 鏈€浣冲疄璺?    - "project_context" # 椤圭洰涓婁笅鏂?
-# Agent閰嶇疆
+    - "skills"        # 技能数据
+    - "prompts"       # 提示词模板
+    - "code_snippets" # 代码片段
+    - "best_practices" # 最佳实践
+    - "project_context" # 项目上下文
+
+# Agent配置
 agent:
-  # 榛樿Agent棰勮
+  # 默认Agent预设
   default_preset: "multi-agent"
-  # 鍙敤鐨凙gent棰勮鍒楄〃
+  # 可用的Agent预设列表
   available_presets:
     - "standard"
     - "multi-agent"
@@ -54,77 +64,88 @@ agent:
     - "reviewer"
     - "tester"
     - "documenter"
-  # Agent鎵ц閰嶇疆
+  # Agent执行配置
   execution:
-    # 鏈€澶у苟鍙慉gent鏁?    max_concurrent: 5
-    # Agent瓒呮椂鏃堕棿锛堢锛?    timeout: 300
-    # 鏄惁鍚敤鍚庡彴Agent
+    # 最大并发Agent数
+    max_concurrent: 5
+    # Agent超时时间（秒）
+    timeout: 300
+    # 是否启用后台Agent
     background_enabled: true
 
-# 宸ヤ綔鍖洪厤缃?workspace:
-  # 榛樿宸ヤ綔鍖鸿矾寰勶紙鐢辩鐞嗛〉閰嶇疆锛岃繖閲岀暀绌猴級
+# 工作区配置
+workspace:
+  # 默认工作区路径（由管理页配置，这里留空）
   default_path: ""
-  # 鏄惁鍏佽璁块棶宸ヤ綔鍖哄鐨勬枃浠?  allow_external_access: false
-  # 鍙椾繚鎶ょ殑璺緞鍒楄〃锛堢姝gent璁块棶锛?  protected_paths:
+  # 是否允许访问工作区外的文件
+  allow_external_access: false
+  # 受保护的路径列表（禁止Agent访问）
+  protected_paths:
     - ".git"
     - "node_modules"
     - ".vs"
 
-# 鏃ュ織閰嶇疆
+# 日志配置
 logging:
-  # 鏃ュ織绾у埆: "debug" | "info" | "warn" | "error"
+  # 日志级别: "debug" | "info" | "warn" | "error"
   level: "info"
-  # 鏃ュ織瀛樺偍璺緞
+  # 日志存储路径
   path: "./logs"
-  # 鏄惁鍚敤鎺у埗鍙版棩蹇?  console: true
-  # 鏄惁鍚敤鏂囦欢鏃ュ織
+  # 是否启用控制台日志
+  console: true
+  # 是否启用文件日志
   file: true
-  # 鏃ュ織鏂囦欢鏈€澶уぇ灏忥紙MB锛?  max_size: 100
-  # 淇濈暀鐨勬棩蹇楁枃浠舵暟閲?  max_files: 10
+  # 日志文件最大大小（MB）
+  max_size: 100
+  # 保留的日志文件数量
+  max_files: 10
 
-# 鎻掍欢閰嶇疆
+# 插件配置
 plugins:
-  # 鏄惁鍚敤鎻掍欢绯荤粺
+  # 是否启用插件系统
   enabled: true
-  # 鎻掍欢瀛樺偍璺緞
+  # 插件存储路径
   path: "./plugins"
-  # 鑷姩鍔犺浇鐨勬彃浠跺垪琛?  auto_load: []
+  # 自动加载的插件列表
+  auto_load: []
 
-# 瀹夊叏閰嶇疆
+# 安全配置
 security:
-  # 鏄惁鍚敤娌欑妯″紡
+  # 是否启用沙箱模式
   sandbox_enabled: true
-  # 娌欑绫诲瀷: "local" | "docker" | "remote"
+  # 沙箱类型: "local" | "docker" | "remote"
   sandbox_type: "local"
-  # 鍛戒护鐧藉悕鍗曪紙鍏佽鎵ц鐨勫懡浠わ級
+  # 命令白名单（允许执行的命令）
   command_whitelist:
     - "dotnet"
     - "git"
     - "npm"
     - "pnpm"
     - "node"
-  # 鍛戒护榛戝悕鍗曪紙绂佹鎵ц鐨勫懡浠わ級
+  # 命令黑名单（禁止执行的命令）
   command_blacklist:
     - "rm -rf"
     - "format"
     - "del"
 
-# 鎬ц兘閰嶇疆
+# 性能配置
 performance:
-  # 鏄惁鍚敤缂撳瓨
+  # 是否启用缓存
   cache_enabled: true
-  # 缂撳瓨澶у皬锛圡B锛?  cache_size: 1000
-  # 鏄惁鍚敤鍘嬬缉
+  # 缓存大小（MB）
+  cache_size: 1000
+  # 是否启用压缩
   compression_enabled: true
-  # 鏈€澶ц姹傚ぇ灏忥紙MB锛?  max_request_size: 50
+  # 最大请求大小（MB）
+  max_request_size: 50
 
-# 鐩戞帶閰嶇疆
+# 监控配置
 monitoring:
-  # 鏄惁鍚敤鐩戞帶
+  # 是否启用监控
   enabled: true
-  # 鐩戞帶绔彛
+  # 监控端口
   port: 46001
-  # 鏄惁鍚敤鎸囨爣鏀堕泦
+  # 是否启用指标收集
   metrics: true
-  # 鏄惁鍚敤鍋ュ悍妫€鏌?  health_check: true
-
+  # 是否启用健康检查
+  health_check: true
