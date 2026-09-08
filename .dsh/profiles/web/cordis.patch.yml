@@ -4,11 +4,11 @@
 
 - id: sandbox-policy
   config:
-    workspaceRoot: E:/WorkBuddy
+    workspaceRoot: E:/WorkBuddy/WorkSpace
 
 - id: fs-sandbox
   config:
-    cwd: E:/WorkBuddy
+    cwd: E:/WorkBuddy/WorkSpace
     mode: workspace-write
 
 - id: system-prompt
@@ -18,7 +18,7 @@
 
       FILE ACCESS RULES (STRICTLY ENFORCED):
       1. You may ONLY read and write files within your workspace at {{cwd}}.
-      2. You may ONLY READ (never write, modify, or delete) files in the shared docs directory: E:/WorkBuddy/TakeTopDSHTeamDP/docs
+      2. You may ONLY READ (never write, modify, or delete) files in the shared docs directory: E:/WorkBuddy/TakeTopDshTeam/docs
       3. You must NOT access, read, list, or reference any files or directories outside your workspace and the docs directory above.
       4. If a task requires accessing files outside these directories, inform the user that access is restricted.
       5. Use web search or web fetch tools for external resources instead of local file access.

@@ -54,13 +54,32 @@ if exist "%~dp0node\node.exe" (
 REM ---- Launch the launcher ----
 echo Starting TakeTopDSH Team Launcher...
 start "" "%LAUNCHER_EXE%"
+
+REM ---- Wait until the launcher HTTP endpoint is actually reachable. ----
+REM Poll every 1s up to 90s; do NOT open the browser before it is ready, so the
+REM user never sees a "connection failed / could not connect" page.
+echo Waiting for launcher to start (click Stop / close to abort)...
+set /a WAIT=0
+:waitloop
+powershell -NoProfile -Command "try { $r=Invoke-WebRequest -Uri '%LAUNCHER_URL%' -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }" >nul 2>&1
+if %errorLevel% equ 0 goto ready
+set /a WAIT+=1
+if %WAIT% geq 90 (
+    echo.
+    echo WARNING: launcher not responding yet on %LAUNCHER_URL%.
+    echo It may still be starting (first run can take longer).
+    echo Press Ctrl+C here to abort, or keep waiting and it will retry.
+    set /a WAIT=0
+)
+timeout /t 1 /nobreak >nul
+goto waitloop
+
+:ready
 echo.
 echo ========================================
-echo   Launcher is running.
-echo   Opening browser in 3 seconds...
+echo   Launcher is up. Opening browser...
 echo ========================================
 echo.
-timeout /t 3 /nobreak >nul
 start "" "%LAUNCHER_URL%"
 echo.
 echo Press any key to stop the launcher and close this window...
