@@ -4,11 +4,11 @@
 
 - id: sandbox-policy
   config:
-    workspaceRoot: E:/WorkBuddy
+    workspaceRoot: E:/WorkSpace
 
 - id: fs-sandbox
   config:
-    cwd: E:/WorkBuddy
+    cwd: E:/WorkSpace
     mode: workspace-write
 
 - id: system-prompt

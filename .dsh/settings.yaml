@@ -41,4 +41,4 @@ ui-onboarding:
 permission:
   defaultPreset: workspace-write
 locale:
-  preference: en
+  preference: zh

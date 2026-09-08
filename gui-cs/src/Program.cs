@@ -192,7 +192,16 @@ app.MapPost("/api/start", (StartRequest req) =>
 app.MapPost("/api/stop", () => { dsh.Stop(); return new { ok = true }; });
 app.MapPost("/api/config", (ConfigRequest req) =>
 {
-    if (req.Url != null) dsh.SaveCfgUrl(req.Url);
+    if (req.Url != null)
+    {
+        // Reject URL pointing to the launcher port to prevent self-proxy loops.
+        if (Uri.TryCreate(req.Url, UriKind.Absolute, out var uri) &&
+            uri.Port.ToString() == launcherPort)
+        {
+            return Results.Json(new { ok = false, error = $"Cannot set DSH URL to launcher port {launcherPort}; use 46000 instead." }, statusCode: 400);
+        }
+        dsh.SaveCfgUrl(req.Url);
+    }
     if (req.ExternalUrl != null) dsh.SaveExternalUrl(req.ExternalUrl);
     if (req.DefaultLanguage != null) dsh.SaveDefaultLanguage(req.DefaultLanguage);
     return new { ok = true, url = dsh.ReadCfgUrl(), externalUrl = dsh.ExternalUrl(), defaultLanguage = dsh.ReadDefaultLanguage() };
