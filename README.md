@@ -1,7 +1,5 @@
 # TakeTopDSH Team
 
-**Multi-user DeepSeek Harness workspace, self-hosted and copy-to-run.**
-
 TakeTopDSH Team is a **web-based multi-user AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
 **Key Features**:
