@@ -1348,24 +1348,16 @@ _ = Task.Run(async () =>
     DshPatcher.ApplyAll(root, hideSettings: false, m => Console.WriteLine("[patch] " + m));
     Console.WriteLine("[auto-start] Patches done. Starting DSH...");
     var cfgPort = dsh.DefaultPort();
-    // Use DshService.Start() so token URL is captured from DSH stdout.
-    if (!dsh.IsRunning)
+    for (var attempt = 1; attempt <= 3; attempt++)
     {
-        try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine("[auto-start] DSH start failed: " + ex.Message); }
-    }
-    // If DSH still not running, wait and retry once.
-    if (!dsh.IsRunning)
-    {
-        Console.WriteLine("[auto-start] DSH not running, waiting 5s then retrying...");
-        await Task.Delay(5000);
-        if (!dsh.IsRunning)
-        {
-            try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine("[auto-start] DSH retry failed: " + ex.Message); }
-        }
+        if (dsh.IsRunning) break;
+        Console.WriteLine($"[auto-start] Attempt {attempt}/3 to start DSH on port {cfgPort}...");
+        try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine($"[auto-start] DSH start failed (attempt {attempt}): {ex.Message}"); }
+        if (!dsh.IsRunning && attempt < 3) await Task.Delay(3000);
     }
     Console.WriteLine(dsh.IsRunning
         ? $"[auto-start] DSH is running on port {cfgPort}, token={dsh.TokenUrl() != null}"
-        : $"[auto-start] DSH failed to start on port {cfgPort}");
+        : $"[auto-start] DSH failed to start after 3 attempts on port {cfgPort}");
     foreach (var inst in instMgr.List())
         if (inst.Running)
         {
