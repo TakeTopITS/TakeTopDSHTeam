@@ -62,7 +62,31 @@ public class InstanceManager
         _instancesDir = Path.Combine(root, "config", "instances.json");
         _dshTemplate = Path.Combine(root, ".dsh");
         _basePort = basePort;
+        // A fresh clone has no admin root .dsh/.credentials.yaml (it is gitignored,
+        // since it holds the real API key). Ensure a placeholder template exists so
+        // DSH can start and instances can seed their credentials. The admin then
+        // replaces the placeholder with the real key in the DSH UI.
+        EnsureAdminCredentialsTemplate();
         Load();
+    }
+
+    private void EnsureAdminCredentialsTemplate()
+    {
+        try
+        {
+            var tpl = Path.Combine(_dshTemplate, ".credentials.yaml");
+            if (File.Exists(tpl)) return;
+            var y = new System.Text.StringBuilder();
+            y.AppendLine("version: 1");
+            y.AppendLine("refs:");
+            y.AppendLine("  DEEPSEEK_API_KEY: \"ph-demo-placeholder-key-change-me\"");
+            System.IO.Directory.CreateDirectory(_dshTemplate);
+            File.WriteAllText(tpl, y.ToString());
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[instance] admin credential template seed failed: {ex.Message}");
+        }
     }
 
     public IReadOnlyList<Instance> List() => _instances.ToList();
@@ -385,6 +409,10 @@ public class InstanceManager
 
     // Copy the `refs` block (API keys) from the .dsh template into a fresh instance's
     // .credentials.yaml, but generate a NEW browser-session secret for that instance.
+    // The API key (refs/*) is inherited from the ADMIN's root template each time the
+    // instance starts, so a single key set by the admin on the admin DSH is shared
+    // by every user instance. Per-instance records/* (browser-session secret) are
+    // preserved; only refs/* values are refreshed from the shared template.
     private void EnsureSharedCredentials(string destDshHome)
     {
         try
@@ -393,33 +421,74 @@ public class InstanceManager
             var srcCred = Path.Combine(_dshTemplate, ".credentials.yaml");
             if (!File.Exists(srcCred)) return;
 
-            // Extract the refs block from the template (everything under `refs:`).
-            var srcLines = File.ReadAllLines(srcCred);
-            var refs = new List<string>();
-            bool inRefs = false;
-            foreach (var ln in srcLines)
+            // Parse src refs as name->value pairs.
+            var srcRefs = ParseRefs(File.ReadAllLines(srcCred));
+            if (srcRefs.Count == 0) return;
+
+            if (!File.Exists(destCred))
+            {
+                // Fresh instance: write version + refs. DSH generates its own
+                // records/browser-session secret on first boot (strict format).
+                var y = new System.Text.StringBuilder();
+                y.AppendLine("version: 1");
+                foreach (var kv in srcRefs) y.AppendLine($"{kv.Key}: \"{kv.Value}\"");
+                File.WriteAllText(destCred, y.ToString());
+                return;
+            }
+
+            // Existing instance: refresh only the refs values in place, preserving
+            // everything else (version, records/..., per-instance secret).
+            var destLines = File.ReadAllLines(destCred).ToList();
+            var inRefs = false;
+            var newLines = new List<string>();
+            var seenRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ln in destLines)
             {
                 var trimmed = ln.TrimStart();
-                if (trimmed.StartsWith("refs:")) { inRefs = true; refs.Add(ln); continue; }
+                if (trimmed.StartsWith("refs:")) { inRefs = true; newLines.Add(ln); continue; }
                 if (inRefs)
                 {
-                    // Stop when we hit the next top-level key (no leading space at col 0).
-                    if (ln.Length > 0 && !ln.StartsWith(" ") && !ln.StartsWith("\t")) { inRefs = false; break; }
-                    refs.Add(ln);
+                    // Next top-level key ends the refs block.
+                    if (ln.Length > 0 && !ln.StartsWith(" ") && !ln.StartsWith("\t"))
+                    {
+                        inRefs = false;
+                        // Append any src refs not already present in dest.
+                        foreach (var kv in srcRefs)
+                        {
+                            if (!seenRefs.Contains(kv.Key))
+                            {
+                                newLines.Add($"{kv.Key}: \"{kv.Value}\"");
+                                seenRefs.Add(kv.Key);
+                            }
+                        }
+                        newLines.Add(ln);
+                        continue;
+                    }
+                    // A refs entry "NUM: value" -> if key is in srcRefs, override value.
+                    var eq = trimmed.IndexOf(':');
+                    if (eq > 0)
+                    {
+                        var key = trimmed.Substring(0, eq).Trim().Trim('"');
+                        if (srcRefs.TryGetValue(key, out var val))
+                        {
+                            var indent = ln.Substring(0, ln.Length - ln.TrimStart().Length);
+                            newLines.Add($"{indent}{key}: \"{val}\"");
+                            seenRefs.Add(key);
+                            continue;
+                        }
+                    }
+                    newLines.Add(ln);
+                    continue;
                 }
+                newLines.Add(ln);
             }
-            if (refs.Count == 0) return;
-
-            // Generate a fresh per-instance browser-session secret.
-            var secret = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-
-            var yaml = new System.Text.StringBuilder();
-            yaml.AppendLine("version: 1");
-            foreach (var ln in refs) yaml.AppendLine(ln);
-            // Do NOT write a records/client-connection/browser-session section here.
-            // DSH validates the secret format strictly and rejects our generated
-            // values, causing a startup crash. Let DSH generate it on first boot.
-            File.WriteAllText(destCred, yaml.ToString());
+            // If the file never had a refs block (shouldn't happen), append one.
+            if (!destLines.Any(d => d.TrimStart().StartsWith("refs:")))
+            {
+                newLines.Add("refs:");
+                foreach (var kv in srcRefs) newLines.Add($"  {kv.Key}: \"{kv.Value}\"");
+            }
+            File.WriteAllLines(destCred, newLines);
         }
         catch (Exception ex)
         {
@@ -427,10 +496,38 @@ public class InstanceManager
         }
     }
 
+    private static Dictionary<string, string> ParseRefs(string[] lines)
+    {
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        bool inRefs = false;
+        foreach (var ln in lines)
+        {
+            var t = ln.TrimStart();
+            if (t.StartsWith("refs:")) { inRefs = true; continue; }
+            if (inRefs)
+            {
+                if (ln.Length > 0 && !ln.StartsWith(" ") && !ln.StartsWith("\t")) break;
+                var eq = t.IndexOf(':');
+                if (eq > 0)
+                {
+                    var k = t.Substring(0, eq).Trim().Trim('"');
+                    var v = t.Substring(eq + 1).Trim().Trim('"', '\'').Trim();
+                    d[k] = v;
+                }
+            }
+        }
+        return d;
+    }
+
     public void Start(Instance inst)
     {
         lock (_gate)
         {
+            // Sync the shared API key from the admin template BEFORE the early-return
+            // below, so even an instance that is already running (e.g. auto-restored
+            // on launcher start) gets the real DeepSeek key the admin configured.
+            try { EnsureSharedCredentials(inst.DshHome); } catch { }
+
             if (inst.Proc is { HasExited: false }) return;
 
             // Reclaim a stale process (and its OS-user child tree) on this instance's

@@ -417,9 +417,11 @@ config/users.json
 # Internal development session/work logs (not project docs)
 docs/
 # Compiled launcher output — ignore build intermediates but KEEP the self-contained
-# publish folder so a fresh clone has the launcher exe and runs out of the box
-# (no .NET SDK required on the target machine).
-dsh-launcher/
+# publish folders so a fresh clone runs out of the box without the .NET SDK.
+# start.bat (Windows) uses gui-cs/src/bin/.../publish/; start.sh (Linux/macOS)
+# uses dsh-launcher/linux-*/ and dsh-launcher/osx-arm64/. The dsh-launcher/win-x64/
+# copy is redundant (start.bat uses gui-cs publish) so it stays ignored.
+dsh-launcher/win-x64/
 gui-cs/src/obj/
 *.pdb
 # Local secrets
@@ -431,8 +433,11 @@ gui-cs/src/obj/
 # from the repo. Applies to clone-and-run: the app creates/derives them on boot.
 config/instances.json
 config/users.json
-# NOTE: .dsh/.credentials.yaml IS tracked (placeholder ph- keys, safe to share),
-# because DSH needs the template to seed per-instance credentials on first run.
+# NOTE: .dsh/.credentials.yaml is NOT checked in — it contains the REAL DeepSeek
+# API key + session secret the admin configures. The launcher auto-generates a
+# placeholder version (ph-... ) on first boot so a fresh clone can start; the
+# admin then sets the real key in the DSH UI.
+.dsh/.credentials.yaml
 .dsh/launcher-token.txt
 .dsh/.anonymous-user-id
 .dsh/sessions/
@@ -440,12 +445,8 @@ config/users.json
 instances/
 logs/
 *.log
-# ---- Keep self-contained launcher publish output for clone-and-run ----
-!gui-cs/
-!gui-cs/src/
-!gui-cs/src/bin/
-!gui-cs/src/bin/Release/
-!gui-cs/src/bin/Release/net10.0/
-!gui-cs/src/bin/Release/net10.0/win-x64/
-!gui-cs/src/bin/Release/net10.0/win-x64/publish/
-!gui-cs/src/bin/Release/net10.0/win-x64/publish/**
+# Build output (bin/) is ignored wholesale by the standard [Bb]in/ rule above.
+# The self-contained launcher folder gui-cs/src/bin/Release/net10.0/win-x64/publish/
+# is deliberately TRACKED (a copy is added to the repo) so a fresh clone has the
+# launcher exe and runs out of the box without needing the .NET SDK. New build
+# intermediates inside bin/ are ignored via [Bb]in/.

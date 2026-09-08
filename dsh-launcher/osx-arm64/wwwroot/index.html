@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TakeTop DSH Web Launcher</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #1c1e21; }
+  .wrap { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border: 1px solid #e0e2e6; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  h1 { font-size: 20px; margin: 0 0 14px; }
+  h2 { font-size: 15px; margin: 10px 0 6px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  label { font-weight: 600; font-size: 14px; }
+  input { padding: 6px 8px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 14px; width: 120px; }
+  button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; }
+  button.secondary { background: #64748b; }
+  button.danger { background: #dc2626; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.running { background: #16a34a; }
+  .dot.stopped { background: #9ca3af; }
+  #logs { background: #0f172a; color: #cbd5e1; font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; height: 240px; overflow-y: auto; white-space: pre-wrap; }
+  .muted { color: #6b7280; font-size: 13px; }
+  .ok { color: #16a34a; }
+  .err { color: #dc2626; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .topbar select { padding: 6px 10px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 14px; background: #fff; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #c8ccd2; border-top-color:#2563eb; border-radius:50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<!-- Login gate -->
+<div id="loginGate" style="position:fixed;inset:0;background:#f5f6f8;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #e0e2e6;border-radius:12px;padding:28px 34px;width:340px;box-shadow:0 10px 30px rgba(0,0,0,.08);">
+    <h2 style="margin:0 0 4px;font-size:19px;" id="loginTitle">TakeTop DSH Web 登录</h2>
+    <div style="color:#6b7280;font-size:13px;margin-bottom:16px;" id="loginSub">请输入用户名和密码</div>
+    <div class="row" style="margin-bottom:10px;">
+      <input id="loginUser" placeholder="用户名" style="width:100%;" />
+    </div>
+    <div class="row" style="margin-bottom:14px;">
+      <input id="loginPass" type="password" placeholder="密码" style="width:100%;" />
+    </div>
+    <button id="loginBtn" style="width:100%;">登录</button>
+    <div id="loginMsg" class="muted" style="margin-top:8px;color:#dc2626;"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="topbar">
+    <div></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="userInfo" class="muted"></span>
+      <button id="changePassBtn" class="secondary" style="display:none;" data-i18n="changePass">改密码</button>
+      <button id="logoutBtn" class="secondary" style="display:none;" data-i18n="logout">退出登录</button>
+      <select id="langSelect">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" data-admin>
+    <h1 data-i18n="title">TakeTop DSH Web 启动器</h1>
+    <div class="row">
+      <label data-i18n="port">端口</label>
+      <input id="port" type="number" value="46000" />
+      <button id="startBtn" data-i18n="start">▶ 启动</button>
+      <button id="stopBtn" class="danger" data-i18n="stop">■ 停止</button>
+      <a id="openWebBtn" class="secondary" onclick="openWithToken()" data-i18n="openDsh">打开 DSH Web</a>
+    </div>
+    <div class="status"><span id="dot" class="dot stopped"></span><span id="stateText">Stopped</span></div>
+    <div id="tokenHint" class="muted" style="min-height:18px;margin-top:6px;"></div>
+  </div>
+
+  <div class="card" data-admin>
+    <h2 data-i18n="configTitle">配置</h2>
+    <div class="row">
+      <label data-i18n="cfgUrl">appsettings URL</label>
+      <input id="cfgUrl" style="width: 260px" />
+      <button id="saveCfgBtn" class="secondary" data-i18n="save">保存</button>
+      <span id="cfgSaved" class="muted"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="extUrl">外部访问地址</label>
+      <input id="extUrl" style="width: 260px" data-ph="extUrlPh" />
+    </div>
+    <div class="row">
+      <label data-i18n="workspace">工作区路径</label>
+      <input id="workspace" style="width: 280px" data-ph="workspacePh" />
+      <button id="browseWsBtn" class="secondary" data-i18n="browse">浏览</button>
+      <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
+      <span id="wsSaved" class="muted"></span>
+    </div>
+    <div class="muted" style="margin-top:4px" id="configHint"></div>
+  </div>
+
+  <div class="card" data-admin>
+    <h2 data-i18n="instTitle">实例管理（多用户）</h2>
+    <div class="row">
+      <label data-i18n="instName">用户名</label>
+      <input id="instId" style="width: 140px" placeholder="userA" oninput="updateInstWs()" />
+      <label data-i18n="instWs">工作区</label>
+      <input id="instWs" style="width: 240px" placeholder="留空=自动按 全局工作区/用户名" data-ph="instWsPh" />
+      <label data-i18n="instPass">密码</label>
+      <input id="instPass" type="password" style="width: 120px" placeholder="******" />
+      <button id="createInstBtn" class="secondary" data-i18n="instCreate">新建实例</button>
+      <span id="instMsg" class="muted"></span>
+    </div>
+    <div id="instList" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- Non-admin: show only own instance info -->
+  <div class="card" id="userInstanceCard" style="display:none;">
+    <h2 data-i18n="myInstance">我的实例</h2>
+    <div id="userInstanceInfo" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card" data-admin>
+    <h2 data-i18n="updateTitle">更新</h2>
+    <div class="row">
+      <button id="checkUpdateBtn" class="secondary" data-i18n="checkUpdate">Check Update</button>
+      <span id="verInfo" class="muted" style="display:inline-flex;align-items:center;gap:6px;"></span>
+    </div>
+  </div>
+
+  <div class="card" data-admin>
+    <h2 data-i18n="logTitle">日志</h2>
+    <div class="row">
+      <button id="clearLogs" class="secondary" data-i18n="clear">清空</button>
+    </div>
+    <div id="logs"></div>
+    <div class="muted" style="margin-top:6px" data-i18n="dshRoot">DSH Root: <span id="rootPath"></span></div>
+  </div>
+</div>
+
+<!-- Modal: browse server directories to pick a workspace -->
+<div id="browseModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:10px; width:560px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,.25);">
+    <div style="padding:14px 18px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
+      <strong data-i18n="browseTitle">选择服务器目录（工作区）</strong>
+      <button id="browseCloseBtn" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
+    </div>
+    <div id="browseBreadcrumb" style="padding:8px 18px; font-size:13px; color:#2563eb; word-break:break-all; border-bottom:1px solid #f0f0f0;"></div>
+    <div id="browseList" style="flex:1; overflow-y:auto; padding:6px 10px; min-height:260px; max-height:48vh; font-size:14px;"></div>
+    <div style="padding:12px 18px; border-top:1px solid #eee; display:flex; gap:10px; align-items:center;">
+      <input id="browsePath" style="flex:1;" data-ph="browsePathPh" />
+      <button id="browseUpBtn" class="secondary" data-i18n="upDir">上一级</button>
+      <button id="browseSelectBtn" class="secondary" data-i18n="selectDir">选定此目录</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: change password (user) / reset password (admin) -->
+<div id="passModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:10px; width:360px; max-width:92vw; box-shadow:0 10px 30px rgba(0,0,0,.25);">
+    <div style="padding:14px 18px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
+      <strong id="passModalTitle" data-i18n="changePassTitle">修改密码</strong>
+      <button id="passModalClose" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div id="passOldRow" style="margin-bottom:10px;">
+        <label data-i18n="oldPass">旧密码</label><br/>
+        <input id="passOld" type="password" style="width:100%;margin-top:4px;" />
+      </div>
+      <div style="margin-bottom:10px;">
+        <label id="passNewLabel" data-i18n="newPass">新密码</label><br/>
+        <input id="passNew" type="password" style="width:100%;margin-top:4px;" />
+      </div>
+      <div style="margin-bottom:14px;">
+        <label data-i18n="confirmPass">确认新密码</label><br/>
+        <input id="passConfirm" type="password" style="width:100%;margin-top:4px;" />
+      </div>
+      <input id="passTargetUser" type="hidden" value="" />
+      <button id="passSaveBtn" style="width:100%;">OK</button>
+      <div id="passMsg" style="margin-top:8px;font-size:13px;color:#dc2626;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let logCursor = 0;
+let isAdmin = false;
+let globalWorkspacePath = '';
+
+// ---- i18n ----
+const I18N = {
+  zh: {
+    title: "TakeTop DSH Web 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
+    openDsh: "打开 DSH Web", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "启动", instStop: "停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTop DSH Web 登录", loginSub: "请输入用户名和密码",
+    extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
+    workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
+    browse: "浏览", save: "保存", updateTitle: "更新", checkUpdate: "Check Update", checking: "检查中...", checkFail: "检查失败: ",
+    logTitle: "日志", clear: "清空", dshRoot: "DSH Root: ",
+    configHint: "工作区是 AI 读写文件、执行命令的根目录（服务器上的目录）。点\"浏览\"从服务器目录里选，或手动输入。留空则用 dsh 默认（安装目录）。更改后需重新启动 DSH Web 生效。外部访问地址填反向代理对外的地址（供 dsh 信任代理 Host），留空表示仅本机使用。",
+    browseTitle: "选择服务器目录（工作区）", browsePathPh: "当前目录", upDir: "上一级", selectDir: "选定此目录", selfDirDeny: "不能选择 TakeTopDSH 自身的目录", selfDirDenyMsg: "不能以此为工作区（会修改 TakeTopDSH 自身）",
+    loading: "加载中...", noRoots: "（没有可浏览的根目录）", noSub: "（此目录下没有子文件夹）", cannotRead: "无法读取该目录：",
+    stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
+    gettingAddr: "正在获取访问地址，请稍候...", readyOpen: "就绪，正在打开...",
+    timeoutHint: "等待超时：未能获取访问地址，请确认 DSH Web 已启动（状态显示 Running）。",
+    getAddrFail: "获取访问地址失败：", saved: "已保存", saveFail: "保存失败",
+    verCur: "当前 ", verLatest: " | 最新 ", verNo: " | 无法检测",
+    changePass: "改密码", changePassTitle: "修改密码", oldPass: "旧密码", newPass: "新密码", confirmPass: "确认新密码",
+    passChanged: "密码已修改", passChangeFail: "修改失败", passMismatch: "两次输入的新密码不一致",
+    resetPass: "重置密码", resetPassTitle: "重置密码", resetPassDone: "密码已重置",
+    resetPassNew: "新密码", resetPassConfirm: "确认新密码",
+    myInstance: "我的实例"
+  },
+  en: {
+    title: "TakeTop DSH Web Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
+    openDsh: "Open DSH Web", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "Start", instStop: "Stop", instOpen: "Open", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto 全局工作区/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTop DSH Web Login", loginSub: "Enter username and password",
+    extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
+    workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
+    browse: "Browse", save: "Save", updateTitle: "Update", checkUpdate: "Check Update", checking: "Checking...", checkFail: "Check failed: ",
+    logTitle: "Logs", clear: "Clear", dshRoot: "DSH Root: ",
+    configHint: "Workspace is the server directory where AI reads/writes files and runs commands. Click Browse to pick a server folder, or type it. Leave empty to use the dsh default (install dir). Restart DSH Web after changing. External URL is the reverse-proxy public address (lets dsh trust the proxy Host); empty = local only.",
+    browseTitle: "Choose a server directory (workspace)", browsePathPh: "Current directory", upDir: "Up", selectDir: "Select this directory", selfDirDeny: "Cannot choose TakeTopDSH's own directory", selfDirDenyMsg: "Cannot use this as workspace (would modify TakeTopDSH itself)",
+    loading: "Loading...", noRoots: "(no browsable roots)", noSub: "(no subfolders here)", cannotRead: "Cannot read directory: ",
+    stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
+    gettingAddr: "Getting access URL, please wait...", readyOpen: "Ready, opening...",
+    timeoutHint: "Timed out: could not get the access URL. Make sure DSH Web is running (status shows Running).",
+    getAddrFail: "Failed to get access URL: ", saved: "Saved", saveFail: "Save failed",
+    verCur: "Current ", verLatest: " | Latest ", verNo: " | unavailable",
+    changePass: "Change Password", changePassTitle: "Change Password", oldPass: "Old password", newPass: "New password", confirmPass: "Confirm new password",
+    passChanged: "Password changed", passChangeFail: "Change failed", passMismatch: "New passwords do not match",
+    resetPass: "Reset Password", resetPassTitle: "Reset Password", resetPassDone: "Password reset",
+    resetPassNew: "New password", resetPassConfirm: "Confirm new password",
+    myInstance: "My Instance"
+  }
+};
+
+let LANGS = I18N.zh;
+function t(key) { return LANGS[key] || key; }
+
+function applyLang(lang) {
+  LANGS = I18N[lang] || I18N.zh;
+  document.documentElement.lang = lang;
+  // static texts
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    // For dshRoot, keep inner span
+    if (key === 'dshRoot') {
+      el.childNodes[0].nodeValue = t('dshRoot');
+      return;
+    }
+    el.textContent = t(key);
+  });
+  // placeholders
+  document.querySelectorAll('[data-ph]').forEach(el => {
+    const key = el.getAttribute('data-ph');
+    el.setAttribute('placeholder', t(key));
+  });
+  localStorage.setItem('tt_lang', lang);
+}
+
+async function refresh() {
+  const st = await (await fetch('/api/status')).json();
+  const on = st.state === 'running';
+  $('#dot').className = 'dot ' + (on ? 'running' : 'stopped');
+  $('#stateText').textContent = on ? (st.pid ? (t('stateRunningPid') + st.pid + ')') : t('stateRunning')) : t('stateStopped');
+  $('#startBtn').disabled = on;
+  $('#stopBtn').disabled = !on;
+}
+
+async function loadLogs() {
+  const r = await (await fetch('/api/logs?from=' + logCursor)).json();
+  if (r.logs.length) {
+    const box = $('#logs');
+    box.textContent += r.logs.join('\n') + '\n';
+    box.scrollTop = box.scrollHeight;
+    logCursor = r.total;
+  }
+}
+
+async function loadConfig() {
+  const c = await (await fetch('/api/config')).json();
+  $('#rootPath').textContent = c.root;
+  DshSelfRoot = c.root || '';   // remember this app's own dir (never selectable as workspace)
+  $('#cfgUrl').value = c.url;
+  $('#extUrl').value = c.externalUrl || '';
+  $('#port').value = c.url.split(':').pop() || 46000;
+  try {
+    const w = await (await fetch('/api/workspace')).json();
+    $('#workspace').value = w.workspace || '';
+    globalWorkspacePath = w.workspace || '';
+  } catch (e) { /* workspace endpoint optional */ }
+}
+
+async function init() {
+  $('#startBtn').onclick = async () => {
+    const port = parseInt($('#port').value) || 46000;
+    logCursor = 0; $('#logs').textContent = '';
+    await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port }) });
+    refresh();
+  };
+  $('#stopBtn').onclick = async () => { await fetch('/api/stop', { method: 'POST' }); refresh(); };
+  $('#saveCfgBtn').onclick = async () => {
+    const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: $('#cfgUrl').value, externalUrl: $('#extUrl').value }) });
+    $('#cfgSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
+    setTimeout(() => $('#cfgSaved').textContent = '', 1500);
+  };
+  $('#saveWsBtn').onclick = async () => {
+    const v = $('#workspace').value;
+    if (isSelfDir(v)) {
+      $('#wsSaved').textContent = t('selfDirDenyMsg');
+      setTimeout(() => $('#wsSaved').textContent = '', 3000);
+      return;
+    }
+    const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: $('#workspace').value }) });
+    $('#wsSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
+    setTimeout(() => $('#wsSaved').textContent = '', 1500);
+  };
+  $('#checkUpdateBtn').onclick = async () => {
+    const btn = $('#checkUpdateBtn');
+    const info = $('#verInfo');
+    btn.disabled = true;
+    info.innerHTML = '<span class="spinner"></span> ' + t('checking');  // show spinner + text
+    try {
+      const res = await fetch('/api/update', { method: 'GET' });
+      const u = await res.json();
+      info.textContent = u.latest ? (t('verCur') + u.current + t('verLatest') + u.latest) : (t('verCur') + u.current + t('verNo'));
+    } catch (e) {
+      info.textContent = t('checkFail') + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  $('#clearLogs').onclick = () => { $('#logs').textContent = ''; logCursor = 0; };
+
+  // browse modal
+  $('#browseWsBtn').onclick = () => openBrowse('');
+  $('#browseCloseBtn').onclick = () => { $('#browseModal').style.display = 'none'; };
+  $('#browseUpBtn').onclick = () => openBrowse($('#browsePath').dataset.parent || '');
+  $('#browseSelectBtn').onclick = () => {
+    const v = $('#browsePath').value;
+    if (isSelfDir(v)) {
+      $('#browseList').textContent = t('selfDirDeny');
+      return;
+    }
+    $('#workspace').value = v;
+    $('#browseModal').style.display = 'none';
+  };
+
+  // language switch
+  const langSel = $('#langSelect');
+  langSel.value = localStorage.getItem('tt_lang') || 'zh';
+  langSel.onchange = () => applyLang(langSel.value);
+  applyLang(langSel.value);
+
+  // instance manager (admin only)
+  $('#createInstBtn').onclick = async () => {
+    const id = $('#instId').value.trim();
+    const ws = $('#instWs').value.trim();
+    const pass = $('#instPass').value.trim();
+    if (!id) { $('#instMsg').textContent = t('instName') + '?'; return; }
+    const r = await fetch('/api/instances', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: id, workspace: ws, password: pass }) });
+    const j = await r.json();
+    $('#instMsg').textContent = r.ok ? (t('instCreated') + ': ' + id) : (t('instError') + ': ' + (j.error || ''));
+    $('#instId').value = ''; $('#instWs').value = ''; $('#instPass').value = '';
+    loadInstances();
+  };
+
+  // login / logout
+  $('#loginBtn').onclick = doLogin;
+  $('#loginPass').onkeydown = (e) => { if (e.key === 'Enter') doLogin(); };
+  $('#logoutBtn').onclick = async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    location.reload();
+  };
+
+  await checkAuth();
+
+  await loadConfig();
+  await refresh();
+  await loadLogs();
+  if ((await fetch('/api/auth/me', { cache: 'no-store' })).ok) {
+    try { await loadInstances(); } catch (e) { }
+  }
+  setInterval(() => { refresh(); loadLogs(); }, 1000);
+}
+
+async function checkAuth() {
+  const r = await fetch('/api/auth/me', { cache: 'no-store' });
+  if (r.ok) {
+    const me = await r.json();
+    // Restore the control page cards (they were hidden while logged out).
+    document.querySelectorAll('.wrap > .card, .topbar').forEach(el => el.style.display = '');
+    $('#loginGate').style.display = 'none';
+    $('#userInfo').textContent = me.username + (me.admin ? ' (admin)' : '');
+    isAdmin = me.admin;
+    $('#logoutBtn').style.display = '';
+    $('#changePassBtn').style.display = '';
+    // Admin-only cards are hidden for non-admin; show their own instance card.
+    document.querySelectorAll('[data-admin]').forEach(el => {
+      el.style.display = me.admin ? '' : 'none';
+    });
+    if (!me.admin && $('#userInstanceCard')) {
+      $('#userInstanceCard').style.display = '';
+      await refreshUserInstance();
+    }
+    applyLang($('#langSelect').value);
+  } else {
+    // Not logged in: show login gate, hide main cards.
+    $('#loginGate').style.display = 'flex';
+    document.querySelectorAll('.wrap > .card, .topbar').forEach(el => el.style.display = 'none');
+  }
+}
+
+async function doLogin() {
+  const u = $('#loginUser').value.trim();
+  const p = $('#loginPass').value;
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+  if (r.ok) { location.href = '/admin'; }
+  else { const j = await r.json(); $('#loginMsg').textContent = j.error || '登录失败'; }
+}
+
+// ---- Instance manager ----
+async function loadInstances() {
+  try {
+    const r = await fetch('/api/instances');
+    const data = await r.json();
+    console.log('[LIST] api response:', JSON.stringify(data));
+    const box = $('#instList');
+    box.textContent = '';
+    const list = data.instances || [];
+    console.log('[LIST] count:', list.length, 'ids:', list.map(i => i.id));
+    if (!list.length) { box.innerHTML = '<div class="muted">(无实例)</div>'; return; }
+    try {
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    html += '<thead><tr style="background:#f5f6f8;">'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thUser') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thPort') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thWs') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thState') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thOps') + '</th>'
+         + '</tr></thead><tbody>';
+    for (const i of list) {
+      const stateColor = i.running ? '#16a34a' : '#6b7280';
+      html += '<tr style="border-bottom:1px solid #eee;">'
+           + '<td style="padding:6px 8px;font-weight:600;">' + esc(i.id) + '</td>'
+           + '<td style="padding:6px 8px;">' + i.dshPort + '</td>'
+           + '<td style="padding:6px 8px;">' + esc(i.workspace) + '</td>'
+           + '<td style="padding:6px 8px;color:' + stateColor + ';">' + (i.running ? t('instRunning') : t('instStopped')) + '</td>'
+           + '<td style="padding:6px 8px;white-space:nowrap;">';
+      if (i.running) {
+        html += '<button class="secondary" onclick="instOpen(\'' + esc(i.id) + '\')">' + t('instOpen') + '</button> ';
+        html += '<button class="secondary" onclick="instStop(\'' + esc(i.id) + '\')">' + t('instStop') + '</button> ';
+      } else {
+        html += '<button onclick="instStart(\'' + esc(i.id) + '\')">' + t('instStart') + '</button> ';
+      }
+      if (isAdmin) {
+        html += '<button class="danger" onclick="instDelete(\'' + esc(i.id) + '\')">' + t('instDelete') + '</button>';
+        html += ' <button class="secondary" onclick="showResetPassModal(\'' + esc(i.id) + '\')">' + t('resetPass') + '</button>';
+      }
+      html += '</td></tr>';
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+    } catch (renderErr) { console.error('[LIST] render error:', renderErr); box.textContent = 'render error: ' + renderErr.message; }
+  } catch (e) { console.error('[LIST] fetch error:', e); $('#instList').textContent = t('instError') + ': ' + e.message; }
+}
+function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function updateInstWs() {
+  const u = ($('#instId').value || '').trim();
+  const ws = $('#instWs');
+  if (u && globalWorkspacePath) {
+    ws.value = globalWorkspacePath.replace(/\\/g, '/').replace(/\/+$/, '') + '/' + u;
+    ws.placeholder = globalWorkspacePath + '/' + u;
+  } else {
+    ws.value = '';
+    ws.placeholder = t('instWsPh');
+  }
+}
+async function instStart(id) { await fetch('/api/instances/' + id + '/start', { method: 'POST' }); loadInstances(); refreshUserInstance(); }
+async function instStop(id) { await fetch('/api/instances/' + id + '/stop', { method: 'POST' }); loadInstances(); refreshUserInstance(); }
+async function instOpen(id) { openWithToken(); }
+async function openWithToken() {
+  try {
+    const r = await fetch('/api/session-token');
+    if (r.ok) {
+      const d = await r.json();
+      window.location.href = '/?launcher_token=' + encodeURIComponent(d.token);
+    } else {
+      window.location.href = '/';
+    }
+  } catch (e) { window.location.href = '/'; }
+}
+
+async function refreshUserInstance() {
+  if (isAdmin) return;
+  try {
+    const data = await (await fetch('/api/instances')).json();
+    const inst = (data.instances || [])[0];
+    if (!inst) return;
+    const userInfo = $('#userInstanceInfo');
+    if (!userInfo) return;
+    const stateColor = inst.running ? '#16a34a' : '#6b7280';
+    const stateText = inst.running ? t('instRunning') : t('instStopped');
+    let html = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+    html += '<span><strong>' + t('thUser') + ':</strong> ' + esc(inst.id) + '</span>';
+    html += '<span><strong>' + t('thPort') + ':</strong> ' + inst.dshPort + '</span>';
+    html += '<span><strong>' + t('thState') + ':</strong> <span style="color:' + stateColor + ';">' + stateText + '</span></span>';
+    if (inst.running) {
+      html += ' <a class="secondary" onclick="openWithToken()" style="display:inline-block;padding:7px 14px;border-radius:6px;background:#2563eb;color:#fff;text-decoration:none;font-size:14px;cursor:pointer;">' + t('instOpen') + '</a>';
+      html += ' <button class="secondary" onclick="instStop(\'' + esc(inst.id) + '\')">' + t('instStop') + '</button>';
+    } else {
+      html += ' <button onclick="instStart(\'' + esc(inst.id) + '\')">' + t('instStart') + '</button>';
+    }
+    html += '</div>';
+    userInfo.innerHTML = html;
+  } catch (e) { }
+}
+async function instDelete(id) {
+  if (!confirm('Delete ' + id + '?')) return;
+  const r = await fetch('/api/instances/' + id, { method: 'DELETE' });
+  const j = await r.json();
+  console.log('[DELETE]', id, 'result:', JSON.stringify(j));
+  await loadInstances();
+  console.log('[DELETE] list refreshed');
+}
+
+// ---- Password change / reset ----
+function openPassModal(title, showOld, targetUser) {
+  $('#passModalTitle').textContent = title;
+  $('#passOldRow').style.display = showOld ? '' : 'none';
+  $('#passTargetUser').value = targetUser || '';
+  $('#passOld').value = '';
+  $('#passNew').value = '';
+  $('#passConfirm').value = '';
+  $('#passMsg').textContent = '';
+  $('#passModal').style.display = 'flex';
+}
+$('#passModalClose').onclick = () => { $('#passModal').style.display = 'none'; };
+$('#changePassBtn').onclick = () => openPassModal(t('changePassTitle'), true, '');
+$('#passSaveBtn').onclick = async () => {
+  const target = $('#passTargetUser').value;
+  const np = $('#passNew').value;
+  const cp = $('#passConfirm').value;
+  const op = $('#passOld').value;
+  if (np !== cp) { $('#passMsg').textContent = t('passMismatch'); return; }
+  if (np.length < 6) { $('#passMsg').textContent = '密码至少6位'; return; }
+  let r;
+  if (target) {
+    // admin reset
+    r = await fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: target, newPassword: np }) });
+  } else {
+    // user change own password
+    if (!op) { $('#passMsg').textContent = t('oldPass') + '?'; return; }
+    r = await fetch('/api/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldPassword: op, newPassword: np }) });
+  }
+  const j = await r.json();
+  if (j.ok) { $('#passModal').style.display = 'none'; alert(target ? t('resetPassDone') : t('passChanged')); }
+  else { $('#passMsg').textContent = j.error || t('passChangeFail'); }
+};
+function showResetPassModal(username) { openPassModal(t('resetPassTitle') + ': ' + username, false, username); }
+
+// Render the server directory listing inside the modal.
+let browseRoots = [];
+let DshSelfRoot = '';   // this app's own install dir; never allow selecting it.
+
+function normPath(p) { return (p || '').replace(/\\/g, '/').replace(/\/+$/, ''); }
+function isSelfDir(p) {
+  if (!DshSelfRoot || !p) return false;
+  const t = normPath(p), s = normPath(DshSelfRoot);
+  return t === s || t.startsWith(s + '/');
+}
+
+async function openBrowse(path) {
+  $('#browseModal').style.display = 'flex';
+  $('#browseList').textContent = t('loading');
+  $('#browseBreadcrumb').textContent = '';
+  if (!path) {
+    try {
+      const r = await (await fetch('/api/browse')).json();
+      browseRoots = r.roots || [];
+    } catch (e) { browseRoots = []; }
+    renderBrowseRoots();
+    return;
+  }
+  await loadBrowseDir(path);
+}
+
+function renderBrowseRoots() {
+  const list = $('#browseList');
+  list.textContent = '';
+  if (!browseRoots.length) { list.textContent = t('noRoots'); return; }
+  for (const root of browseRoots) {
+    if (isSelfDir(root.path)) continue;   // never offer this app's own dir
+    const row = document.createElement('button');
+    row.textContent = root.name + '  [' + root.path + ']';
+    row.style.cssText = 'display:block;width:100%;text-align:left;padding:8px;margin:2px 0;border:1px solid #e0e2e6;border-radius:6px;background:#fff;color:#1c1e21;cursor:pointer;';
+    row.onclick = () => loadBrowseDir(root.path);
+    list.appendChild(row);
+  }
+}
+
+async function loadBrowseDir(path) {
+  // Refuse to navigate into this app's own directory.
+  if (isSelfDir(path)) {
+    $('#browseList').textContent = t('selfDirDeny');
+    $('#browseBreadcrumb').textContent = path;
+    return;
+  }
+  $('#browseList').textContent = t('loading');
+  $('#browsePath').value = path;
+  try {
+    const r = await (await fetch('/api/browse?path=' + encodeURIComponent(path))).json();
+    $('#browsePath').value = r.path;
+    $('#browsePath').dataset.parent = r.parent || '';
+    $('#browseBreadcrumb').textContent = r.path;
+    const list = $('#browseList');
+    list.textContent = '';
+    if (r.entries && r.entries.length) {
+      for (const e of r.entries) {
+        if (isSelfDir(e.path)) continue;   // hide this app's own dir from the tree
+        const row = document.createElement('button');
+        row.textContent = '📁 ' + e.name + '  [' + e.path + ']';
+        row.style.cssText = 'display:block;width:100%;text-align:left;padding:8px;margin:2px 0;border:1px solid #e0e2e6;border-radius:6px;background:#fff;color:#1c1e21;cursor:pointer;';
+        row.onclick = () => loadBrowseDir(e.path);
+        list.appendChild(row);
+      }
+    } else {
+      list.textContent = t('noSub');
+    }
+  } catch (e) {
+    $('#browseList').textContent = t('cannotRead') + e.message;
+  }
+}
+init();
+</script>
+</body>
+</html>
