@@ -1,5 +1,18 @@
 # TakeTopDSH Team — User Guide
 
+TakeTopDSH Team is a **web-based multi-user AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
+
+**Key Features**:
+- 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
+- 👥 **Multi-user collaboration** — Multiple users online simultaneously, each with an isolated workspace.
+- 📚 **Experience accumulation** — Conversations, files, and task data are persistently stored; knowledge is reusable.
+- 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
+- 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
+
+> 📌 **Note**: This documentation is text-only. **The best way to experience it is to try the software!** Run `start.bat` and visit `http://127.0.0.1:46001` to see it in action.
+
+---
+
 This guide is for **daily users**. It covers: Login → Open Workspace → File Manager / My Tasks → Admin task assignment, instance management, language switching.
 
 > **Prerequisite**: Run the startup script to launch the launcher service before accessing `http://127.0.0.1:46001` in your browser.

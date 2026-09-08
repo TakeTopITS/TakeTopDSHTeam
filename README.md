@@ -2,9 +2,22 @@
 
 **Multi-user DeepSeek Harness workspace, self-hosted and copy-to-run.**
 
-TakeTopDSH Team turns [DeepSeek Harness](https://github.com/deepseek-ai/dsh) into a **team-ready, multi-user platform**: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no .NET install, no compilation**.
+TakeTopDSH Team is a **web-based multi-user AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
-> **Dual-licensed.** The source code is released under **GPL-3.0** (free for unlimited use/modification/redistribution under its terms). Commercial users or teams that need commercial support and private deployment terms can obtain a **commercial license** from 泰顶拓鼎信息科技（上海）有限公司 (EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing extra support should contact us for a paid license.
+**Key Features**:
+- 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
+- 👥 **Multi-user collaboration** — Multiple users online simultaneously, each with an isolated workspace.
+- 📚 **Experience accumulation** — Conversations, files, and task data are persistently stored; knowledge is reusable.
+- 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
+- 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
+
+> 📌 **Note**: This documentation is text-only. **The best way to experience it is to try the software!** Run `start.bat` and visit `http://127.0.0.1:46001` to see it in action.
+
+---
+
+TakeTopDSH Team turns [DeepSeek Harness] into a **team-ready, multi-user platform**: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
+
+> **Dual-licensed.** The source code is released under **GPL-3.0** (free for unlimited use/modification/redistribution under its terms). Commercial users or teams that need commercial support and private deployment terms can obtain a **commercial license** from 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai)(EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing extra support should contact us for a paid license.
 
 ---
 
@@ -57,10 +70,6 @@ Workbench (/work):
 │   file explorer       │   "Explore the unknown…"                           │
 └───────────────────────┴───────────────────────────────────────────────────┘
 ```
-
-Real screenshots coming soon.
-
----
 
 ## Feature Tour
 
@@ -126,6 +135,6 @@ Full **中文 / English** toggle across the console, workbench, file manager, ta
 This project is **dual-licensed**:
 
 - **Open Source**: the full source code is licensed under the **GNU GPL v3.0** (see [LICENSE](LICENSE) / [COPYING](COPYING)). You may use, copy, modify and redistribute it under the GPL-3.0 terms.
-- **Commercial**: for teams/organizations that require commercial support, private deployment, custom features, or alternative licensing terms, a separate **commercial license** is available from **泰顶拓鼎信息科技（上海）有限公司** (EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing commercial support should contact us for a paid license.
+- **Commercial**: for teams/organizations that require commercial support, private deployment, custom features, or alternative licensing terms, a separate **commercial license** is available from **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing commercial support should contact us for a paid license.
 
 Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
