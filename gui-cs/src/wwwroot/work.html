@@ -22,7 +22,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TakeTopDSH Team - 工作台</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>TakeTopDSH Team</title>
 <style>
   html, body { height: 100%; margin: 0; }
   body { font-family: system-ui, sans-serif; background: #e9ebef; display: flex; flex-direction: column; }
@@ -79,6 +82,7 @@
     + (inst ? '?inst=' + encodeURIComponent(inst) : '') + '?launcher_token=' + encodeURIComponent(token);
   document.getElementById('fmPane').src = fmSrc;
   document.getElementById('dshPane').src = dshSrc;
+  document.getElementById('dshPane').onload = function() { applyWorkbarLang(); };
 
   // Localize the top bar (back link + title) to match the chosen language.
   function currentLang() {
@@ -93,11 +97,37 @@
     var c = String(currentLang() || '').toLowerCase();
     var zh = (c === 'zh' || c === 'zh-cn' || c === 'zhcn' || c === 'cn');
     document.getElementById('backLink').textContent = zh ? '← 返回管理页' : '← Back to Admin';
-    document.getElementById('workTitle').textContent = (zh ? '工作台' : 'Workspace') + (inst ? ' · ' + inst : '');
+    var titleText = (zh ? '工作台' : 'Workspace') + (inst ? ' · ' + inst : '');
+    document.getElementById('workTitle').textContent = titleText;
+    desiredTitle = 'TakeTopDSH Team - ' + titleText;
+    document.title = desiredTitle;
+    try { history.replaceState(history.state, desiredTitle); } catch(e) {}
     var ta = document.getElementById('taskAssignLink');
     if (ta) ta.textContent = zh ? '任务分配' : 'Tasks';
+    document.getElementById('fmPane').title = zh ? '文件管理' : 'File Manager';
+    document.getElementById('splitter').title = zh ? '拖动调整栏宽' : 'Drag to resize';
   }
+  var desiredTitle = '';
   applyWorkbarLang();
+  // Lock document.title setter so DSH iframe (same-origin) cannot override the tab title
+  try {
+    var _p = HTMLDocument.prototype;
+    var _d = Object.getOwnPropertyDescriptor(_p, 'title');
+    if (_d && _d.set) {
+      Object.defineProperty(_p, 'title', {
+        configurable: true,
+        enumerable: true,
+        get: _d.get,
+        set: function() { /* blocked */ }
+      });
+    }
+  } catch(e) {}
+  setInterval(function() {
+    applyWorkbarLang();
+    // Use DOM directly since document.title setter is now blocked
+    var t = document.querySelector('title');
+    if (t) t.textContent = desiredTitle;
+  }, 100);
 
   // ---- resizable splitter (smooth: rAF-throttled, iframes lose pointer-events
   //      while dragging so the parent window keeps receiving mousemove) ----

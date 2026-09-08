@@ -164,14 +164,11 @@ app.MapGet("/api/config", () =>
 });
 // Workspace configuration (set by an admin on the control page).
 app.MapGet("/api/workspace", () => new { workspace = dsh.ReadWorkspacePath() });
-app.MapPost("/api/workspace", async (HttpContext ctx) =>
+app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
         return Results.Json(new { ok = false, error = "仅管理员可修改" }, statusCode: 403);
-    using var reader = new StreamReader(ctx.Request.Body);
-    var body = await reader.ReadToEndAsync();
-    var ws = System.Text.Json.JsonSerializer.Deserialize<WorkspaceRequest>(body)?.Workspace;
-    dsh.SaveWorkspacePath(ws);
+    dsh.SaveWorkspacePath(req.Workspace);
     // Reapply the admin default dsh workspace so it matches the new path now.
     dsh.ApplyWorkspaceToDefault();
     return Results.Ok(new { ok = true, workspace = dsh.ReadWorkspacePath() });
@@ -1322,7 +1319,15 @@ app.Use(async (ctx, next) =>
 });
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        ctx.Context.Response.Headers["Pragma"] = "no-cache";
+        ctx.Context.Response.Headers["Expires"] = "0";
+    }
+});
 
 // Open the launcher control page in the default browser once the server is up,
 // and auto-start the dsh web process so it is ready to use immediately.

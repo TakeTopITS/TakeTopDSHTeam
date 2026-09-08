@@ -1,220 +1,220 @@
 # TakeTopDSH Team — User Guide
 
-This guide is for **everyday users**: log in → open the workbench → File Manager / My Tasks → admin task assignment, instance management, language switching.
+This guide is for **daily users**. It covers: Login → Open Workspace → File Manager / My Tasks → Admin task assignment, instance management, language switching.
 
-> **Prerequisite**: run the launcher first so the browser can reach http://127.0.0.1:46001.
-> - Windows: double-click **start.bat**
-> - macOS / Linux: run **./start.sh**
-> - As long as the launcher runs in the background you can reopen the browser anytime; if it was closed (e.g. after a reboot), run it once again.
+> **Prerequisite**: Run the startup script to launch the launcher service before accessing `http://127.0.0.1:46001` in your browser.
+> - Windows: Double-click **`start.bat`**
+> - macOS / Linux: Run **`./start.sh`**
+> - As long as the launcher is running in the background, you can re-open the browser to continue. If the launcher has stopped (e.g. after a reboot), run the script again.
 
-> See `INSTALL.md / INSTALL.md` for how to install and start; this file covers **how to use it after installation**.
-
----
-
-## Contents
-
-- [1. What the UI looks like](#1-what-the-ui-looks-like)
-- [2. Log in](#2-log-in)
-- [3. Launcher Console (admin)](#3-launcher-console-admin)
-- [4. Open the Workbench (split screen)](#4-open-the-workbench-split-screen)
-- [5. File Manager (left pane)](#5-file-manager-left-pane)
-- [6. My Tasks (left pane)](#6-my-tasks-left-pane)
-- [7. Task Assignment page /tasks (admin)](#7-task-assignment-page-tasksadmin)
-- [8. Language switching (ZH/EN)](#8-language-switching-zhen)
-- [9. Quick reference](#9-quick-reference)
+> See《安装说明.md / INSTALL.md》for installation instructions; this file explains **how to use it after installation**.
 
 ---
 
-## 1. What the UI looks like
+## Table of Contents
 
-Open `http://127.0.0.1:46001` to enter the launcher. There are two main areas:
+- [1. Overview](#1-overview)
+- [2. Login](#2-login)
+- [3. Launcher Console (Admin View)](#3-launcher-console-admin-view)
+- [4. Open Workspace / Split Screen](#4-open-workspace--split-screen)
+- [5. File Manager (Left Pane)](#5-file-manager-left-pane)
+- [6. My Tasks (Left Pane)](#6-my-tasks-left-pane)
+- [7. Task Assignment Page /tasks (Admin)](#7-task-assignment-page-tasks-admin)
+- [8. Language Switching (Chinese / English)](#8-language-switching-chinese--english)
+- [9. Quick Reference](#9-quick-reference)
 
-- **Launcher Console** (home): start/stop, Open DSH, configuration, instance management.
-- **Workbench** (enter via **Open DSH**): split screen — left = File Manager / My Tasks, right = the DSH chat.
+---
+
+## 1. Overview
+
+Access `http://127.0.0.1:46001` to enter the launcher. The core interface has two parts:
+
+- **Launcher Console** (home page): Start/Stop, Open DSH, Configuration, Instance Management.
+- **Workspace** (click "Open DSH" to enter): Split-screen view with File Manager / My Tasks on the left, DSH chat interface on the right.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ TakeTopDSH Team Launcher                          admin (admin)  Language │  ← top: account + language
-├──────────────────────────────────────────────────────────────────────────┤
-│ Launcher: Port[46000] [Start] [Stop] [Open DSH]   ● Running (PID xxxx)    │
-│ Config:   appsettings URL / Workspace path / Default Lang     [Save]     │
-│ Instance Manager: User  Port  Workspace  State  Actions                   │
-│   jackzhong  46002  ...   Stopped   [Start][Delete][Reset Password]       │
-│   ericliu    46003  ...   Running   [Open][Stop][Delete][Reset Password]  │
-│   sofiali    46004  ...   Stopped   [Start]...                            │
-│   bookge     46005  ...   Stopped   [Start]...                            │
-└──────────────────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------------------+
+| TakeTopDSH Team Launcher                                admin (admin) En |  <- Top bar: current user + language
++--------------------------------------------------------------------------+
+| Launcher card:  Port[46000] [Start] [Stop] [Open DSH]     ● Running     |
+| Config card:    appsettings URL / Workspace / Default Language  [Save]   |
+| Instance Mgmt:  Username Port Workspace Status Actions                  |
+|   ******      46002  ...  Stopped  [Start][Delete][Reset Password]     |
+|   ******      46003  ...  Running  [Open][Stop][Delete][Reset Password] |
+|   ******      46004  ...  Stopped  [Start]...                          |
+|   ******      46005  ...  Stopped  [Start]...                          |
++--------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Log in
+## 2. Login
 
-1. Open `http://127.0.0.1:46001`, the login page appears.
-2. Pick a language (top-right), enter **Username / Password**, click **Log in**.
-   - The login page defaults to the system default language; you can switch it.
-3. After login the top-right shows your username (admin shows `admin (admin)`).
+1. Open `http://127.0.0.1:46001` to enter the login page.
+2. Select language (top-right), enter **username / password**, click [Login].
+   - Login page default language = system default language; can be switched.
+3. After login, the top-right shows the current username (admin shows `admin (admin)`).
 
-> Accounts are created / reset by the admin in **Instance Manager → Reset Password**. Sign in with the password the admin set.
+> Accounts are created by admin via "Instance Management" / "Reset Password". Login passwords are set by the admin.
 
-**Default accounts (initial passwords — please change them in the console):**
+**Default accounts (initial passwords; change them ASAP via the console):**
 
-| Username | Default password | Notes |
+| Username | Default Password | Notes |
 |----------|------------------|-------|
-| admin | 12345678 | Administrator (launcher console & task assignment) |
-| jackzhong | jack123 | Regular user, instance 46002 |
-| ericliu | eric123 | Regular user, instance 46003 |
-| sofiali | (set by admin) | instance 46004 |
-| bookge | (set by admin) | instance 46005 |
+| admin | 12345678 | Admin (launcher console / task assignment) |
+| ****** | (set by admin) | Regular user, instance 46002 |
+| ****** | (set by admin) | Regular user, instance 46003 |
+| ****** | (set by admin) | Instance 46004 |
+| ****** | (set by admin) | Instance 46005 |
 
-> The **admin** default password is `12345678`. Other accounts can be set/reset via **Reset Password** in the console.
+> **Admin default login password is 12345678**. Use "Instance Management → Reset Password" to reset other accounts.
 
 ---
 
-## 3. Launcher Console (admin)
+## 3. Launcher Console (Admin View)
 
-### 3.1 Launcher card (admin default DSH)
+### 3.1 Launcher Card (Admin Default DSH)
 
 ```
 Port [46000]   [Start]   [Stop]   [Open DSH]
               ● Running (PID 11384)
 ```
 
-- **Port**: port of the admin default instance (default 46000).
-- **Start / Stop**: start/stop the admin default DSH. The button shows a **spinner** until it finishes.
-- **Open DSH**: enters the admin workbench with the token auto-injected (left = File Manager / My Tasks, right = DSH). **Do not** open `127.0.0.1:46000` directly (returns 404).
+- **Port**: Admin default instance port (default 46000).
+- **Start / Stop**: Start/stop the admin default DSH. The button shows a **spinner** while processing.
+- **Open DSH**: Opens the admin workspace with token auto-injected (left: File Manager / My Tasks + right: DSH). **Do not** access `127.0.0.1:46000` directly (will show 404).
 
-### 3.2 Config card
+### 3.2 Config Card
 
-- **appsettings URL**, **Workspace path**, **External URL**, **Default language**: edit then click **Save**.
-> **Important**: on first use set the **Workspace path** in the Config card — it is the root directory where the AI reads/writes files and where new instance workspaces are created (e.g. `E:\WorkBuddy`). Leave it empty to use dsh's default. Click **Save** after editing; new instance workspaces auto-generate as `Workspace path/<username>`.
-- **Default language** = the language new users / the login page see first (save to apply; the UI updates immediately).
+- **appsettings URL**, **Workspace path**, **External access URL**, **Default Language**: Modify and click [Save].
+- **Default Language** = language shown on the login page / first seen by new users (takes effect immediately after save).
+> **Important**: On first use, set the **Workspace path** in the Config card — this is the root directory for AI file reading/writing and new instance workspaces (e.g. E:\WorkBuddy). Leave empty to use the DSH default directory. After saving, new instance workspaces are auto-created as "Workspace path/username".
 
-### 3.3 Instance Manager card (multi-user)
+### 3.3 Instance Management Card (Multi-user)
 
 ```
-User[userA] Workspace[empty = auto global-workspace/username] Password[****]  [Create Instance]
-┌────────────┬───────┬─────────────────────┬──────────┬──────────────────────────┐
-│ Username   │ Port  │ Workspace           │ State    │ Actions                  │
-├────────────┼───────┼─────────────────────┼──────────┼──────────────────────────┤
-│ jackzhong  │ 46002 │ E:\WorkBuddy\jackzhong│ Stopped  │ [Start][Delete][Reset]  │
-│ ericliu    │ 46003 │ E:\WorkBuddy\ericliu  │ Running  │ [Open][Stop][Delete][Reset]│
-└────────────┴───────┴─────────────────────┴──────────┴──────────────────────────┘
+Username[userA] Workspace [leave empty = auto global workspace/username] Password[****]  [Create Instance]
++------------+-------+--------------------+----------+---------------------------+
+| Username   | Port  | Workspace          | Status   | Actions                   |
++------------+-------+--------------------+----------+---------------------------+
+| ******   | 46002 | E:\WorkSpace\****** | Stopped  | [Start] [Delete] [Reset] |
+| ******   | 46003 | E:\WorkSpace\******   | Running  | [Open][Stop][Delete][Reset]|
++------------+-------+--------------------+----------+---------------------------+
 ```
 
-- **Create instance**: fill username, workspace (empty = auto `global-workspace/<username>`), password, click **Create instance**.
-- **Start/Stop**: start/stop that user's instance — shows a spinner while working.
-- **Open**: open that user's workbench.
-- **Delete**: delete the instance (with confirmation).
-- **Reset Password**: reset/create that user account's password.
+- **Create Instance**: Enter username, workspace (leave empty = auto "global workspace/username"), password, click [Create Instance].
+- **Start/Stop**: Start/stop that user's instance; button shows spinner while processing.
+- **Open**: Open that user's workspace.
+- **Delete**: Delete the instance (requires confirmation).
+- **Reset Password**: Reset/create that user's account password.
 
 ---
 
-## 4. Open the Workbench (split screen)
+## 4. Open Workspace / Split Screen
 
-Click **Open DSH / Open** to enter the workbench (`/work`), a **left/right split**:
+Click any "Open DSH / Open" to enter the workspace (`/work`), which is a **split-screen view**:
 
 ```
-┌──────────────────────┬───────────────────────────────────────────────────┐
-│ ← Back to Admin      Workspace · ericliu          [Tasks][Language]        │  ← top bar
-├──────────────────────┼───────────────────────────────────────────────────┤
-│ [File Manager][My Tasks]                                                 │
-│  ← left pane (drag/resize)        DSH chat (right pane)                    │
-│  file manager content             Explore the unknown…                     │
-│                                   Describe what you want to build…         │
-└──────────────────────┴───────────────────────────────────────────────────┘
++----------------------+---------------------------------------------------+
+| <- Back to Admin  Workspace · ericliu              [Tasks] [En v]     |  <- Top bar
++----------------------+---------------------------------------------------+
+| [File Manager] [My Tasks] |                                               |
+|  <- Left pane (draggable) |        DSH chat interface (right pane)          |
+|  File Manager content     |   Into the Unknown                              |
+|                           |   Input: Describe what you want to build...    |
++----------------------+---------------------------------------------------+
 ```
 
-- Top bar: **Back to Admin**, workbench title (current user), **Tasks** (admin), **Language**.
-- **Left pane width**: drag the divider, or click **⤢** to toggle 30% ↔ 70%.
+- Top bar: **Back to Admin**, workspace title (shows current user), **Tasks** (admin), **Language switching**.
+- **Left pane width**: Drag the middle vertical bar to adjust; click the **arrow** button on the divider to toggle between 30% / 70%.
 - **Left pane tabs**: File Manager, My Tasks.
 
 ---
 
-## 5. File Manager (left pane)
+## 5. File Manager (Left Pane)
 
-Switch to the **File Manager** tab:
+Switch to the [File Manager] tab in the left pane:
 
 ```
-[Upload] [Refresh] [New Folder]                  Current dir: /
-┌─────────────────────────────────────┐
-│ [+] 📁 Project Docs    Zip Rename Move Delete │
-│      📄 readme.txt     Open  Zip Rename Move Delete │
-│ [+] 📁 Images          Zip Rename Move Delete │
-└─────────────────────────────────────┘
+[Upload] [Refresh] [New Folder]           Current directory: /
++-------------------------------------+
+| [+] Project Documents        Zip Rename Move Delete |
+|      readme.txt              Open Zip Rename Move Delete |
+| [+] Images                   Zip Rename Move Delete |
++-------------------------------------+
 ```
 
-- **Upload**: pick local files to upload into the current directory.
-- **Refresh**: reload the list.
-- **New Folder**: create a folder by name.
-- **Folders**: click `+` to expand subdirectories (multi-level tree).
-- **File actions**: zip / unzip / rename / move / delete.
-- **Preview**: click a file name — previewable files (images/text/video) open inline; non-previewable ones prompt to download.
+- **Upload**: Select local files to upload to the current directory.
+- **Refresh**: Reload the file list.
+- **New Folder**: Enter a name to create a folder.
+- **Folders**: Click `+` to expand subdirectories; supports multi-level tree.
+- **File operations**: Zip / Unzip / Rename / Move / Delete.
+- **Preview**: Click a filename; previewable files (images/text/video) open directly; non-previewable files prompt for download.
 
 ---
 
-## 6. My Tasks (left pane)
+## 6. My Tasks (Left Pane)
 
-Switch to the **My Tasks** tab to see tasks assigned to the **current logged-in user**:
+Switch to the [My Tasks] tab in the left pane to list tasks assigned by the admin to **the current user**:
 
 ```
-┌──────────────────────────────────────────────────┐
-│ No. Type     Name            Status     Files    │
-│ 1    Test    Project plan    Processing img_xxx.png│
-└──────────────────────────────────────────────────┘
++----------------------------------------------+
+| No.  Type  Name                  Status  Files  |
+| 1    Test  Project plan feature  Active  img.png |
++----------------------------------------------+
 ```
 
-- **Task name** is a link: click to pop up the task's **rich content** (with images; double-click an image for full-screen preview).
-- **Related files** are links: images preview directly, other types prompt to download.
+- **Task name** is a link: click to open a popup showing the task's **rich text content** (including images; double-click images for fullscreen preview).
+- **Related files** are links: images open directly for preview; other types prompt for download.
 - Status: Processing / Done / Cancelled.
 
 ---
 
-## 7. Task Assignment page /tasks (admin)
+## 7. Task Assignment Page /tasks (Admin)
 
-Click **Tasks** (top of the console or workbench) to enter `/tasks`:
+Click [Tasks] in the launcher console top-right or workspace top bar to enter `/tasks`:
 
 ```
-┌──────────┬────────────────────────────────────────────────────────────┐
-│ Members  │  Current member: ericliu              [English Language]    │
-│ Admin    │  [Add Task]                                                 │
-│ jackzhong│ ┌──────────────────────────────────────────────────────┐   │
-│ ericliu  │ │ No. Type   Name           Status   Files     Actions  │   │
-│ sofiali  │ │ 1    Test  Project plan   Processing xxx.png [Edit][Delete] │   │
-│ bookge   │ └──────────────────────────────────────────────────────┘   │
-└──────────┴────────────────────────────────────────────────────────────┘
++----------+------------------------------------------------------------+
+| Members  |  Current member: ericliu                     [English v]  |
+| Admin    |  [Add Task]                                               |
+| ******   | +------------------------------------------------------+ |
+| ******   | | No. Type  Name                  Status Files Actions | |
+| ******   | | 1   Test  Project plan feature  Active  xxx.png [Edit][Del] | |
+| ******   | +------------------------------------------------------+ |
++----------+------------------------------------------------------------+
 ```
 
-- Left **member list**: pick a member, their tasks show on the right.
-- **Add Task / Edit**: opens a form:
-  - Task **Type**, **Name**
-  - **Content**: rich text — bold/lists/quote; **paste or insert images** (stored in `TaskData/Doc`); double-click an image for full-screen preview
+- Left **member list**: Select a member to view their tasks on the right.
+- **Add Task / Edit**: Opens the form:
+  - Task Type, Task Name
+  - **Task Content**: Rich text with bold/lists/quotes; **paste or insert images** (stored in `TaskData/Doc`); double-click images for fullscreen preview
   - **Status**: Processing / Done / Cancelled
-  - **Related files**: multi-select upload; stored in that member's workspace `TaskData/Doc`
-- Tasks are stored as **XML** under that member's workspace `TaskData/tasks-<id>.xml`.
+  - **Related Files**: Multiple file upload; files stored in that member's workspace `TaskData/Doc`
+- Tasks are saved as **XML** in the member's workspace `TaskData/tasks-<id>.xml`.
 
 ---
 
-## 8. Language switching (ZH/EN)
+## 8. Language Switching (Chinese / English)
 
-- A language dropdown (中文 / English) appears top-right on every page.
-- After switching, **all UI strings** (buttons, column headers, statuses, labels) across the console, workbench, file manager, task assignment, My Tasks, and the task form switch instantly.
-- The login page defaults to the configured default language; users may switch.
-
----
-
-## 9. Quick reference
-
-| I want to… | How |
-|------------|-----|
-| Use DSH | Log in → click **Open DSH** → workbench, right side is DSH |
-| Upload/manage files | Workbench left pane **File Manager** → upload/new/zip/rename/move |
-| See my tasks | Workbench left pane **My Tasks** → click task-name for details, click files to open/download |
-| Assign tasks (admin) | Top **Tasks** → pick a member → Add task (rich text + images + files) |
-| Start a user's instance | Console **Instance Manager** → that row's **Start** |
-| Change the login language | Switch the language dropdown top-right |
-| Fix "authentication required" on the right | Start/Stop that instance again from the launcher (restart refreshes the token) |
+- Each page has a language dropdown in the top-right (Chinese / English).
+- Switching updates **all UI text** (buttons, column headers, status labels, etc.) across the launcher, workspace, file manager, task assignment, my tasks, and task edit modals.
+- Login page default language = system "Default Language"; regular users can switch.
 
 ---
 
-> If anything misbehaves, first **Ctrl+F5** to hard-refresh (clear cache); for instance issues, **Stop** then **Start** that user's instance.
+## 9. Quick Reference
+
+| I want to... | How to do it |
+|--------------|--------------|
+| Use DSH | Login → Click [Open DSH] → Enter workspace, right pane is the DSH chat |
+| Upload/manage files | Workspace left pane [File Manager] → Upload/New/Zip/Rename/Move |
+| View tasks assigned to me | Workspace left pane [My Tasks] → Click task name for details, click files to open/download |
+| Assign tasks to users (Admin) | Top bar [Tasks] → Select member → Add task (rich text + images + files) |
+| Start a user's instance | Console "Instance Management" → That row's [Start] |
+| Change login language | Top-right language dropdown to English/Chinese |
+| Fix "authentication required" in right pane | Use launcher [Start/Stop] for that instance to refresh the token |
+
+---
+
+> If anything goes wrong, try **Ctrl+F5 hard refresh** to clear cache. For instance issues, [Stop] then [Start] that user's instance.

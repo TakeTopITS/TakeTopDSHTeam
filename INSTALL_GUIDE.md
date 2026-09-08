@@ -81,11 +81,11 @@ To change the port: edit `DshWeb/Url` in `appsettings.json`, or use the launcher
 
 | User | Default password | Notes |
 |------|------------------|-------|
-| admin | 12345678 | Administrator (launcher console & task assignment) |
-| jackzhong | jack123 | Regular user, instance 46002 |
-| ericliu | eric123 | Regular user, instance 46003 |
-| sofiali | (set by admin) | instance 46004 |
-| bookge | (set by admin) | instance 46005 |
+| admin  | 12345678 | Administrator (launcher console & task assignment) |
+| ****** | (set by admin) | Regular user, instance 46002 |
+| ****** | (set by admin) | Regular user, instance 46003 |
+| ****** | (set by admin) | instance 46004 |
+| ****** | (set by admin) | instance 46005 |
 
 > The **admin** default password is `12345678`. Other accounts can be set/reset via **Reset Password** in the console.
 

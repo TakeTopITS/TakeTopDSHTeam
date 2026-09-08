@@ -46,8 +46,8 @@ See [INSTALL.md](INSTALL.md) for full setup, and [操作说明.md](操作说明.
 ├──────────────────────────────────────────────────────────────────────────┤
 │ [Port 46000] [Start] [Stop] [Open DSH]      ● Running (PID 11384)          │
 │ Instance Manager:                                                            │
-│   jackzhong  46002  Stopped  [Start][Delete][Reset Password]                │
-│   ericliu    46003  Running  [Open][Stop][Delete][Reset Password]           │
+│   ******  46002  Stopped  [Start][Delete][Reset Password]                │
+│   ******    46003  Running  [Open][Stop][Delete][Reset Password]           │
 └──────────────────────────────────────────────────────────────────────────┘
 
 Workbench (/work):
@@ -128,4 +128,4 @@ This project is **dual-licensed**:
 - **Open Source**: the full source code is licensed under the **GNU GPL v3.0** (see [LICENSE](LICENSE) / [COPYING](COPYING)). You may use, copy, modify and redistribute it under the GPL-3.0 terms.
 - **Commercial**: for teams/organizations that require commercial support, private deployment, custom features, or alternative licensing terms, a separate **commercial license** is available from **泰顶拓鼎信息科技（上海）有限公司** (EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing commercial support should contact us for a paid license.
 
-Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司. All rights reserved.
+Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
