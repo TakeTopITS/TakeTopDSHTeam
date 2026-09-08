@@ -28,7 +28,7 @@ if not exist "%LAUNCHER_EXE%" (
         exit /b 1
     )
     pushd "%~dp0gui-cs\src"
-    dotnet publish "%CSPROJ%" -c Release -r win-x64 -o "%~dp0gui-cs\src\bin\Release\net10.0\win-x64\publish" --nologo
+    dotnet publish "%CSPROJ%" -c Release -r win-x64 --self-contained true -o "%~dp0gui-cs\src\bin\Release\net10.0\win-x64\publish" --nologo
     popd
     if not exist "%LAUNCHER_EXE%" (
         echo ERROR: build failed. Ensure .NET SDK is installed and you are online.

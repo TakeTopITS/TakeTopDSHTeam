@@ -519,7 +519,17 @@ public class DshService
             if (idx < 0) return;
             var url = line.Substring(idx + "dsh web:".Length).Trim();
             if (url.StartsWith("http") && url.Contains("token="))
+            {
                 _tokenUrl = url;
+                // Persist token to disk so it survives launcher restarts while
+                // DSH stays running (the in-memory _tokenUrl would be lost).
+                try
+                {
+                    var tokenFile = Path.Combine(_dshHome, "launcher-token.txt");
+                    File.WriteAllText(tokenFile, url);
+                }
+                catch { }
+            }
         }
         catch { }
     }
@@ -537,6 +547,21 @@ public class DshService
                 if (url.StartsWith("http") && url.Contains("token=")) return url;
             }
         }
+        // Fallback: read token from disk (survives launcher restarts).
+        try
+        {
+            var tokenFile = Path.Combine(_dshHome, "launcher-token.txt");
+            if (File.Exists(tokenFile))
+            {
+                var url = File.ReadAllText(tokenFile).Trim();
+                if (url.StartsWith("http") && url.Contains("token="))
+                {
+                    _tokenUrl = url;
+                    return url;
+                }
+            }
+        }
+        catch { }
         return null;
     }
 

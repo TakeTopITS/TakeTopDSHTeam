@@ -1254,22 +1254,41 @@ app.Use(async (ctx, next) =>
         else if (isAdmin)
         {
             proxyPort = dsh.DefaultPort();
-            // DSH is auto-started by the launcher but may still be starting up just
-            // after a reboot. Wait (up to ~90s) for it to print its token/URL before
-            // proxying, so the /work pane does not hit an "unable to connect" window.
+            // Check for token URL (may have been captured from a previous DSH
+            // process or from a prior request in this session).
             var tu = dsh.TokenUrl();
-            if (string.IsNullOrEmpty(tu))
-                tu = dsh.WaitForTokenUrl(TimeSpan.FromSeconds(90));
-            // If DSH is still not ready after waiting, return 503 instead of
-            // attempting a doomed proxy that would show "connection refused".
-            if (string.IsNullOrEmpty(tu) && !dsh.IsRunning && !DshService.IsPortInUse(proxyPort))
+            if (string.IsNullOrEmpty(tu) || !DshService.IsPortInUse(proxyPort))
             {
-                ctx.Response.StatusCode = 503;
-                ctx.Response.ContentType = "text/plain; charset=utf-8";
-                await ctx.Response.WriteAsync("DSH is starting up, please wait a moment and refresh.");
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "text/html; charset=utf-8";
+                var isRunning = DshService.IsPortInUse(proxyPort);
+                // Read language from cookie (tt_lang=zh-cn or en).
+                var lang = "en";
+                if (ctx.Request.Cookies.TryGetValue("tt_lang", out var lv) && !string.IsNullOrEmpty(lv))
+                    lang = lv;
+                var isZh = lang.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+                var msg = isRunning
+                    ? (isZh ? "正在连接 DSH..." : "Connecting to DSH...")
+                    : (isZh ? "DSH 正在启动中，请稍候..." : "DSH is starting up, please wait...");
+                var sub = isZh ? "首次启动约需 10-30 秒。" : "This usually takes 10-30 seconds.";
+                var hint = isZh ? "页面每 3 秒自动刷新。" : "Page will auto-refresh every 3 seconds.";
+                var html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+                    "<style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui,sans-serif;background:#f8f9fa}" +
+                    ".box{text-align:center;color:#555}" +
+                    ".spinner{width:48px;height:48px;border:5px solid #e0e0e0;border-top-color:#4a90d9;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}" +
+                    "@keyframes spin{to{transform:rotate(360deg)}}" +
+                    "p{margin:8px 0;font-size:15px}.hint{font-size:13px;color:#999;margin-top:12px}" +
+                    "</style></head><body>" +
+                    "<div class=\"box\"><div class=\"spinner\"></div>" +
+                    "<p>" + msg + "</p>" +
+                    "<p class=\"hint\">" + sub + "</p>" +
+                    "<p class=\"hint\">" + hint + "</p>" +
+                    "</div><script>setTimeout(function(){location.reload()},3000)</script>" +
+                    "</body></html>";
+                await ctx.Response.WriteAsync(html);
                 return;
             }
-            if (!string.IsNullOrEmpty(tu) && tu.IndexOf("token=", StringComparison.Ordinal) > 0)
+            if (tu.IndexOf("token=", StringComparison.Ordinal) > 0)
                 proxyToken = tu.Substring(tu.IndexOf("token=", StringComparison.Ordinal) + 6);
         }
         else
