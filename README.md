@@ -9,7 +9,7 @@ TakeTopDSH Team turns [DeepSeek Harness] into a **team-ready, multi-user platfor
 - 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
 - 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
 
-> 📌 **Note**: This documentation is text-only. **The best way to experience it is to try the software!** Run `start.bat` and visit `http://127.0.0.1:46001` to see it in action.
+> 📌 **Note**: This documentation is text-only and does not include richly illustrated pages. The best way to experience it is to try the software yourself! Run start.bat and visit http://127.0.0.1:46001 to see it in action.
 
 ---
 
