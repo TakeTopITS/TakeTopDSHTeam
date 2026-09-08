@@ -36,10 +36,11 @@
   .pane { border: 0; }
   .pane.fm { width: 30%; min-width: 220px; max-width: 70%; background: #f5f6f8; }
   .pane.dsh { flex: 1; background: #fff; }
-  .splitter { flex: 0 0 6px; cursor: col-resize; background: transparent; background-clip: padding-box; position: relative; z-index: 5; }
-  .splitter:hover, .splitter.dragging { background: #c8ccd2; }
-  .splitter::after { content: ""; position: absolute; inset: 0; margin: 0 -8px; }
-  .splitter.dragging { background: #2563eb; }
+   .splitter { flex: 0 0 6px; cursor: col-resize; background: transparent; background-clip: padding-box; position: relative; z-index: 5; }
+   .splitter:hover, .splitter.dragging { background: #c8ccd2; }
+   .splitter::after { content: ""; position: absolute; inset: 0; margin: 0 -8px; }
+   .splitter.dragging { background: #2563eb; }
+   .split-arrow { position: absolute; top: 2px; left: -14px; z-index: 10; padding: 2px 4px; border: 1px solid #e5e7eb; border-radius: 3px; background: #f9fafb; color: #6b7280; font-size: 11px; line-height: 1; cursor: pointer; pointer-events: auto; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -48,7 +49,6 @@
     <span class="title" id="workTitle">工作台</span>
     <span class="spacer"></span>
     <a href="/tasks" id="taskAssignLink" style="color:#fff;background:#2563eb;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;text-decoration:none;">任务分配</a>
-    <button id="expandBtn" title="放大/缩小" style="padding:5px 10px;border:1px solid #c8ccd2;border-radius:6px;background:#fff;color:#2563eb;font-size:15px;line-height:1;cursor:pointer;">⤢</button>
     <select id="workLang">
       <option value="zh">中文</option>
       <option value="en">English</option>
@@ -56,7 +56,7 @@
   </div>
   <div class="split" id="split">
     <iframe class="pane fm" id="fmPane" title="文件管理"></iframe>
-    <div class="splitter" id="splitter" title="拖动调整栏宽"></div>
+    <div class="splitter" id="splitter" title="拖动调整栏宽"><button id="expandBtn" class="split-arrow" title="放大/缩小">▶▶</button></div>
     <iframe class="pane dsh" id="dshPane" title="DSH"></iframe>
   </div>
 
@@ -115,9 +115,16 @@
 
   // Toggle the left pane between ~30% and ~70% (enlarge / restore).
   var expandBtn = document.getElementById('expandBtn');
-  expandBtn.onclick = function () {
+  function updateExpandIcon() {
+    var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;
+    expandBtn.textContent = curW < 50 ? '▶▶' : '◀◀';
+  }
+  updateExpandIcon();
+  expandBtn.onclick = function (ev) {
+    ev.stopPropagation();
     var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;
     setFmWidth(curW < 50 ? 70 : 30);
+    updateExpandIcon();
   };
 
   splitter.addEventListener('mousedown', function (ev) {
