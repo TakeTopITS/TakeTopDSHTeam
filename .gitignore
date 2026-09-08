@@ -416,9 +416,10 @@ config/instances.json
 config/users.json
 # Internal development session/work logs (not project docs)
 docs/
-# Compiled launcher output
+# Compiled launcher output — ignore build intermediates but KEEP the self-contained
+# publish folder so a fresh clone has the launcher exe and runs out of the box
+# (no .NET SDK required on the target machine).
 dsh-launcher/
-gui-cs/src/bin/
 gui-cs/src/obj/
 *.pdb
 # Local secrets
@@ -439,3 +440,12 @@ config/users.json
 instances/
 logs/
 *.log
+# ---- Keep self-contained launcher publish output for clone-and-run ----
+!gui-cs/
+!gui-cs/src/
+!gui-cs/src/bin/
+!gui-cs/src/bin/Release/
+!gui-cs/src/bin/Release/net10.0/
+!gui-cs/src/bin/Release/net10.0/win-x64/
+!gui-cs/src/bin/Release/net10.0/win-x64/publish/
+!gui-cs/src/bin/Release/net10.0/win-x64/publish/**
