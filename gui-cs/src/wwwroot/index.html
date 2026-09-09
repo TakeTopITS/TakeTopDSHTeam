@@ -189,6 +189,18 @@
     <div id="instList" style="margin-top:8px;"></div>
   </div>
 
+  <!-- My Instance: non-admin users control their own instance -->
+  <div class="card" id="myInstanceCard" style="display:none;">
+    <h1 data-i18n="myInstTitle">My Instance</h1>
+    <div class="row">
+      <button id="myInstStartBtn" onclick="myInstStart()" data-i18n="instStart">▶ Start</button>
+      <button id="myInstStopBtn" class="danger" onclick="myInstStop()" data-i18n="instStop" style="display:none;">■ Stop</button>
+      <button id="myInstOpenBtn" class="secondary" onclick="myInstOpen()" data-i18n="instOpen" style="margin-left:42px;display:none;">Open DSH</button>
+    </div>
+    <div class="status"><span id="myInstDot" class="dot stopped"></span><span id="myInstState">Stopped</span></div>
+    <div id="myInstMsg" class="muted" style="min-height:18px;margin-top:6px;"></div>
+  </div>
+
   <!-- File manager: every logged-in user manages their own workspace -->
   <div class="card" id="fileManagerCard">
     <h2 data-i18n="fileTitle">文件管理</h2>
@@ -329,7 +341,7 @@ async function withLoading(btn, fn, done) {
 const I18N = {
   zh: {
     title: "TakeTopDSH Team 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
-    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "启动", instStop: "停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDSH Team 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDSH Team 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
     browse: "浏览", save: "保存", updateTitle: "更新", checkUpdate: "Check Update", checking: "检查中...", checkFail: "检查失败: ",
@@ -349,6 +361,7 @@ const I18N = {
 
     fmTabFiles: "文件管理", fmTabTasks: "我的任务",
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
+    myInstTitle: "我的实例", myInstStarting: "启动中...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
     fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动",
     fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
@@ -358,7 +371,7 @@ const I18N = {
   },
   en: {
     title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
-    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "Start", instStop: "Stop", instOpen: "Open", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDSH Team Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDSH Team Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
     browse: "Browse", save: "Save", updateTitle: "Update", checkUpdate: "Check Update", checking: "Checking...", checkFail: "Check failed: ",
@@ -378,6 +391,7 @@ const I18N = {
 
     fmTabFiles: "File Manager", fmTabTasks: "My Tasks",
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
+    myInstTitle: "My Instance", myInstStarting: "Starting...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
     fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved",
     fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
@@ -725,6 +739,10 @@ async function checkAuth() {
     document.querySelectorAll('[data-admin]').forEach(el => {
       el.style.display = me.admin ? '' : 'none';
     });
+    if (!me.admin) {
+      $('#myInstanceCard').style.display = '';
+      loadMyInstance();
+    }
 
     applyLang(preferredLang());
   } else {
@@ -740,6 +758,63 @@ async function doLogin() {
   const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
   if (r.ok) { location.href = '/admin'; }
   else { const j = await r.json(); $('#loginMsg').textContent = j.error || '登录失败'; }
+}
+
+// ================= My Instance (non-admin) =================
+async function loadMyInstance() {
+  try {
+    const r = await fetch('/api/instances');
+    if (!r.ok) return;
+    const d = await r.json();
+    const inst = (d.instances || [])[0];
+    if (!inst) { $('#myInstState').textContent = t('noInstances'); return; }
+    window._myInst = inst;
+    const running = inst.running;
+    $('#myInstDot').className = 'dot ' + (running ? 'running' : 'stopped');
+    $('#myInstState').textContent = running ? t('myInstRunning') : t('myInstStopped');
+    $('#myInstStartBtn').style.display = running ? 'none' : '';
+    $('#myInstStopBtn').style.display = running ? '' : 'none';
+    $('#myInstOpenBtn').style.display = running ? '' : 'none';
+  } catch (e) {}
+}
+async function myInstStart() {
+  const inst = window._myInst;
+  if (!inst) return;
+  $('#myInstStartBtn').disabled = true;
+  $('#myInstDot').className = 'dot running';
+  $('#myInstState').textContent = t('myInstStarting');
+  $('#myInstMsg').textContent = '';
+  try {
+    const r = await fetch('/api/instances/' + inst.id + '/start', { method: 'POST' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $('#myInstMsg').textContent = j.error || t('instError'); $('#myInstStartBtn').disabled = false; $('#myInstDot').className = 'dot stopped'; return; }
+    // Poll until running (max 120s)
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      await new Promise(res => setTimeout(res, 2000));
+      const lr = await fetch('/api/instances');
+      if (lr.ok) {
+        const ld = await lr.json();
+        const it = (ld.instances || [])[0];
+        if (it && it.running) { loadMyInstance(); return; }
+      }
+    }
+    $('#myInstMsg').textContent = t('timeoutHint');
+    $('#myInstStartBtn').disabled = false;
+    $('#myInstDot').className = 'dot stopped';
+  } catch (e) { $('#myInstMsg').textContent = t('instError'); $('#myInstStartBtn').disabled = false; $('#myInstDot').className = 'dot stopped'; }
+}
+async function myInstStop() {
+  const inst = window._myInst;
+  if (!inst) return;
+  const r = await fetch('/api/instances/' + inst.id + '/stop', { method: 'POST' });
+  if (r.ok) loadMyInstance();
+  else { const j = await r.json().catch(() => ({})); $('#myInstMsg').textContent = j.error || t('instError'); }
+}
+function myInstOpen() {
+  const inst = window._myInst;
+  if (!inst) return;
+  window.location.href = '/work?inst=' + encodeURIComponent(inst.id);
 }
 
 // ================= File manager (per-user workspace) =================
