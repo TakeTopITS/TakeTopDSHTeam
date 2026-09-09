@@ -1311,11 +1311,15 @@ app.Use(async (ctx, next) =>
             // Check for token URL (may have been captured from a previous DSH
             // process or from a prior request in this session).
             var tu = dsh.TokenUrl();
-            if (string.IsNullOrEmpty(tu) || !DshService.IsPortInUse(proxyPort))
+            // Require the DSH web service to actually respond, not merely have the
+            // port open (a stale/orphaned dsh right after reboot can hold 46000 while
+            // our own instance is being started, and proxying to it shows "site not
+            // found"). Until it answers HTTP we show the spinner instead.
+            if (string.IsNullOrEmpty(tu) || !DshService.IsDshReady(proxyPort))
             {
                 ctx.Response.StatusCode = 200;
                 ctx.Response.ContentType = "text/html; charset=utf-8";
-                var isRunning = DshService.IsPortInUse(proxyPort);
+                var isRunning = DshService.IsDshReady(proxyPort);
                 // Read language from cookie (tt_lang=zh-cn or en).
                 var lang = "en";
                 if (ctx.Request.Cookies.TryGetValue("tt_lang", out var lv) && !string.IsNullOrEmpty(lv))

@@ -121,6 +121,29 @@ public class DshService
         }
     }
 
+    // A port being open (TCP) does not mean DSH's web service is actually ready:
+    // right after a reboot a stale/orphaned dsh may still hold the port while our
+    // own instance is being (re)started, and proxying to it yields a broken page
+    // ("site not found"). Probe the HTTP endpoint: DSH returns 404/401 on "/" when
+    // no auth token is present, which is NORMAL — any HTTP response (even an error
+    // status) means the DSH web service is up and safe to proxy to. Only a failure
+    // to connect / no HTTP response at all means it is not ready yet.
+    public static bool IsDshReady(int port)
+    {
+        try
+        {
+            using var h = new System.Net.Http.HttpClient();
+            h.Timeout = TimeSpan.FromSeconds(3);
+            using var resp = h.GetAsync($"http://127.0.0.1:{port}/").GetAwaiter().GetResult();
+            // Any HTTP response (200/301/401/404/...) => the service is listening.
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public void Start(int port)
     {
         lock (_gate)
