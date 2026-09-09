@@ -1814,7 +1814,80 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
   scan(); setInterval(scan, 500);
 })();
 </script>";
-            var autoOpenInjected = autoOpenScript.Replace("__WSID__", wsIdJs ?? "") + authReloadScript;
+            // Accept a file dropped from the file-manager pane into the DSH composer:
+            // read the transferred path/name and insert it at the caret. We listen on
+            // the DSH document (same-origin via the launcher proxy) and insert into
+            // whichever contenteditable / text control is focused.
+            const string fmDropScript = @"
+<script>
+(function(){
+  function isEditable(el){
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName==='TEXTAREA') return true;
+    if (el.tagName==='INPUT' && /text|search/i.test(el.type||'')) return true;
+    // detect common rich-text editor root markers
+    if (el.getAttribute && (el.getAttribute('contenteditable')==='true')) return true;
+    if (el.hasAttribute && (el.hasAttribute('data-lexical-editor') || el.hasAttribute('data-slate-editor') || el.hasAttribute('data-placeholder'))) return true;
+    return false;
+  }
+  function findComposer(){
+    var act = document.activeElement;
+    if (isEditable(act)) return act;
+    // search deep for the composer editor root (often a nested contenteditable)
+    var nodes = document.querySelectorAll('[contenteditable=""true""], [contenteditable], [data-lexical-editor], [data-slate-editor], [data-placeholder], [role=""textbox""], textarea, input[type=""text""]');
+    // prefer a non-empty contenteditable near the bottom of the window (composer)
+    var best = null;
+    for (var i=0;i<nodes.length;i++){ if (isEditable(nodes[i])) { best = nodes[i]; } }
+    if (best) return best;
+    // last resort: any focused-editable descendant
+    for (var i=0;i<nodes.length;i++){ if (nodes[i].isContentEditable) return nodes[i]; }
+    return nodes[0] || null;
+  }
+  function insertAtCaret(el, text){
+    try {
+      if (el.isContentEditable){
+        el.focus();
+        // Use the well-supported editing command so ProseMirror-style editors
+        // (DSH's composer) recognize the inserted text, then fire input/change.
+        var ok = false;
+        try { ok = document.execCommand('insertText', false, text); } catch(err){ ok = false; }
+        if (!ok){
+          var sel = window.getSelection();
+          if (!sel.rangeCount){ sel = window.getSelection(); }
+          var r = sel.rangeCount ? sel.getRangeAt(0) : document.createRange();
+          r.collapse(false);
+          var t = document.createTextNode(text);
+          r.insertNode(t);
+        }
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+        try { document.dispatchEvent(new Event('input', {bubbles:true})); } catch(err){}
+      } else {
+        var s = el.selectionStart, e = el.selectionEnd;
+        el.value = el.value.slice(0,s) + text + el.value.slice(e);
+        el.selectionStart = el.selectionEnd = s + text.length;
+        el.focus();
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+    } catch(err){}
+  }
+  document.addEventListener('drop', function(ev){
+    var p='', n='';
+    try { p = ev.dataTransfer.getData('text/plain') || ''; } catch(err){}
+    try { n = ev.dataTransfer.getData('application/x-tt-fm-name') || ''; } catch(err){}
+    if (!p && !n) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var comp = findComposer();
+    if (!comp) return;
+    var txt = n || p;
+    insertAtCaret(comp, txt);
+  }, true);
+  document.addEventListener('dragover', function(ev){ ev.preventDefault(); }, true);
+})();
+</script>";
+            var autoOpenInjected = autoOpenScript.Replace("__WSID__", wsIdJs ?? "") + authReloadScript + fmDropScript;
             if (html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase) >= 0)
                 html = html.Replace("</head>", autoOpenInjected + "</head>", StringComparison.OrdinalIgnoreCase);
             else if (html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase) >= 0)

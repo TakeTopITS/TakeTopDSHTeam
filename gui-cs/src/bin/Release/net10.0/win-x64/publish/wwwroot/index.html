@@ -1397,9 +1397,22 @@ function bindDirBehavior(box, moving) {
 
 function rowHtml(icon, name, fpath, type, size, extra) {
   const glyph = extra && extra.glyph;
-  return '<div class="fm-row fm-' + type + '" data-path="' + escp(fpath) + '" data-type="' + type + '" data-name="' + escp(name) + '" style="' + (extra && extra.style || '') + '">'
+  return '<div class="fm-row fm-' + type + '" data-path="' + escp(fpath) + '" data-type="' + type + '" data-name="' + escp(name) + '"'
+       + ' draggable="true" ondragstart="fmDragStart(event)" style="' + (extra && extra.style || '') + '">'
        + '<span class="fm-name"><span class="fm-glyph" data-glyph="1">' + (glyph || '\u00a0') + '</span>' + icon + ' ' + escp(name) + '</span>' + (size || '')
        + '<span class="fm-actions">' + (extra && extra.actions || '') + '</span></div>';
+}
+// Allow dragging a file row from the file-manager pane into the DSH composer,
+// transferring the file's path/name so the DSH prompt can reference it.
+function fmDragStart(ev) {
+  const row = ev.target.closest('.fm-row');
+  if (!row) return;
+  const path = row.dataset.path || '';
+  const name = row.dataset.name || '';
+  try { ev.dataTransfer.setData('text/plain', path); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-path', path); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
 }
 
 // Move mode: show current dir's sub-directories to pick a target.
