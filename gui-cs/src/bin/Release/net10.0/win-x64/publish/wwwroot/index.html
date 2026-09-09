@@ -121,9 +121,7 @@
 
 <div class="wrap">
   <div class="topbar">
-    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#6b7280;">
-      <span id="appVersion" style="font-weight:600;color:#475569;"></span>
-    </div>
+    <div></div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span id="userInfo" class="muted"></span>
       <button id="changePassBtn" class="secondary" style="display:none;" data-i18n="changePass">改密码</button>
@@ -1848,19 +1846,14 @@ async function loadBrowseDir(path) {
     $('#browseList').textContent = t('cannotRead') + e.message;
   }
 }
-// Load the launcher's own app version and show it in the topbar.
+// Load the launcher's own app version and show it in the browser tab title.
 async function initVersion() {
   try {
     const r = await fetch('/api/version');
     if (!r.ok) return;
     const d = await r.json();
-    const el = $('#appVersion');
-    if (el) {
-      // Prefer the clean SemVer (d.version) over the informational build string
-      // (which has a "+githash" suffix).
-      el.textContent = (d.product || 'TakeTopDSH Team') + ' v' + (d.version || '1.0.0');
-      if (el.title) el.title = 'TakeTopDSH Team v' + (d.version || '');
-    }
+    // "TakeTopDSH Team Launcher v1.0.0" in the tab title (not on the page).
+    document.title = (document.title || 'TakeTopDSH Team Launcher') + ' v' + (d.version || '1.0.0');
   } catch (e) {}
 }
 initVersion();
