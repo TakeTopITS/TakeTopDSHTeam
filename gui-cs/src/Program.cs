@@ -30,6 +30,7 @@ if (args.Any(a => a.Equals("--apply-patch", StringComparison.OrdinalIgnoreCase))
 
 var dsh = new DshService(root);
 var instMgr = new InstanceManager(root, dsh.ReadInstancesStartPort());
+dsh.SetInstanceManager(instMgr);
 var auth = new AuthService(root);
 // Repair orphan instances (instances without a matching user account).
 auth.RepairOrphanInstances(instMgr.List());
@@ -168,12 +169,29 @@ app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
     return Results.Ok(new { ok = true, workspace = dsh.ReadWorkspacePath() });
 });
 // Server directory browsing: roots when no path, else a one-level listing. Admin only.
-app.MapGet("/api/browse", ([Microsoft.AspNetCore.Mvc.FromQuery] string? path, HttpContext ctx) =>
+// When ?inst=<id> is provided and no path, the default browse path is the instance's workspace.
+app.MapGet("/api/browse", ([Microsoft.AspNetCore.Mvc.FromQuery] string? path, [Microsoft.AspNetCore.Mvc.FromQuery] string? inst, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
         return Results.Json(new { ok = false, error = "仅管理员可浏览" }, statusCode: 403);
     if (string.IsNullOrWhiteSpace(path))
+    {
+        // If an instance is specified, default to its workspace directory.
+        if (!string.IsNullOrWhiteSpace(inst))
+        {
+            var instance = instMgr.Get(inst);
+            if (instance != null && !string.IsNullOrWhiteSpace(instance.Workspace))
+            {
+                var ws = instance.Workspace;
+                if (Directory.Exists(ws))
+                {
+                    var r0 = dsh.BrowseDirectory(ws);
+                    return (object)new { path = r0.Path, parent = r0.Parent, home = r0.Home, entries = r0.Entries };
+                }
+            }
+        }
         return (object)new { roots = dsh.BrowseRoots() };
+    }
     var r = dsh.BrowseDirectory(path);
     return (object)new { path = r.Path, parent = r.Parent, home = r.Home, entries = r.Entries };
 });
@@ -1042,6 +1060,29 @@ app.MapGet("/api/feedback", (string? inst, int? seq, HttpContext ctx) =>
     return Results.Ok(new { ok = true, entries = list });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+});
+
+// GET /api/sessions?date=2026-09-09 -> markdown content of that day's sessions (all users)
+// GET /api/sessions -> list of available dates
+// Any authenticated user may read (experience data is shared).
+app.MapGet("/api/sessions", (string? date, HttpContext ctx) =>
+{
+    if (ctx.Items["username"] == null) return Results.Json(new { ok = false }, statusCode: 401);
+    var mdDir = Path.Combine(dsh.ReadWorkspacePath(), "sharedata", "data", "sessions-md");
+    if (!Directory.Exists(mdDir)) return Results.Ok(new { ok = true, dates = Array.Empty<string>(), content = "" });
+    if (!string.IsNullOrWhiteSpace(date))
+    {
+        var file = Path.Combine(mdDir, $"sessions-{date}.md");
+        if (!System.IO.File.Exists(file)) return Results.Ok(new { ok = true, content = "" });
+        var content = System.IO.File.ReadAllText(file);
+        return Results.Ok(new { ok = true, content });
+    }
+    var dates = Directory.GetFiles(mdDir, "sessions-*.md")
+        .Select(Path.GetFileName)
+        .Select(n => n![9..^3]) // extract YYYY-MM-DD from sessions-YYYY-MM-DD.md
+        .OrderBy(d => d)
+        .ToList();
+    return Results.Ok(new { ok = true, dates });
 });
 
 // POST /api/feedback (multipart: inst, seq, content, files...) -> upsert today's entry

@@ -30,12 +30,15 @@ public class DshService
     private readonly CancellationTokenSource _backupCts = new();
     private int _backupIntervalSec = 60;      // seconds between scans
     private readonly Dictionary<string, (DateTime lwt, long len)> _backupSeen = new();
+    private InstanceManager? _instMgr;
 
     public DshService(string root)
     {
         _root = root;
         _dshHome = Path.Combine(root, ".dsh");
     }
+
+    public void SetInstanceManager(InstanceManager mgr) => _instMgr = mgr;
 
     public string Root => _root;
 
@@ -293,6 +296,12 @@ public class DshService
             sb.AppendLine("      3. You must NOT access, read, list, or reference any files or directories outside your workspace and the docs directory above.");
             sb.AppendLine("      4. If a task requires accessing files outside these directories, inform the user that access is restricted.");
             sb.AppendLine("      5. Use web search or web fetch tools for external resources instead of local file access.");
+            sb.AppendLine();
+            sb.AppendLine("      SHARED EXPERIENCE:");
+            sb.AppendLine("      To learn from other users' past work, use web_fetch to call the sessions API:");
+            sb.AppendLine("        - List available dates: web_fetch http://127.0.0.1:46001/api/sessions");
+            sb.AppendLine("        - Read a day's sessions: web_fetch http://127.0.0.1:46001/api/sessions?date=YYYY-MM-DD");
+            sb.AppendLine("      The response contains conversation logs from all team members. Reference them when handling similar tasks.");
 
             File.WriteAllText(patchFile, sb.ToString());
             AddLog($"[dsh] Applied workspace root: {workspace} (sandbox: workspace-write)");
@@ -431,7 +440,7 @@ public class DshService
     // ---------- Session backup (shared experience) ----------
 
     // Start a background loop that periodically copies dsh session logs into
-    // docs/opencode-experience/data/sessions-backup/ so the session content is
+    // <admin-workspace>/sharedata/data/sessions-backup/ so the session content is
     // preserved even after a user deletes it in the dsh UI.
     public void StartSessionBackup(int intervalSec = 60)
     {
@@ -459,36 +468,49 @@ public class DshService
     // Copy changed session .zstd files into the shared docs folder.
     private void BackupSessions()
     {
-        var sessionsRoot = Path.Combine(_dshHome, "sessions");
-        var backupDir = Path.Combine(_root, "docs", "opencode-experience", "data", "sessions-backup");
-        if (!Directory.Exists(sessionsRoot)) return;
+        var backupDir = Path.Combine(ReadWorkspacePath(), "sharedata", "data", "sessions-backup");
         Directory.CreateDirectory(backupDir);
 
-        var files = Directory.GetFiles(sessionsRoot, "*.zstd", SearchOption.AllDirectories);
-        foreach (var src in files)
+        // Collect all sessions directories: admin root + every user instance.
+        var sources = new List<(string dshHome, string label)>();
+        sources.Add((_dshHome, "_admin"));
+        if (_instMgr != null)
         {
-            try
-            {
-                var fi = new FileInfo(src);
-                var key = fi.FullName;
-                var signature = (fi.LastWriteTimeUtc, fi.Length);
-                // Skip while dsh is actively writing (recently modified / still growing).
-                if (DateTime.UtcNow - fi.LastWriteTimeUtc < TimeSpan.FromSeconds(5)) continue;
-                // Only copy if changed since last pass.
-                if (_backupSeen.TryGetValue(key, out var prev) && prev == signature) continue;
+            foreach (var inst in _instMgr.List())
+                if (!string.IsNullOrEmpty(inst.DshHome))
+                    sources.Add((inst.DshHome, $"_{inst.Id}"));
+        }
 
-                // Destination: <ts>_<sessionDir>_session.jsonl.zstd (unique, historical).
-                var sessionId = Path.GetFileName(Path.GetDirectoryName(src) ?? "");
-                var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                var dest = Path.Combine(backupDir, $"{stamp}_{sessionId}_session.jsonl.zstd");
-                File.Copy(src, dest, overwrite: true);
-                _backupSeen[key] = signature;
-                AddLog($"[backup] archived {sessionId} ({fi.Length} B)");
-            }
-            catch (Exception ex)
+        foreach (var (dshHome, label) in sources)
+        {
+            var sessionsRoot = Path.Combine(dshHome, "sessions");
+            if (!Directory.Exists(sessionsRoot)) continue;
+
+            var files = Directory.GetFiles(sessionsRoot, "*.zstd", SearchOption.AllDirectories);
+            foreach (var src in files)
             {
-                // File may be locked / being written; skip this one this round.
-                AddLog($"[backup] skip {Path.GetFileName(src)}: {ex.Message}");
+                try
+                {
+                    var fi = new FileInfo(src);
+                    var key = fi.FullName;
+                    var signature = (fi.LastWriteTimeUtc, fi.Length);
+                    // Skip while dsh is actively writing (recently modified / still growing).
+                    if (DateTime.UtcNow - fi.LastWriteTimeUtc < TimeSpan.FromSeconds(5)) continue;
+                    // Only copy if changed since last pass.
+                    if (_backupSeen.TryGetValue(key, out var prev) && prev == signature) continue;
+
+                    // Destination: <ts><label>_<sessionDir>_session.jsonl.zstd
+                    var sessionId = Path.GetFileName(Path.GetDirectoryName(src) ?? "");
+                    var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    var dest = Path.Combine(backupDir, $"{stamp}{label}_{sessionId}_session.jsonl.zstd");
+                    File.Copy(src, dest, overwrite: true);
+                    _backupSeen[key] = signature;
+                    AddLog($"[backup] archived {label[1..]}/{sessionId} ({fi.Length} B)");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"[backup] skip {Path.GetFileName(src)}: {ex.Message}");
+                }
             }
         }
 

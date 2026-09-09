@@ -189,12 +189,6 @@
     <div id="instList" style="margin-top:8px;"></div>
   </div>
 
-  <!-- Non-admin: show only own instance info -->
-  <div class="card" id="userInstanceCard" style="display:none;">
-    <h2 data-i18n="myInstance">我的实例</h2>
-    <div id="userInstanceInfo" style="margin-top:8px;"></div>
-  </div>
-
   <!-- File manager: every logged-in user manages their own workspace -->
   <div class="card" id="fileManagerCard">
     <h2 data-i18n="fileTitle">文件管理</h2>
@@ -352,7 +346,7 @@ const I18N = {
     passChanged: "密码已修改", passChangeFail: "修改失败", passMismatch: "两次输入的新密码不一致",
     resetPass: "重置密码", resetPassTitle: "重置密码", resetPassDone: "密码已重置",
     resetPassNew: "新密码", resetPassConfirm: "确认新密码",
-    myInstance: "我的实例",
+
     fmTabFiles: "文件管理", fmTabTasks: "我的任务",
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
@@ -381,7 +375,7 @@ const I18N = {
     passChanged: "Password changed", passChangeFail: "Change failed", passMismatch: "New passwords do not match",
     resetPass: "Reset Password", resetPassTitle: "Reset Password", resetPassDone: "Password reset",
     resetPassNew: "New password", resetPassConfirm: "Confirm new password",
-    myInstance: "My Instance",
+
     fmTabFiles: "File Manager", fmTabTasks: "My Tasks",
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
@@ -495,7 +489,7 @@ function applyLang(lang) {
   const lsMain = $('#langSelect'); if (lsMain && lsMain.value !== lang) lsMain.value = lang;
   // Re-render dynamic content that depends on the dictionary.
   if (typeof loadInstances === 'function') { try { loadInstances(); } catch (e) { } }
-  if (typeof refreshUserInstance === 'function') { try { refreshUserInstance(); } catch (e) { } }
+
   if (typeof fmLoad === 'function') { try { fmLoad(); } catch (e) { } }
   // Persist the chosen language so login page -> admin page -> DSH stay in sync.
   // Use a cookie (cross-page, cross-navigation) AND localStorage.
@@ -731,16 +725,7 @@ async function checkAuth() {
     document.querySelectorAll('[data-admin]').forEach(el => {
       el.style.display = me.admin ? '' : 'none';
     });
-    if (!me.admin && $('#userInstanceCard')) {
-      // In the fm pane (workbench left column) the instance card is redundant —
-      // the right pane already shows the user's DSH. Hide it there.
-      if (location.pathname === '/fm') {
-        $('#userInstanceCard').style.display = 'none';
-      } else {
-        $('#userInstanceCard').style.display = '';
-        await refreshUserInstance();
-      }
-    }
+
     applyLang(preferredLang());
   } else {
     // Not logged in: show login gate, hide main cards.
@@ -766,6 +751,13 @@ let fmExpanded = new Set();  // directories expanded inline (tree) by path
 let fmExpandCache = new Map();  // path -> entries[] for expanded dirs (avoids refetch)
 
 async function fmRequest(method, url, opts) {
+  // Automatically inject the ?inst= parameter for all /api/files/ calls so
+  // every file operation targets the correct instance workspace.
+  var instParam = new URLSearchParams(location.search).get('inst') || '';
+  if (instParam && url.startsWith('/api/files/')) {
+    var sep = url.includes('?') ? '&' : '?';
+    url += sep + 'inst=' + encodeURIComponent(instParam);
+  }
   const r = await fetch(url, Object.assign({ method: method }, opts || {}));
   const j = await r.json().catch(() => ({}));
   return { status: r.status, ok: r.ok, data: j };
@@ -1571,7 +1563,7 @@ function instStart(btn, id) { return withLoading(btn, async () => {
   const r = await fetch('/api/instances/' + id + '/start', { method: 'POST' });
   if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || t('instError')); return; }
   const j = await r.json().catch(() => ({}));
-  if (j.running) { loadInstances(); refreshUserInstance(); return; }   // already running
+  if (j.running) { loadInstances(); return; }
   // Show a soft hint: the first start of a restricted-user instance can be slow.
   const startHint = document.createElement('div');
   startHint.setAttribute('data-start-hint', '1');
@@ -1597,18 +1589,18 @@ function instStart(btn, id) { return withLoading(btn, async () => {
         const it = (ld.instances || []).find(matchId);
         if (it) {
           lastState = !!it.running;
-          if (it.running) { clearHint(); loadInstances(); refreshUserInstance(); return; }
+          if (it.running) { clearHint(); loadInstances(); return; }
         }
       }
     } catch (e) { /* transient */ }
   }
   clearHint();
-  loadInstances(); refreshUserInstance();
+  loadInstances();
 }); }
 function instStop(btn, id) { return withLoading(btn, async () => {
   const r = await fetch('/api/instances/' + id + '/stop', { method: 'POST' });
   if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || t('instError')); }
-  loadInstances(); refreshUserInstance();
+  loadInstances();
 }); }
 async function instOpen(id) {
   // Open the split workspace page: left = this user's file manager, right = DSH.
@@ -1639,33 +1631,7 @@ async function openWithToken() {
   } catch (e) { window.location.href = '/'; }
 }
 
-async function refreshUserInstance() {
-  if (isAdmin) return;
-  try {
-    const data = await (await fetch('/api/instances')).json();
-    const list = data.instances || [];
-    // Prefer the instance bound to this logged-in user; fall back to any one.
-    const inst = list.find(x => x.id === currentUser) || list[0];
-    if (!inst) return;
-    const userInfo = $('#userInstanceInfo');
-    if (!userInfo) return;
-    const stateColor = inst.running ? '#16a34a' : '#6b7280';
-    const stateText = inst.running ? t('instRunning') : t('instStopped');
-    let html = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
-    html += '<span><strong>' + t('thUser') + ':</strong> ' + esc(inst.id) + '</span>';
-    html += '<span><strong>' + t('thPort') + ':</strong> ' + inst.dshPort + '</span>';
-    html += '<span><strong>' + t('thState') + ':</strong> <span style="color:' + stateColor + ';">' + stateText + '</span></span>';
-    if (inst.running) {
-      html += ' <button class="secondary" onclick="instStop(this,\'' + esc(inst.id) + '\')">' + t('instStop') + '</button>';
-      // "打开 DSH": on the right of Stop, separated by ~3 CJK chars, opens the DSH.
-      html += ' <a class="secondary" onclick="openWithToken()" style="display:inline-block;margin-left:42px;padding:7px 14px;border-radius:6px;background:#2563eb;color:#fff;text-decoration:none;font-size:14px;cursor:pointer;">' + t('openDshBtn') + '</a>';
-    } else {
-      html += ' <button onclick="instStart(this,\'' + esc(inst.id) + '\')">' + t('instStart') + '</button>';
-    }
-    html += '</div>';
-    userInfo.innerHTML = html;
-  } catch (e) { }
-}
+
 function instDelete(btn, id) {
   if (!confirm('Delete ' + id + '?')) return;
   return withLoading(btn, async () => {
@@ -1726,9 +1692,12 @@ async function openBrowse(path) {
   $('#browseModal').style.display = 'flex';
   $('#browseList').textContent = t('loading');
   $('#browseBreadcrumb').textContent = '';
+  // Pass the instance id (if any) so the server defaults to its workspace.
+  var instParam = new URLSearchParams(location.search).get('inst') || '';
+  var instQs = instParam ? '?inst=' + encodeURIComponent(instParam) : '';
   if (!path) {
     try {
-      const r = await (await fetch('/api/browse')).json();
+      const r = await (await fetch('/api/browse' + instQs)).json();
       browseRoots = r.roots || [];
     } catch (e) { browseRoots = []; }
     renderBrowseRoots();

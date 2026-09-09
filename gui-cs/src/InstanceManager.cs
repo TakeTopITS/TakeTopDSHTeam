@@ -357,8 +357,11 @@ public class InstanceManager
                     var osUser = OsUserManager.CreateUser(id, osPassword);
                     if (osUser != null)
                     {
-                        var docsDir = Path.Combine(_root, "docs");
+                        var docsDir = Path.Combine(workspace, "..", "..", "adminroot", "sharedata");
                         OsUserManager.SetPermissions(id, workspace, docsDir, dshHome, _root);
+                        // Mark as permissioned so Start() skips the slow icacls
+                        // re-traversal (Create already set full permissions).
+                        _permissionedOsUsers.TryAdd(id, true);
                     }
                 }
                 catch (Exception ex)
@@ -516,6 +519,9 @@ public class InstanceManager
     {
         lock (_gate)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            Trace.WriteLine($"[start:{inst.Id}] beginning start sequence");
+
             // Sync the shared API key from the admin template BEFORE the early-return
             // below, so even an instance that is already running (e.g. auto-restored
             // on launcher start) gets the real DeepSeek key the admin configured.
@@ -539,7 +545,9 @@ public class InstanceManager
                 throw new InvalidOperationException("node/dsh not found");
 
             // Inject this instance's workspace into its own cordis.patch.yml.
+            // This also calls EnsureWorkspace to seed a blank session if needed.
             ApplyWorkspace(inst);
+            Trace.WriteLine($"[start:{inst.Id}] ApplyWorkspace done in {sw.ElapsedMilliseconds}ms");
 
             // OS-user isolation: run dsh under a dedicated restricted OS user so
             // it can only access its own workspace. If the process exits
@@ -567,35 +575,53 @@ public class InstanceManager
             {
                 // Ensure the dedicated OS user exists and permissions are set ONCE
                 // (the icacls recursion over node_modules is slow but persistent).
-                if (!_permissionedOsUsers.ContainsKey(inst.Id))
+                var osUserReady = _permissionedOsUsers.ContainsKey(inst.Id);
+                if (!osUserReady)
                 {
-                    var osUser = OsUserManager.CreateUser(inst.Id, inst.OsPassword);
-                    if (osUser != null)
+                    Trace.WriteLine($"[start:{inst.Id}] creating OS user + setting permissions");
+                    try
                     {
-                        var docsDir = Path.Combine(_root, "docs");
-                        if (!string.IsNullOrWhiteSpace(inst.Workspace)) Directory.CreateDirectory(inst.Workspace);
-                        OsUserManager.SetPermissions(inst.Id, inst.Workspace, docsDir, inst.DshHome, _root);
-                        _permissionedOsUsers.TryAdd(inst.Id, true);
+                        var osUser = OsUserManager.CreateUser(inst.Id, inst.OsPassword);
+                        if (osUser != null)
+                        {
+                            var docsDir = Path.Combine(inst.Workspace, "..", "..", "adminroot", "sharedata");
+                            if (!string.IsNullOrWhiteSpace(inst.Workspace)) Directory.CreateDirectory(inst.Workspace);
+                            OsUserManager.SetPermissions(inst.Id, inst.Workspace, docsDir, inst.DshHome, _root);
+                            _permissionedOsUsers.TryAdd(inst.Id, true);
+                            osUserReady = true;
+                        }
                     }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine($"[start:{inst.Id}] OS user creation failed: {ex.Message}");
+                    }
+                    Trace.WriteLine($"[start:{inst.Id}] OS user setup done in {sw.ElapsedMilliseconds}ms");
                 }
-                var env = new Dictionary<string, string> { ["DSH_HOME"] = inst.DshHome };
-                proc = OsUserManager.StartAsUser(inst.Id, node,
-                    ["--expose-internals", bin, "--profile", "web", "--port", inst.DshPort.ToString(), "--no-open"],
-                    inst.DshHome, env, inst.OsPassword);
-            }
-            else
-            {
-                proc = new Process { StartInfo = psi };
+
+                if (osUserReady)
+                {
+                    var env = new Dictionary<string, string> { ["DSH_HOME"] = inst.DshHome };
+                    proc = OsUserManager.StartAsUser(inst.Id, node,
+                        ["--expose-internals", bin, "--profile", "web", "--port", inst.DshPort.ToString(), "--no-open"],
+                        inst.DshHome, env, inst.OsPassword);
+                }
+                // If OS user creation or StartAsUser failed, fall back to launching
+                // DSH directly (no OS-level isolation) so the instance can still start.
+                if (proc == null)
+                    Trace.WriteLine($"[start:{inst.Id}] OS user unavailable, falling back to direct launch");
             }
 
             if (proc == null)
-                throw new InvalidOperationException($"could not start dsh as OS user '{inst.Id}'");
+            {
+                proc = new Process { StartInfo = psi };
+            }
 
             proc.OutputDataReceived += (_, e) => { if (e.Data != null) { inst.Logs.Enqueue(e.Data); CaptureToken(inst, e.Data); } };
             proc.ErrorDataReceived += (_, e) => { if (e.Data != null) inst.Logs.Enqueue("[ERR] " + e.Data); };
             proc.Start();
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
+            Trace.WriteLine($"[start:{inst.Id}] process started in {sw.ElapsedMilliseconds}ms");
 
             // If the process dies immediately (common when a restricted user lacks
             // access to node/dsh), record its full stderr for diagnosis.
@@ -722,7 +748,8 @@ public class InstanceManager
 
             var norm = inst.Workspace.Replace('\\', '/');
             var nativePath = Path.GetFullPath(inst.Workspace);   // native (backslash) form DSH canonicalizes to
-            var docsDir = Path.Combine(_root, "docs").Replace('\\', '/');
+            // Shared experience data lives in the admin workspace's sharedata dir.
+            var docsDir = Path.Combine(inst.Workspace, "..", "..", "adminroot", "sharedata").Replace('\\', '/');
 
             // Build the complete cordis.patch.yml with sandbox + persona restrictions.
             var sb = new System.Text.StringBuilder();
@@ -768,6 +795,12 @@ public class InstanceManager
             sb.AppendLine("      3. You must NOT access, read, list, or reference any files or directories outside your workspace and the docs directory above.");
             sb.AppendLine("      4. If a task requires accessing files outside these directories, inform the user that access is restricted.");
             sb.AppendLine("      5. Use web search or web fetch tools for external resources instead of local file access.");
+            sb.AppendLine();
+            sb.AppendLine("      SHARED EXPERIENCE:");
+            sb.AppendLine("      To learn from other users' past work, use web_fetch to call the sessions API:");
+            sb.AppendLine("        - List available dates: web_fetch http://127.0.0.1:46001/api/sessions");
+            sb.AppendLine("        - Read a day's sessions: web_fetch http://127.0.0.1:46001/api/sessions?date=YYYY-MM-DD");
+            sb.AppendLine("      The response contains conversation logs from all team members. Reference them when handling similar tasks.");
 
             File.WriteAllText(patchFile, sb.ToString());
 
@@ -807,10 +840,17 @@ public class InstanceManager
                         foreach (var p in wsTable.EnumerateObject())
                         {
                             if (p.Value.TryGetProperty("path", out var pathEl) &&
-                                string.Equals(pathEl.GetString(), norm, StringComparison.OrdinalIgnoreCase) &&
                                 p.Value.TryGetProperty("sessionIds", out var sidEl) &&
                                 sidEl.GetArrayLength() > 0)
-                                return; // already good — keep the record + its sessions
+                            {
+                                // Normalize both stored and requested paths to
+                                // forward slashes for comparison so mixed-separator
+                                // paths (E:/a\b) match canonical forms (E:/a/b).
+                                var stored = (pathEl.GetString() ?? "").Replace('\\', '/');
+                                var requested = norm.Replace('\\', '/');
+                                if (string.Equals(stored, requested, StringComparison.OrdinalIgnoreCase))
+                                    return; // already good — keep the record + its sessions
+                            }
                         }
                     }
                 }
