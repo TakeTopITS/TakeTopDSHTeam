@@ -1013,8 +1013,10 @@ function openTaskFile2(rel) {
       ov = document.createElement('div');
       ov.id = 'tcvImgView';
       ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
-      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>';
+      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>'
+        + '<button style="position:fixed;top:14px;right:18px;padding:8px 16px;background:#fff;color:#1c1e21;border:0;border-radius:6px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10021;">×</button>';
       document.body.appendChild(ov);
+      ov.querySelector('button').onclick = function(){ ov.style.display = 'none'; };
       ov.addEventListener('click', function(){ ov.style.display = 'none'; });
     }
     ov.querySelector('img').src = url;
@@ -1041,8 +1043,10 @@ function openFbFile(fn) {
     if (!ov) {
       ov = document.createElement('div'); ov.id = 'fbImgView';
       ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
-      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>';
+      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>'
+        + '<button style="position:fixed;top:14px;right:18px;padding:8px 16px;background:#fff;color:#1c1e21;border:0;border-radius:6px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10021;">×</button>';
       document.body.appendChild(ov);
+      ov.querySelector('button').onclick = function(){ ov.style.display = 'none'; };
       ov.addEventListener('click', function(){ ov.style.display = 'none'; });
     }
     ov.querySelector('img').src = url;

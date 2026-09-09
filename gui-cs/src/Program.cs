@@ -395,8 +395,11 @@ string? ResolveUserWorkspace(string username)
 
 // Resolve the workspace a file-manager request should operate on. Supports an
 // optional ?inst=<id> target (used by the /work split page): admins may view any
-// user's workspace; non-admins are confined to their own.
-string? ResolveFileWorkspace(HttpContext ctx)
+// user's workspace; non-admins are confined to their own. `allowCrossMemberRead`
+// additionally lets any authenticated user READ (list/preview/download) files
+// from another member's workspace — required so collaborators can view each
+// other's task/feedback attachments. Write operations are never cross-member.
+string? ResolveFileWorkspace(HttpContext ctx, bool allowCrossMemberRead = false)
 {
     var username = (string)ctx.Items["username"]!;
     var instParam = ctx.Request.Query["inst"].FirstOrDefault();
@@ -405,15 +408,17 @@ string? ResolveFileWorkspace(HttpContext ctx)
         // "admin" always resolves to the global workspace (admin is not in instances.json).
         if (string.Equals(instParam, "admin", StringComparison.OrdinalIgnoreCase))
             return dsh.ReadWorkspacePath();
-        // Admin (or the user themself) may view any instance workspace; non-admins
-        // are confined to their own workspace.
-        if (!string.Equals(instParam, username, StringComparison.OrdinalIgnoreCase))
+        // Admin (or the user themself) may view any instance workspace.
+        if (string.Equals(instParam, username, StringComparison.OrdinalIgnoreCase))
         {
-            var caller = auth.Find(username);
-            if (caller?.Admin != true) return null; // non-admin cannot browse another workspace
+            var t = instMgr.Get(instParam);
+            return t == null ? null : t.Workspace;
         }
-        var t = instMgr.Get(instParam);
-        return t == null ? null : t.Workspace;
+        // Non-admin requesting another member's workspace: allowed only for reads.
+        var caller = auth.Find(username);
+        if (caller?.Admin != true && !allowCrossMemberRead) return null;
+        var inst = instMgr.Get(instParam);
+        return inst == null ? null : inst.Workspace;
     }
     return ResolveUserWorkspace(username);
 }
@@ -453,7 +458,7 @@ static IReadOnlyList<object> BuildFileEntries(string absDir)
 // Health: returns the resolved workspace root (REQUIRED for the UI to know where it is).
 app.MapGet("/api/files/root", (HttpContext ctx) =>
 {
-    var ws = ResolveFileWorkspace(ctx);
+    var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
     return Results.Ok(new { ok = true, root = ws });
 });
@@ -461,7 +466,7 @@ app.MapGet("/api/files/root", (HttpContext ctx) =>
 // List a directory (or the workspace root when `path` is empty).
 app.MapGet("/api/files/list", (string? path, HttpContext ctx) =>
 {
-    var ws = ResolveFileWorkspace(ctx);
+    var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
     try
     {
@@ -628,7 +633,7 @@ app.MapPost("/api/files/unzip", (FileOpRequest req, HttpContext ctx) =>
 // Read a file's text content for the viewer (limit size to avoid huge loads).
 app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
 {
-    var ws = ResolveFileWorkspace(ctx);
+    var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
     try
     {
@@ -658,7 +663,7 @@ app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
 // preview). Browsers then hand the downloaded file to the OS default app.
 app.MapGet("/api/files/download", (string? path, string? inline, HttpContext ctx) =>
 {
-    var ws = ResolveFileWorkspace(ctx);
+    var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
     try
     {
@@ -897,6 +902,17 @@ app.MapDelete("/api/tasks", (string? inst, int? seq, HttpContext ctx) =>
             return Results.Json(new { ok = false, error = "仅可删除自己建立的任务" }, statusCode: 403);
         list.RemoveAll(x => x.Seq == seq);
         WriteTaskList(inst, list);
+        // Also drop this task's feedback so orphaned entries don't attach to a
+        // future task that reuses the same seq number.
+        try
+        {
+            if (seq.HasValue)
+            {
+                var fb = ReadFeedback(inst);
+                if (fb.Remove(seq.Value)) WriteFeedback(inst, fb);
+            }
+        }
+        catch { }
         return Results.Ok(new { ok = true });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
@@ -1068,6 +1084,16 @@ app.MapGet("/api/feedback", (string? inst, int? seq, HttpContext ctx) =>
     {
     var dict = ReadFeedback(target);
     var list = seq.HasValue && dict.TryGetValue(seq.Value, out var l) ? l : new List<FeedbackEntry>();
+    // Staleness guard: because task seq numbers are reused after a delete, a
+    // freshly created task can inherit orphaned feedback left by a previous
+    // task that occupied the same seq. Only show feedback dated on/after the
+    // task's assignedAt time; anything earlier is orphaned and dropped.
+    if (seq.HasValue)
+    {
+        var assignedAt = ReadTaskList(target).FirstOrDefault(x => x.Seq == seq.Value)?.AssignedAt;
+        if (!string.IsNullOrWhiteSpace(assignedAt) && DateTime.TryParse(assignedAt, out var start))
+            list = list.Where(e => DateTime.TryParse(e.Time ?? e.Date, out var et) && et >= start).ToList();
+    }
     list = list.OrderByDescending(e => e.Time).ToList();
     return Results.Ok(new { ok = true, entries = list });
     }
