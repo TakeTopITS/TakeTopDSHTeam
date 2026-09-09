@@ -136,6 +136,16 @@ app.MapGet("/api/auth/me", (HttpContext ctx) =>
     return Results.Ok(new { ok = true, username = user, admin = u?.Admin == true, instanceId = u?.InstanceId ?? "" });
 });
 app.MapGet("/api/status", () => dsh.Status());
+// The launcher's own app version (single source: the csproj <Version>).
+app.MapGet("/api/version", () => new
+{
+    version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "1.0.0",
+    informational = System.Reflection.Assembly.GetExecutingAssembly()
+        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+        .FirstOrDefault()?.InformationalVersion ?? "1.0.0",
+    product = "TakeTopDSH Team",
+});
 app.MapGet("/api/logs", (int? from) => new { logs = dsh.Logs(from ?? 0), total = dsh.TotalLogCount, from = from ?? 0 });
 app.MapGet("/api/token", () => new { url = dsh.TokenUrl() });
 // Public: language list for the login page (available before authentication).
@@ -1274,6 +1284,7 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/logout") ||
         path.StartsWith("/api/auth/me") ||
         path.StartsWith("/api/status") ||
+        path.StartsWith("/api/version") ||
         path.StartsWith("/api/logs") ||
         path.StartsWith("/api/token") ||
         path.StartsWith("/api/config") ||
