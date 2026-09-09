@@ -1972,7 +1972,9 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
     ev.preventDefault(); ev.stopPropagation();
     var comp = findComposer();
     if (!comp) return;
-    var txt = n || p;
+    // Drag a file: transfer its workspace-relative path (excluding the workspace
+    // dir name), falling back to the bare file name for task-drag drops.
+    var txt = p || n;
     insertAtCaret(comp, txt);
   }, true);
   document.addEventListener('dragover', function(ev){ ev.preventDefault(); }, true);

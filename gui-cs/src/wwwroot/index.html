@@ -216,6 +216,7 @@
     <input type="file" id="fmFileInput" multiple style="display:none;" />
     <div id="fmList" style="border:1px solid #e0e2e6;border-radius:8px;overflow:auto;min-height:200px;max-height:50vh;padding:6px 8px;"></div>
     <div class="muted" style="margin-top:6px;min-height:18px;" id="fmMsg"></div>
+    <div id="fmHint" class="fm-drag-hint" style="margin-top:6px;padding:6px 10px;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;color:#64748b;font-size:12px;" data-i18n="fmHint">把文件名拖到右边的 AI 对话框中</div>
   </div>
 
   <!-- File viewer modal -->
@@ -363,6 +364,7 @@ const I18N = {
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
     myInstTitle: "我的实例", myInstStarting: "启动中...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
+    fmHint: "可以把文件名拖到右边的 AI 对话框中",
     fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动",
     fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
     fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
@@ -393,6 +395,7 @@ const I18N = {
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
     myInstTitle: "My Instance", myInstStarting: "Starting...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
+    fmHint: "you can drag a file name into the ai dialog on the right",
     fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved",
     fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
     fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
@@ -921,6 +924,15 @@ async function loadMyTasks(container) {
         body.appendChild(tr);
       });
       tbl.appendChild(body);
+      // Hint: task names can be dragged into the AI dialog on the right.
+      var hint = container.querySelector('.fm-drag-hint');
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'fm-drag-hint';
+        hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;color:#64748b;font-size:12px;';
+        hint.textContent = en ? 'you can drag a task name into the ai dialog on the right' : '可以把任务名称拖动到右边 AI 会话框中';
+        container.appendChild(hint);
+      }
       container.querySelectorAll('a.fm-task-name-link').forEach(function (a) {
         a.onclick = function (ev) {
           ev.preventDefault();
