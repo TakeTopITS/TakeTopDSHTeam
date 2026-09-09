@@ -239,6 +239,17 @@ app.MapGet("/api/instances", (HttpContext ctx) =>
     });
     return new { instances = list };
 });
+// Member directory for task collaboration: any authenticated user may list ALL
+// members (id + name) so they can assign tasks to / reference one another.
+app.MapGet("/api/members", (HttpContext ctx) =>
+{
+    if (ctx.Items["username"] == null) return Results.Json(new { ok = false }, statusCode: 401);
+    // Include the admin pseudo-member plus every instance.
+    var list = new List<object> { new { id = "admin", name = "Admin", admin = true } };
+    foreach (var i in instMgr.List())
+        list.Add(new { id = i.Id, name = i.Name, admin = false });
+    return Results.Ok(new { ok = true, members = list });
+});
 app.MapPost("/api/instances", (CreateInstanceRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
@@ -779,7 +790,8 @@ app.MapGet("/api/tasks", (string? inst, string? scope, int? page, int? pageSize,
             foreach (var t in ReadTaskList("admin"))
                 if (!all.Any(x => x.Task.Seq == t.Seq && x.Member == "admin"))
                     all.Add((t, "admin"));
-            // "All" overview: non-admins only see tasks they created.
+            // "All" overview: non-admins only see tasks they created (not tasks
+            // created by others, even if assigned to them).
             if (!isAdmin) all = all.Where(x => string.Equals(x.Task.CreatedBy, username, StringComparison.OrdinalIgnoreCase)).ToList();
         }
         else if (string.Equals(scope, "assignment", StringComparison.OrdinalIgnoreCase))
@@ -1246,6 +1258,7 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/stop") ||
         path.StartsWith("/api/update") ||
         path.StartsWith("/api/instances") ||
+        path.StartsWith("/api/members") ||
         path.StartsWith("/api/change-password") ||
         path.StartsWith("/api/admin/") ||
         path.StartsWith("/api/tasks") ||

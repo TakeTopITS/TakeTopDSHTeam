@@ -297,11 +297,10 @@
 
   async function loadMembers() {
     try {
-      var d = await req('GET', '/api/instances');
-      members = (d.instances || []).map(function(x){ return { id:x.id, name:x.name, ws:x.workspace, running:x.running }; });
-      // Admin can also assign tasks to itself.
-      members.unshift({ id:'admin', name:'Admin', ws:'', running:false });
-      members.unshift({ id:'', name: lang==='en'?'All':'全部', ws:'', running:false });
+      var d = await req('GET', '/api/members');
+      members = (d.members || []).map(function(x){ return { id:x.id, name:x.name, admin:x.admin }; });
+      // "All" overview for collaboration: show tasks created by every member.
+      members.unshift({ id:'', name: lang==='en'?'All':'全部', admin:false });
       var box = $('#memberList'); box.innerHTML = '';
       members.forEach(function(m){
         var el = document.createElement('div');
