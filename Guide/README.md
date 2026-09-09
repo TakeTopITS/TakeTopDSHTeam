@@ -15,7 +15,7 @@ TakeTopDSH Team turns [DeepSeek Harness] into a **team-ready, multi-user platfor
 
 TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
 
-> **Dual-licensed.** The source code is released under **GPL-3.0** (free for unlimited use/modification/redistribution under its terms). Commercial users or teams that need commercial support and private deployment terms can obtain a **commercial license** from 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai)(EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing extra support should contact us for a paid license.
+> **MIT License.** This software and its source code are licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)). The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
 
 ---
 
@@ -130,9 +130,8 @@ Full **中文 / English** toggle across the console, workbench, file manager, ta
 
 ## License
 
-This project is **dual-licensed**:
+This project is licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)). You may use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the software, subject to the conditions in the MIT License.
 
-- **Open Source**: the full source code is licensed under the **GNU GPL v3.0** (see [LICENSE](LICENSE) / [COPYING](COPYING)). You may use, copy, modify and redistribute it under the GPL-3.0 terms.
-- **Commercial**: for teams/organizations that require commercial support, private deployment, custom features, or alternative licensing terms, a separate **commercial license** is available from **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). It is **free for up to 10 users**; larger teams or those needing commercial support should contact us for a paid license.
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The MIT license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
-Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.

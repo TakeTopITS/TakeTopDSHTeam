@@ -1,35 +1,40 @@
 TakeTopDSH Team
 ================
 
-Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)
+Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
+TakeTop Information Technology (Shanghai) Co., Ltd.
 EMail: service@taketopits.com
 
-This product is dual-licensed:
+License
+-------
 
-  - The source code is licensed under the GNU General Public License,
-    version 3 (GPL-3.0). See the LICENSE file for the full text and
-    <https://www.gnu.org/licenses/>.
+This software and its source code are licensed under the MIT License.
+See the LICENSE / COPYING file for the full text.
 
-  - A commercial license is free for **up to 10 users**. For larger teams
-    or those requiring commercial support, contact 泰顶拓鼎信息科技（上海）有限公司
-    (EMail: service@taketopits.com).
+Intellectual property / 知识产权
+--------------------------------
 
+This software and all of its source code, design, documentation and related
+materials are the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
+(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+
+The MIT license grants permission to use, copy, modify, merge, publish,
+distribute, sublicense and/or sell copies of the software, subject to the
+conditions in the LICENSE file. This does not transfer ownership of the
+intellectual property, which remains vested in the copyright holder.
 
 Third-party components
------------------------
+----------------------
 
 This product bundles and relies on the following third-party software.
 They remain under their respective licenses:
 
   - DeepSeek Harness (@deepseek-ai/dsh) and its related packages
-    (node_modules/@deepseek-ai/*) — see the package licenses under
+    (node_modules/@deepseek-ai/*) - see the package licenses under
     node/node_modules/@deepseek-ai/dsh for details.
 
-  - highlight.js (https://highlightjs.org/) — MIT License
-  - marked (https://marked.js.org/) — MIT License
-  - Node.js runtime (bundled under node/) — its own licenses
+  - highlight.js (https://highlightjs.org/) - MIT License
+  - marked (https://marked.js.org/) - MIT License
+  - Node.js runtime (bundled under node/) - its own licenses
   - .NET / ASP.NET Core runtime (bundled in the self-contained launcher)
-    — MIT License.
-
-NOTICE — this file lists attribution and contact information as suggested
-by the GNU GPL. It does not alter the terms of the LICENSE file.
+    - MIT License
