@@ -740,8 +740,9 @@ async function checkAuth() {
     document.querySelectorAll('[data-admin]').forEach(el => {
       el.style.display = me.admin ? '' : 'none';
     });
+    // "My Instance" card is only for non-admin users (admins use Instance Manager).
+    $('#myInstanceCard').style.display = me.admin ? 'none' : '';
     if (!me.admin) {
-      $('#myInstanceCard').style.display = '';
       loadMyInstance();
     }
 
@@ -773,6 +774,7 @@ async function loadMyInstance() {
     const running = inst.running;
     $('#myInstDot').className = 'dot ' + (running ? 'running' : 'stopped');
     $('#myInstState').textContent = running ? t('myInstRunning') : t('myInstStopped');
+    $('#myInstStartBtn').disabled = false;
     $('#myInstStartBtn').style.display = running ? 'none' : '';
     $('#myInstStopBtn').style.display = running ? '' : 'none';
     $('#myInstOpenBtn').style.display = running ? '' : 'none';
@@ -781,36 +783,48 @@ async function loadMyInstance() {
 async function myInstStart() {
   const inst = window._myInst;
   if (!inst) return;
-  $('#myInstStartBtn').disabled = true;
-  $('#myInstDot').className = 'dot running';
-  $('#myInstState').textContent = t('myInstStarting');
-  $('#myInstMsg').textContent = '';
-  try {
+  const btn = $('#myInstStartBtn');
+  await withLoading(btn, async () => {
+    $('#myInstMsg').textContent = '';
     const r = await fetch('/api/instances/' + inst.id + '/start', { method: 'POST' });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); $('#myInstMsg').textContent = j.error || t('instError'); return; }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { $('#myInstMsg').textContent = j.error || t('instError'); $('#myInstStartBtn').disabled = false; $('#myInstDot').className = 'dot stopped'; return; }
-    // Poll until running (max 120s)
-    const deadline = Date.now() + 120000;
-    while (Date.now() < deadline) {
+    if (j.running) { loadMyInstance(); return; }
+    // Show a soft hint: the first start of a restricted-user instance can be slow.
+    const startHint = document.createElement('div');
+    startHint.setAttribute('data-start-hint', '1');
+    startHint.style.cssText = 'display:inline-block;background:#1c1e21;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;margin-left:10px;vertical-align:middle;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+    startHint.textContent = t('startHint');
+    if (btn && btn.parentNode) btn.insertAdjacentElement('afterend', startHint);
+    else document.body.appendChild(startHint);
+    const clearHint = () => { if (startHint && startHint.parentNode) startHint.parentNode.removeChild(startHint); };
+    // Accepted (async). Poll until running (max 120s) so the button stays loading.
+    const startMs = Date.now();
+    const matchId = (it) => (inst.id && it.id === inst.id) || it.id === currentUser;
+    while (Date.now() - startMs < 120000) {
       await new Promise(res => setTimeout(res, 2000));
-      const lr = await fetch('/api/instances');
-      if (lr.ok) {
-        const ld = await lr.json();
-        const it = (ld.instances || [])[0];
-        if (it && it.running) { loadMyInstance(); return; }
-      }
+      try {
+        const lr = await fetch('/api/instances');
+        if (lr.ok) {
+          const ld = await lr.json();
+          const it = (ld.instances || []).find(matchId);
+          if (it && it.running) { clearHint(); loadMyInstance(); return; }
+        }
+      } catch (e) { /* transient */ }
     }
+    clearHint();
     $('#myInstMsg').textContent = t('timeoutHint');
-    $('#myInstStartBtn').disabled = false;
-    $('#myInstDot').className = 'dot stopped';
-  } catch (e) { $('#myInstMsg').textContent = t('instError'); $('#myInstStartBtn').disabled = false; $('#myInstDot').className = 'dot stopped'; }
+    loadMyInstance();
+  });
 }
 async function myInstStop() {
   const inst = window._myInst;
   if (!inst) return;
-  const r = await fetch('/api/instances/' + inst.id + '/stop', { method: 'POST' });
-  if (r.ok) loadMyInstance();
-  else { const j = await r.json().catch(() => ({})); $('#myInstMsg').textContent = j.error || t('instError'); }
+  await withLoading($('#myInstStopBtn'), async () => {
+    const r = await fetch('/api/instances/' + inst.id + '/stop', { method: 'POST' });
+    if (r.ok) loadMyInstance();
+    else { const j = await r.json().catch(() => ({})); $('#myInstMsg').textContent = j.error || t('instError'); }
+  });
 }
 function myInstOpen() {
   const inst = window._myInst;
