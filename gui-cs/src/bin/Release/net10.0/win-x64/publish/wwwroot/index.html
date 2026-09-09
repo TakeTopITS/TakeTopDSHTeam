@@ -574,6 +574,7 @@ async function init() {
     }
     // Apply the saved language so the file-manager labels match the rest of the app.
     applyLang(preferredLang());
+    $('#myInstanceCard').style.display = 'none';
     try { await initFileManager(); } catch (e) {}
     return;
   }
