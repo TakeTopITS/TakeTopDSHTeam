@@ -442,6 +442,12 @@ config/users.json
 .dsh/.anonymous-user-id
 .dsh/sessions/
 .dsh/storages/
+# .dsh/profiles/node_modules is a DSH-managed symlink/module-proxy tree that DSH
+# recreates from node/ on boot. It must NOT be checked in: git turns the cascade
+# of junctions into real directories on clone, which makes DSH abort
+# ("exists and is not a symlink or dsh-managed module proxy"). Keep the rest of
+# .dsh/profiles (web/ templates, etc.) trackable.
+.dsh/profiles/node_modules/
 instances/
 logs/
 *.log
