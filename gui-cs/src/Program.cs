@@ -1311,11 +1311,14 @@ app.Use(async (ctx, next) =>
             // Check for token URL (may have been captured from a previous DSH
             // process or from a prior request in this session).
             var tu = dsh.TokenUrl();
-            // Require the DSH web service to actually respond, not merely have the
-            // port open (a stale/orphaned dsh right after reboot can hold 46000 while
-            // our own instance is being started, and proxying to it shows "site not
-            // found"). Until it answers HTTP we show the spinner instead.
-            if (string.IsNullOrEmpty(tu) || !DshService.IsDshReady(proxyPort))
+            // Require BOTH: (a) the DSH web service actually responds over HTTP (not
+            // merely that the TCP port is open — a stale/orphaned dsh right after a
+            // reboot can hold 46000 while ours is still starting, proxying to it shows
+            // "site not found"), AND (b) a FRESH token for THIS session has been
+            // captured (the value persisted in launcher-token.txt is stale after
+            // reboot — DSH rotates its token, so using it makes DSH answer
+            // "authentication required"). Until both hold we show the spinner.
+            if (string.IsNullOrEmpty(tu) || !DshService.IsDshReady(proxyPort) || !dsh.HasFreshToken())
             {
                 ctx.Response.StatusCode = 200;
                 ctx.Response.ContentType = "text/html; charset=utf-8";
@@ -1328,7 +1331,9 @@ app.Use(async (ctx, next) =>
                 var msg = isRunning
                     ? (isZh ? "正在连接 DSH..." : "Connecting to DSH...")
                     : (isZh ? "DSH 正在启动中，请稍候..." : "DSH is starting up, please wait...");
-                var sub = isZh ? "首次启动约需 10-30 秒。" : "This usually takes 10-30 seconds.";
+                var sub = isZh
+                    ? "首次打开 DSH 需要稍等片刻，加载完成后，下次即可即时打开。"
+                    : "The first time you open DSH it may take a moment to start; after that it opens instantly.";
                 var hint = isZh ? "页面每 3 秒自动刷新。" : "Page will auto-refresh every 3 seconds.";
                 var html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
                     "<style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui,sans-serif;background:#f8f9fa}" +
@@ -1460,18 +1465,25 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
         if (qs.StartsWith("?")) qs = qs.Substring(1);
         if (qs.StartsWith("&")) qs = qs.Substring(1);
 
-        // Build the upstream URL. On a fresh root navigation (no launcher_token yet)
-        // we always attach the instance auth token so DSH re-issues a CURRENT
-        // dsh-auth cookie — a stale cookie (e.g. after the instance restarted) would
-        // otherwise make DSH return 401/403 for every follow-up call and the SPA can
-        // never initialize. The token-driven 303 loop is broken because the rewrite
-        // below (redirectToken) adds launcher_token to DSH's redirect target. If the
-        // upstream still rejects (root nav with a stale cookie / launcher_token), we
-        // retry once with the token attached (see below).
+        // Build the upstream URL. On ANY root navigation we attach the (fresh) DSH
+        // auth token so DSH re-issues a CURRENT dsh-auth cookie to the browser —
+        // including the admin "Open DSH" case whose URL carries ?launcher_token.
+        // Without the token, DSH never issues dsh-auth and the first page load
+        // shows "dsh web authentication required" (only a manual refresh, once the
+        // browser has obtained dsh-auth, succeeds). Sub-requests (isRootNav=false)
+        // are not injected; they rely on the cookie obtained from the root load.
+        // The token-driven 303 loop is broken by the redirectToken rewrite below.
         var hasLauncherToken = ctx.Request.Query.ContainsKey("launcher_token");
         var isRootNav = path == "/" || path == "";
+        // Inject the DSH auth token ONLY on a root navigation when the browser does
+        // NOT yet have a dsh-auth cookie. This seeds DSH's auth cookie on first load
+        // (so we never see "authentication required"). Once the browser holds
+        // dsh-auth we must NOT inject again — otherwise DSH answers 303 -> "/" every
+        // time and the browser hits an infinite redirect ("page isn't redirecting
+        // properly"). Sub-requests rely on the cookie and never inject.
+        var hasDshAuthCookie = ctx.Request.Headers["Cookie"].ToString().Contains("dsh-auth");
         var injectTokenForAuth = !string.IsNullOrEmpty(token) &&
-            (isRootNav && !hasLauncherToken) &&
+            isRootNav && !hasDshAuthCookie &&
             qs.IndexOf("token=", StringComparison.Ordinal) < 0;
         string BuildUpstream(bool inject)
         {
@@ -1571,6 +1583,33 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
         }
 
         ctx.Response.StatusCode = (int)resp.StatusCode;
+        // DSH returns 401 on a root navigation when its auth isn't established yet
+        // (right after a reboot) but succeeds on the next load once the browser has
+        // dsh-auth. Instead of showing DSH's raw "authentication required" message,
+        // serve a friendly launcher spinner page that auto-reloads until DSH accepts
+        // — the user never sees the error. Refresh: 1 is a browser-native backstop.
+        if (isRootNav && (int)resp.StatusCode == 401)
+        {
+            var aUn = System.Text.Encoding.UTF8;
+            var aCode = "en"; string? aLv = null;
+            if (ctx.Request.Cookies.TryGetValue("tt_lang", out aLv) && !string.IsNullOrEmpty(aLv))
+                aCode = aLv;
+            var aZh = aCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+            var aText = aZh ? "正在加载工作区&hellip;" : "Loading workspaces&hellip;";
+            var authSpinner = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+                "<style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui,sans-serif;background:#fff}" +
+                ".box{text-align:center;color:#888}.sp{width:42px;height:42px;border:4px solid #e5e7eb;border-top-color:#4a90d9;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}" +
+                "@keyframes spin{to{transform:rotate(360deg)}}p{margin:4px 0;font-size:14px}" +
+                "</style></head><body><div class=\"box\"><div class=\"sp\"></div><p>" + aText + "</p>" +
+                "<script>setTimeout(function(){location.reload()},1500)</script></div></body></html>";
+            var spBytes = System.Text.Encoding.UTF8.GetBytes(authSpinner);
+            ctx.Response.ContentType = "text/html; charset=utf-8";
+            ctx.Response.ContentLength = spBytes.Length;
+            ctx.Response.Headers.Remove("Content-Encoding");
+            ctx.Response.Headers["Refresh"] = "1";
+            await ctx.Response.Body.WriteAsync(spBytes, ctx.RequestAborted);
+            return;
+        }
         // Copy headers but never Transfer-Encoding / Content-Length — let ASP.NET
         // frame the body itself (CopyToAsync re-chunks correctly).
 
@@ -1763,7 +1802,26 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
             // break the combo-URL lookup (404). Sub-request routing is instead
             // handled server-side via the tt_inst cookie (set below) plus a
             // Referer fallback (see ProxyToPort caller).
-            var autoOpenInjected = autoOpenScript.Replace("__WSID__", wsIdJs ?? "");
+            // Runtime watch: DSH sometimes shows "authentication required" (rendered
+            // by the SPA after an auth API fails on the first load after a reboot),
+            // but succeeds on the next reload once the browser has dsh-auth. Watching
+            // for that text and auto-reloading removes the manual-refresh step.
+            const string authReloadScript = @"
+<script>
+(function(){
+  var RELOADED=false;
+  function scan(){
+    if (RELOADED) return;
+    var t = document.body ? document.body.innerText : '';
+    if (t && (t.indexOf('authentication required')>=0 || t.indexOf('Authentication Required')>=0 || t.indexOf('dsh web authentication')>=0)) {
+      RELOADED=true;
+      setTimeout(function(){ location.reload(); }, 800);
+    }
+  }
+  scan(); setInterval(scan, 500);
+})();
+</script>";
+            var autoOpenInjected = autoOpenScript.Replace("__WSID__", wsIdJs ?? "") + authReloadScript;
             if (html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase) >= 0)
                 html = html.Replace("</head>", autoOpenInjected + "</head>", StringComparison.OrdinalIgnoreCase);
             else if (html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase) >= 0)

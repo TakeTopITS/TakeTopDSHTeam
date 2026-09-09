@@ -555,19 +555,22 @@ public class DshService
         catch { }
     }
 
+    // True only when DSH printed a FRESH "dsh web:" token URL during THIS launcher
+    // session. After a reboot the old value persisted in launcher-token.txt is stale
+    // (DSH rotates its token), so until a fresh one is captured we must not trust the
+    // file — otherwise the proxy forwards an invalid token and DSH replies
+    // "authentication required".
+    public bool HasFreshToken()
+    {
+        return !string.IsNullOrWhiteSpace(_tokenUrl);
+    }
+
     public string? TokenUrl()
     {
-        if (!string.IsNullOrWhiteSpace(_tokenUrl)) return _tokenUrl;
-        var all = _logs.ToArray();
-        foreach (var line in all)
-        {
-            var idx = line.IndexOf("dsh web:", StringComparison.Ordinal);
-            if (idx >= 0)
-            {
-                var url = line.Substring(idx + "dsh web:".Length).Trim();
-                if (url.StartsWith("http") && url.Contains("token=")) return url;
-            }
-        }
+        // ALWAYS re-read the token file first: DSH rotates its token and CaptureToken
+        // writes the freshest one to launcher-token.txt, but the in-memory _tokenUrl
+        // can lag behind (e.g. after DSH restarts). Using a stale in-memory token
+        // makes DSH answer 401. The file is the reliable source of the current token.
         try
         {
             var tokenFile = Path.Combine(_dshHome, "launcher-token.txt");
@@ -582,6 +585,17 @@ public class DshService
             }
         }
         catch { }
+        if (!string.IsNullOrWhiteSpace(_tokenUrl)) return _tokenUrl;
+        var all = _logs.ToArray();
+        foreach (var line in all)
+        {
+            var idx = line.IndexOf("dsh web:", StringComparison.Ordinal);
+            if (idx >= 0)
+            {
+                var url = line.Substring(idx + "dsh web:".Length).Trim();
+                if (url.StartsWith("http") && url.Contains("token=")) return url;
+            }
+        }
         return null;
     }
 
