@@ -1364,13 +1364,7 @@ function fmCanPreview(ext) {
 // Asks first, so clicking "打开" never downloads without explicit consent.
 function fmDownloadFile(path, name) {
   if (!confirm((t('fileAskDownload') || '下载') + ': ' + name + '?')) return;
-  const a = document.createElement('a');
-  a.href = '/api/files/download?path=' + encodeURIComponent(path);
-  a.download = name || '';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  fmNote(t('fileDownloaded'));
+  fmDownload(path, name);
 }
 
 function fmNote(text, isErr) {
@@ -1492,6 +1486,14 @@ function bindDirBehavior(box) {
     if (row && row.dataset.type === 'dir' && g.textContent.trim() !== '') {
       g.onclick = (ev) => { ev.stopPropagation(); fmAction('expand', row); };
     }
+  });
+  box.querySelectorAll('.fm-row.fm-file').forEach(row => {
+    // Double-click a FILE: preview it if possible, otherwise prompt to download.
+    row.ondblclick = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      fmOpenFile(row.dataset.path, row.dataset.name);
+    };
   });
   box.querySelectorAll('.fm-row.fm-dir').forEach(row => {
     row.onclick = () => {
