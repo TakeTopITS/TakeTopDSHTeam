@@ -15,8 +15,8 @@ TakeTopDSH Team is released under the **GNU AGPL-3.0-or-later** (see [LICENSE](L
 
 ## Free tier
 
-- **Free for up to 20 users** (inclusive), provided the AGPL is complied with.
-- **Above 20 users**, a paid agreement with the company is required (the AGPL must
+- **Free for up to 10 users** (inclusive), provided the AGPL is complied with.
+- **Above 10 users**, a paid agreement with the company is required (the AGPL must
   still be complied with).
 
 ## Contact
