@@ -131,8 +131,11 @@ public class DshService
             using var h = new System.Net.Http.HttpClient();
             h.Timeout = TimeSpan.FromSeconds(3);
             using var resp = h.GetAsync($"http://127.0.0.1:{port}/").GetAwaiter().GetResult();
-            // Any HTTP response (200/301/401/404/...) => the service is listening.
-            return true;
+            // Ready only once DSH serves real content: it answers 401 (auth) / 200
+            // (with token) when up, and 404 during the brief window before its web
+            // routes are mounted. Treat 404 as "still starting" so the launcher shows
+            // the spinner instead of proxying a transient 404 to the browser.
+            return resp.StatusCode != System.Net.HttpStatusCode.NotFound;
         }
         catch
         {

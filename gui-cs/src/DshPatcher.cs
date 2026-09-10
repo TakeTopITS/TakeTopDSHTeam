@@ -68,6 +68,10 @@ public static class DshPatcher
         Say(PatchSettingsVisibility(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-settings-general"), "lib", "client.js"), !hideSettings));
         Say(PatchHeroPreview(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-conversation"), "lib", "client.js")));
         Say(PatchSandboxModeLock(Path.Combine(ResolvePluginDir(dshPkg, "dsh-sandbox-policy"), "lib", "index.js")));
+        // Shell tools are declared in the AGENT presets (agent-plane), which a host
+        // cordis.patch.yml cannot disable — patch the preset files directly.
+        foreach (var preset in new[] { "standard", "minimal", "ptc", "cordis" })
+            Say(PatchPresetShells(Path.Combine(ResolvePluginDir(dshPkg, "dsh-agent-presets"), "presets", preset, "agent.cordis.yml")));
         return report;
     }
 
@@ -194,11 +198,8 @@ public static class DshPatcher
     {
         if (!File.Exists(file)) return "[search-containment] not found";
         var src = File.ReadAllText(file);
-        if (src.IndexOf("--- WORKSPACE CONTAINMENT PATCH ---", StringComparison.Ordinal) >= 0)
-            return "[search-containment] already patched";
         var anchor = "\tconst workdir = exec.agent?.session.header.cwd ?? process.cwd();";
-        if (src.IndexOf(anchor, StringComparison.Ordinal) < 0)
-            return "[search-containment] source changed (SKIPPED) — anchor not found";
+        var marker = "// --- WORKSPACE CONTAINMENT PATCH ---";
         var inject = $$"""
 				// --- WORKSPACE CONTAINMENT PATCH ---
 				let containedArgv = argv;
@@ -215,7 +216,28 @@ public static class DshPatcher
 					});
 				}
 				""";
-        var patched = src.Replace(anchor, inject + anchor);
+        var markerIdx = src.IndexOf(marker, StringComparison.Ordinal);
+        var anchorIdx = src.IndexOf(anchor, StringComparison.Ordinal);
+        if (markerIdx >= 0)
+        {
+            if (anchorIdx < 0 || markerIdx > anchorIdx) return "[search-containment] already patched";
+            // An earlier build injected the block BEFORE the `const workdir` line, so it
+            // referenced `workdir` while still in its TDZ ("Cannot access 'workdir' before
+            // initialization"). Move the block to AFTER the declaration.
+            var block = src.Substring(markerIdx, anchorIdx - markerIdx);
+            var afterAnchor = src.Substring(anchorIdx);
+            var eol = afterAnchor.IndexOf('\n');
+            if (eol < 0) return "[search-containment] source changed (SKIPPED)";
+            var fixedSrc = src.Substring(0, markerIdx)
+                + afterAnchor.Substring(0, eol + 1)
+                + block
+                + afterAnchor.Substring(eol + 1);
+            File.WriteAllText(file, fixedSrc);
+            return "[search-containment] fixed (block moved after workdir)";
+        }
+        if (anchorIdx < 0)
+            return "[search-containment] source changed (SKIPPED) — anchor not found";
+        var patched = src.Replace(anchor, anchor + inject);   // inject AFTER the const (avoid TDZ on `workdir`)
         patched = patched.Replace("await resolveRgPath(),\n\t\t\t\t\"--no-config\",\n\t\t\t\t...argv", "await resolveRgPath(),\n\t\t\t\t\"--no-config\",\n\t\t\t\t...containedArgv");
         if (string.Equals(patched, src, StringComparison.Ordinal))
             return "[search-containment] source changed (SKIPPED)";
@@ -297,5 +319,25 @@ public static class DshPatcher
             return "[sandbox-mode] source changed (SKIPPED) — mode line not found";
         File.WriteAllText(file, src.Replace(oldLine, newLine));
         return "[sandbox-mode] applied (locked to workspace-write)";
+    }
+
+    // ====== 9) Disable shell tools in every agent preset ======
+    // The Windows shell tool is `tool-pwsh` (agent-plane row in dsh-agent-presets).
+    // Force its `disabled` to true (and tool-bash too) so the model cannot run shell
+    // commands that read outside the workspace.
+    private static string PatchPresetShells(string file)
+    {
+        if (!File.Exists(file)) return "[preset-shell] not found";
+        var src = File.ReadAllText(file);
+        var patched = src
+            .Replace("disabled: true // PATCH: shell disabled", "disabled: true # shell-off")
+            .Replace("disabled: !!js process.platform === 'win32'", "disabled: true # shell-off")
+            .Replace("disabled: !!js process.platform !== 'win32'", "disabled: true # shell-off");
+        if (string.Equals(patched, src, StringComparison.Ordinal))
+            return src.IndexOf("# shell-off", StringComparison.Ordinal) >= 0
+                ? "[preset-shell] already patched"
+                : "[preset-shell] no shell row found (skipped)";
+        File.WriteAllText(file, patched);
+        return "[preset-shell] applied (bash/pwsh disabled)";
     }
 }
