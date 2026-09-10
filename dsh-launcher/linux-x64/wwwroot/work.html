@@ -1,0 +1,222 @@
+<!--
+  TakeTopDSH Team — multi-user DeepSeek Harness platform
+  Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
+  EMail: service@taketopits.com
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>TakeTopDSH Team</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { font-family: system-ui, sans-serif; background: #e9ebef; display: flex; flex-direction: column; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: #ffffff; border-bottom: 1px solid #d5d9df; }
+  .bar a { color: #2563eb; text-decoration: none; font-size: 14px; font-weight: 600; }
+  .bar a:hover { text-decoration: underline; }
+  .bar .title { font-weight: 600; font-size: 15px; color: #1c1e21; }
+  .bar .spacer { flex: 1; }
+  .bar select { padding: 5px 8px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 13px; background: #fff; }
+  .split { flex: 1; display: flex; min-height: 0; position: relative; }
+  .pane { border: 0; }
+  .pane.fm { width: 30%; min-width: 220px; max-width: 70%; background: #f5f6f8; }
+  .pane.dsh { flex: 1; background: #fff; }
+   .splitter { flex: 0 0 6px; cursor: col-resize; background: transparent; background-clip: padding-box; position: relative; z-index: 5; }
+   .splitter:hover, .splitter.dragging { background: #c8ccd2; }
+   .splitter::after { content: ""; position: absolute; inset: 0; margin: 0 -8px; }
+   .splitter.dragging { background: #2563eb; }
+   .split-arrow { position: absolute; top: 2px; left: -14px; z-index: 10; padding: 2px 4px; border: 1px solid #e5e7eb; border-radius: 3px; background: #f9fafb; color: #6b7280; font-size: 11px; line-height: 1; cursor: pointer; pointer-events: auto; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <a href="/admin" id="backLink">← 返回管理页</a>
+    <span class="title" id="workTitle">工作台</span>
+    <span class="spacer"></span>
+    <a href="/tasks" id="taskAssignLink" style="color:#fff;background:#2563eb;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;text-decoration:none;">任务分配</a>
+    <select id="workLang">
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+  <div class="split" id="split">
+    <iframe class="pane fm" id="fmPane" title="文件管理"></iframe>
+    <div class="splitter" id="splitter" title="拖动调整栏宽"><button id="expandBtn" class="split-arrow" title="放大/缩小">▶▶</button></div>
+    <iframe class="pane dsh" id="dshPane" title="DSH"></iframe>
+  </div>
+
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var inst = q.get('inst') || '';
+  var token = q.get('launcher_token') || '';
+  var proto = location.protocol + '//' + location.host;
+
+  // Left: file manager (standalone fm page, same-origin). Right: DSH through the
+  // launcher proxy so it stays same-origin and gets the language injected. When
+  // ?inst is absent, the right pane opens the viewer's own/default instance.
+  // Both panes carry the launcher_token so they authenticate even without a
+  // session cookie (e.g. when the workbench was opened via a token URL).
+  var fmSrc = proto + '/fm'
+    + (inst ? '?inst=' + encodeURIComponent(inst) : '')
+    + (token ? ((inst ? '&' : '?') + 'launcher_token=' + encodeURIComponent(token)) : '');
+  var dshSrc = proto + '/'
+    + (inst ? '?inst=' + encodeURIComponent(inst) : '')
+    + (token ? ((inst ? '&' : '?') + 'launcher_token=' + encodeURIComponent(token)) : '');
+  document.getElementById('fmPane').src = fmSrc;
+  document.getElementById('dshPane').src = dshSrc;
+  document.getElementById('dshPane').onload = function() { applyWorkbarLang(); };
+
+  // Localize the top bar (back link + title) to match the chosen language.
+  function currentLang() {
+    try {
+      var m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);
+      if (m) return decodeURIComponent(m[1]);
+    } catch (e) {}
+    try { var ls = localStorage.getItem('tt_lang'); if (ls) return ls; } catch (e) {}
+    return 'zh';
+  }
+  function applyWorkbarLang() {
+    var c = String(currentLang() || '').toLowerCase();
+    var zh = (c === 'zh' || c === 'zh-cn' || c === 'zhcn' || c === 'cn');
+    document.getElementById('backLink').textContent = zh ? '← 返回管理页' : '← Back to Admin';
+    var titleText = (zh ? '工作台' : 'Workspace') + (inst ? ' · ' + inst : '');
+    document.getElementById('workTitle').textContent = titleText;
+    desiredTitle = 'TakeTopDSH Team - ' + titleText;
+    document.title = desiredTitle;
+    try { history.replaceState(history.state, desiredTitle); } catch(e) {}
+    var ta = document.getElementById('taskAssignLink');
+    if (ta) ta.textContent = zh ? '任务分配' : 'Tasks';
+    document.getElementById('fmPane').title = zh ? '文件管理' : 'File Manager';
+    document.getElementById('splitter').title = zh ? '拖动调整栏宽' : 'Drag to resize';
+  }
+  var desiredTitle = '';
+  applyWorkbarLang();
+  // Lock document.title setter so DSH iframe (same-origin) cannot override the tab title
+  try {
+    var _p = HTMLDocument.prototype;
+    var _d = Object.getOwnPropertyDescriptor(_p, 'title');
+    if (_d && _d.set) {
+      Object.defineProperty(_p, 'title', {
+        configurable: true,
+        enumerable: true,
+        get: _d.get,
+        set: function() { /* blocked */ }
+      });
+    }
+  } catch(e) {}
+  setInterval(function() {
+    applyWorkbarLang();
+    // Use DOM directly since document.title setter is now blocked
+    var t = document.querySelector('title');
+    if (t) t.textContent = desiredTitle;
+  }, 100);
+
+  // ---- resizable splitter (smooth: rAF-throttled, iframes lose pointer-events
+  //      while dragging so the parent window keeps receiving mousemove) ----
+  var split = document.getElementById('split');
+  var fm = document.getElementById('fmPane');
+  var dsh = document.getElementById('dshPane');
+  var splitter = document.getElementById('splitter');
+  var rafId = 0;
+  function setFmWidth(pct) {
+    pct = Math.max(15, Math.min(70, pct));   // clamp 15%..70%
+    fm.style.width = pct + '%';
+    try { localStorage.setItem('fm_width', pct); } catch (e) {}
+  }
+  try { var savedW = parseFloat(localStorage.getItem('fm_width')); if (savedW) setFmWidth(savedW); } catch (e) {}
+
+  // Toggle the left pane between ~30% and ~70% (enlarge / restore).
+  var expandBtn = document.getElementById('expandBtn');
+  function updateExpandIcon() {
+    var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;
+    expandBtn.textContent = curW < 50 ? '▶▶' : '◀◀';
+  }
+  updateExpandIcon();
+  expandBtn.onclick = function (ev) {
+    ev.stopPropagation();
+    var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;
+    setFmWidth(curW < 50 ? 70 : 30);
+    updateExpandIcon();
+  };
+
+  splitter.addEventListener('mousedown', function (ev) {
+    ev.preventDefault();
+    var startX = ev.clientX;
+    var startW = fm.getBoundingClientRect().width;
+    var totalW = split.getBoundingClientRect().width || 1;
+    splitter.classList.add('dragging');
+    // Let the parent document see every mouse move even over the iframes.
+    fm.style.pointerEvents = 'none';
+    dsh.style.pointerEvents = 'none';
+    var pending = null;
+    function scheduleMove(me) {
+      pending = startW + (me.clientX - startX);
+      if (rafId) return;
+      rafId = requestAnimationFrame(function () {
+        rafId = 0;
+        setFmWidth((pending || 0) / totalW * 100);
+      });
+    }
+    function onMove(me) { scheduleMove(me); }
+    function onUp() {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      splitter.classList.remove('dragging');
+      fm.style.pointerEvents = '';
+      dsh.style.pointerEvents = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  });
+
+  // Keep the chosen language in sync across both panes via the shared tt_lang cookie.
+  var sel = document.getElementById('workLang');
+  function dropdownLang(code) {
+    var c = String(code || '').toLowerCase();
+    return (c === 'en' || c === 'en-us' || c === 'en-gb' || c === 'us') ? 'en' : 'zh';
+  }
+  // Normalize to a valid <option value> ('en'/'zh'); the stored code may be 'zh-cn'
+  // which has no matching option, leaving the select blank. Default to 'zh'.
+  sel.value = dropdownLang(currentLang());
+  // Force an iframe to reload (src unchanged would NOT reload).
+  function reloadPane(id, url) {
+    var f = document.getElementById(id);
+    f.src = 'about:blank';
+    // A cache-busting token guarantees a fresh load even for identical URLs.
+    (function () { setTimeout(function () { f.src = url; }, 0); })();
+  }
+  sel.onchange = function () {
+    try { localStorage.setItem('tt_lang', sel.value); document.cookie = 'tt_lang=' + sel.value + '; path=/; max-age=31536000; SameSite=Lax'; } catch (e) {}
+    applyWorkbarLang();
+    var bust = '&_ts=' + Date.now();
+    reloadPane('fmPane', fmSrc + (fmSrc.indexOf('?') >= 0 ? bust : '?' + bust.slice(1)));
+    reloadPane('dshPane', dshSrc + (dshSrc.indexOf('?') >= 0 ? bust : '?' + bust.slice(1)));
+  };
+})();
+</script>
+</body>
+</html>

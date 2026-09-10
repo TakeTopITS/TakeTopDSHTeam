@@ -361,7 +361,7 @@ public class InstanceManager
                     var osUser = OsUserManager.CreateUser(id, osPassword);
                     if (osUser != null)
                     {
-                        var docsDir = Path.Combine(workspace, "..", "..", "adminroot", "sharedata");
+                        var docsDir = Path.Combine(workspace, "..", "adminroot", "sharedata");
                         OsUserManager.SetPermissions(id, workspace, docsDir, dshHome, _root);
                         // Mark as permissioned so Start() skips the slow icacls
                         // re-traversal (Create already set full permissions).
@@ -588,7 +588,7 @@ public class InstanceManager
                         var osUser = OsUserManager.CreateUser(inst.Id, inst.OsPassword);
                         if (osUser != null)
                         {
-                            var docsDir = Path.Combine(inst.Workspace, "..", "..", "adminroot", "sharedata");
+                            var docsDir = Path.Combine(inst.Workspace, "..", "adminroot", "sharedata");
                             if (!string.IsNullOrWhiteSpace(inst.Workspace)) Directory.CreateDirectory(inst.Workspace);
                             OsUserManager.SetPermissions(inst.Id, inst.Workspace, docsDir, inst.DshHome, _root);
                             _permissionedOsUsers.TryAdd(inst.Id, true);
@@ -753,7 +753,7 @@ public class InstanceManager
             var norm = inst.Workspace.Replace('\\', '/');
             var nativePath = Path.GetFullPath(inst.Workspace);   // native (backslash) form DSH canonicalizes to
             // Shared experience data lives in the admin workspace's sharedata dir.
-            var docsDir = Path.Combine(inst.Workspace, "..", "..", "adminroot", "sharedata").Replace('\\', '/');
+            var docsDir = Path.Combine(inst.Workspace, "..", "adminroot", "sharedata").Replace('\\', '/');
 
             // Build the complete cordis.patch.yml with sandbox + persona restrictions.
             var sb = new System.Text.StringBuilder();

@@ -269,7 +269,7 @@ public class DshService
             if (!File.Exists(patchFile)) return;
 
             var normalized = workspace.Replace('\\', '/');
-            var docsDir = Path.Combine(_root, "docs").Replace('\\', '/');
+            var docsDir = Path.Combine(ReadWorkspacePath(), "adminroot", "sharedata").Replace('\\', '/');
 
             // Build the complete cordis.patch.yml with sandbox + persona restrictions.
             var sb = new System.Text.StringBuilder();

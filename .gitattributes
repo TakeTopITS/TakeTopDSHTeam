@@ -1,2 +1,17 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Keep LF endings for the files the launcher patches at runtime (DshPatcher does
+# LF-based string matching against the DSH package JS/YAML) and for web assets.
+# Without eol=lf, a Windows checkout with core.autocrlf=true rewrites these to
+# CRLF and the patches silently fail to match.
+node/** text eol=lf
+gui-cs/src/wwwroot/** text eol=lf
+**/*.js text eol=lf
+**/*.mjs text eol=lf
+**/*.cjs text eol=lf
+**/*.json text eol=lf
+**/*.yml text eol=lf
+**/*.yaml text eol=lf
+**/*.html text eol=lf
+**/*.css text eol=lf
