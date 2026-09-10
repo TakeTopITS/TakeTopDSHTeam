@@ -415,6 +415,8 @@ FodyWeavers.xsd
 # Config files that hold per-instance OS passwords / token URLs (runtime-generated)
 config/instances.json
 config/users.json
+# Renamed legacy copies after migration to config/launcher.db (kept for rollback)
+config/*.bak
 # Internal development session/work logs (not project docs)
 /docs/
 # Compiled launcher output — ignore build intermediates but KEEP the self-contained
@@ -428,6 +430,14 @@ gui-cs/src/obj/
 # Local secrets
 .env
 *.local
+
+# SQLite task/feedback databases + WAL sidecar files (per-user runtime data;
+# the legacy XML is auto-imported and archived as *.xml.bak on first run).
+*.db
+*.db-wal
+*.db-shm
+*.db.bak
+*.xml.bak
 
 # ---- Runtime / credential data (auto-regenerated on first launch) ----
 # These are rebuilt automatically by the launcher, so they are safe to exclude

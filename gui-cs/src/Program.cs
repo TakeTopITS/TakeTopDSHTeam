@@ -881,9 +881,10 @@ static async Task WriteDshStarting(HttpContext ctx)
 }
 
 // ================= Tasks (任务分配) =================
-// Tasks are stored per-user as XML under <workspace>/TaskData/tasks-<instId>.xml.
-// Related files are uploaded into <workspace>/TaskData/Doc. Status stored in
-// English (pending|processing|done|cancelled); the UI localizes the labels.
+// Tasks are stored per-user in SQLite under <workspace>/TaskData/tasks-<instId>.db
+// (legacy XML is auto-imported on first use). Related files are uploaded into
+// <workspace>/TaskData/Doc. Status stored in English
+// (pending|processing|done|cancelled); the UI localizes the labels.
 
 static List<LanguageItem> SplitLanguages(string? raw)
 {
@@ -912,14 +913,15 @@ static List<LanguageItem> SplitLanguages(string? raw)
 }
 
 // ================= Tasks (任务分配) =================
-// Tasks are stored per-user as XML under <workspace>/TaskData/tasks-<instId>.xml.
-// Related files are uploaded into <workspace>/TaskData/Doc. Status stored in
-// English (pending|processing|done|cancelled); the UI localizes the labels.
+// Tasks are stored per-user in SQLite under <workspace>/TaskData/tasks-<instId>.db
+// (legacy XML is auto-imported on first use). Related files are uploaded into
+// <workspace>/TaskData/Doc. Status stored in English
+// (pending|processing|done|cancelled); the UI localizes the labels.
 
-// On-demand task/feedback cache: the task/feedback XML files are read lazily once
-// and mutated in memory; changes are flushed back to disk on a short debounce
-// instead of rewriting the whole file on every request. The launcher is a single
-// process, so a single in-process cache is safe.
+// On-demand task/feedback cache: the SQLite rows are read lazily once and mutated
+// in memory; changes are flushed back to the database on a short debounce instead
+// of writing on every request. The launcher is a single process, so a single
+// in-process cache is safe.
 var taskCache = new TaskDataCache();
 ScheduleTaskFlush();
 
@@ -1101,6 +1103,14 @@ string TaskDataDir(string instId)
     return dir;
 }
 
+// Tasks/feedback are stored in SQLite at <workspace>/TaskData/tasks-<instId>.db.
+// TaskDocPath/FeedbackDocPath point at the legacy XML files and are used only
+// once, to migrate existing data on first start (see SqliteStore).
+string TaskDbPath(string instId)
+{
+    return System.IO.Path.Combine(TaskDataDir(instId), $"tasks-{instId}.db");
+}
+
 string TaskDocPath(string instId)
 {
     return System.IO.Path.Combine(TaskDataDir(instId), $"tasks-{instId}.xml");
@@ -1122,111 +1132,20 @@ void WriteFeedback(string instId, Dictionary<int, List<FeedbackEntry>> dict)
     taskCache.SetFeedback(instId, dict);
 }
 
-// ---- Pure disk serializers (used by the cache to load lazily and flush) ----
+// ---- Disk serializers (used by the cache to load lazily and flush) ----
+// Backed by SQLite (one DB per member, at TaskDbPath). The legacy XML paths are
+// passed only so SqliteStore can import existing data on first use.
 List<TaskRecord> LoadTasksFromDisk(string instId)
-{
-    var docPath = TaskDocPath(instId);
-    if (!File.Exists(docPath)) return new List<TaskRecord>();
-    try
-    {
-        var doc = System.Xml.Linq.XDocument.Load(docPath);
-        var root = doc.Root;
-        if (root == null) return new List<TaskRecord>();
-        var list = new List<TaskRecord>();
-        foreach (var t in root.Elements("Task"))
-        {
-            var files = t.Element("Files")?.Elements("File")
-                .Select(f => f.Value.Trim()).Where(f => f.Length > 0).ToList() ?? new List<string>();
-            list.Add(new TaskRecord
-            {
-                Seq = int.TryParse(t.Element("Seq")?.Value, out var s) ? s : (list.Count + 1),
-                Name = t.Element("Name")?.Value ?? "",
-                Type = t.Element("Type")?.Value ?? "",
-                Content = t.Element("Content")?.Value ?? "",
-                Status = t.Element("Status")?.Value ?? "pending",
-                AssignedAt = t.Element("AssignedAt")?.Value ?? "",
-                CreatedBy = t.Element("CreatedBy")?.Value ?? "",
-                Files = files,
-            });
-        }
-        return list.OrderByDescending(t => t.Seq).ToList();
-    }
-    catch { return new List<TaskRecord>(); }
-}
+    => SqliteStore.LoadTasks(TaskDbPath(instId), TaskDocPath(instId));
 
 void WriteTasksToDisk(string instId, List<TaskRecord> tasks)
-{
-    var doc = new System.Xml.Linq.XDocument(
-        new System.Xml.Linq.XElement("Tasks",
-            tasks.OrderBy(t => t.Seq).Select(t => new System.Xml.Linq.XElement("Task",
-                new System.Xml.Linq.XElement("Seq", t.Seq),
-                new System.Xml.Linq.XElement("Name", t.Name ?? ""),
-                new System.Xml.Linq.XElement("Type", t.Type ?? ""),
-                new System.Xml.Linq.XElement("Content", t.Content ?? ""),
-                new System.Xml.Linq.XElement("Status", t.Status ?? "pending"),
-                new System.Xml.Linq.XElement("AssignedAt", t.AssignedAt ?? ""),
-                new System.Xml.Linq.XElement("CreatedBy", t.CreatedBy ?? ""),
-                new System.Xml.Linq.XElement("Files",
-                    (t.Files ?? new List<string>()).Select(f => new System.Xml.Linq.XElement("File", f))
-                )
-            ))
-        )
-    );
-    var docPath = TaskDocPath(instId);
-    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(docPath)!);
-    doc.Save(docPath);
-}
+    => SqliteStore.SaveTasks(TaskDbPath(instId), tasks);
 
 Dictionary<int, List<FeedbackEntry>> LoadFeedbackFromDisk(string instId)
-{
-    var dict = new Dictionary<int, List<FeedbackEntry>>();
-    var fp = FeedbackDocPath(instId);
-    if (!File.Exists(fp)) return dict;
-    try
-    {
-        var doc = System.Xml.Linq.XDocument.Load(fp);
-        var root = doc.Root;
-        if (root == null) return dict;
-        foreach (var t in root.Elements("Task"))
-        {
-            if (!int.TryParse(t.Attribute("seq")?.Value, out var seq)) continue;
-            var list = new List<FeedbackEntry>();
-            foreach (var e in t.Elements("Entry"))
-            {
-                list.Add(new FeedbackEntry
-                {
-                    Date = e.Element("Date")?.Value ?? "",
-                    By = e.Element("By")?.Value ?? "",
-                    Content = e.Element("Content")?.Value ?? "",
-                    Time = e.Element("Time")?.Value ?? "",
-                    Files = e.Element("Files")?.Value ?? "",
-                });
-            }
-            dict[seq] = list;
-        }
-    }
-    catch { }
-    return dict;
-}
+    => SqliteStore.LoadFeedback(TaskDbPath(instId), FeedbackDocPath(instId));
 
 void WriteFeedbackToDisk(string instId, Dictionary<int, List<FeedbackEntry>> dict)
-{
-    var doc = new System.Xml.Linq.XDocument(new System.Xml.Linq.XElement("Feedback",
-        dict.OrderBy(kv => kv.Key).Select(kv => new System.Xml.Linq.XElement("Task",
-            new System.Xml.Linq.XAttribute("seq", kv.Key),
-            kv.Value.Select(e => new System.Xml.Linq.XElement("Entry",
-                new System.Xml.Linq.XElement("Date", e.Date ?? ""),
-                new System.Xml.Linq.XElement("By", e.By ?? ""),
-                new System.Xml.Linq.XElement("Content", e.Content ?? ""),
-                new System.Xml.Linq.XElement("Time", e.Time ?? ""),
-                new System.Xml.Linq.XElement("Files", e.Files ?? "")
-            ))
-        ))
-    ));
-    var fp = FeedbackDocPath(instId);
-    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fp)!);
-    doc.Save(fp);
-}
+    => SqliteStore.SaveFeedback(TaskDbPath(instId), dict);
 
 // Debounced flush hook: every FLUSH_INTERVAL the cache writes its dirty entries to disk.
 void ScheduleTaskFlush()
@@ -1259,7 +1178,17 @@ app.MapGet("/api/feedback", (string? inst, int? seq, HttpContext ctx) =>
             list = list.Where(e => DateTime.TryParse(e.Time ?? e.Date, out var et) && et >= start).ToList();
     }
     list = list.OrderByDescending(e => e.Time).ToList();
-    return Results.Ok(new { ok = true, entries = list });
+    // Keep the wire format stable for the UI: "files" stays a comma-separated
+    // string even though it is stored normalized in feedback_files.
+    var entries = list.Select(e => new
+    {
+        date = e.Date,
+        by = e.By,
+        content = e.Content,
+        time = e.Time,
+        files = string.Join(",", e.Files ?? new List<string>()),
+    });
+    return Results.Ok(new { ok = true, entries });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
 });
@@ -1322,8 +1251,7 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
             Directory.CreateDirectory(fbDir);
             var savedNames = new List<string>();
             // Preserve existing files
-            if (!string.IsNullOrWhiteSpace(entry.Files))
-                savedNames.AddRange(entry.Files.Split(',', StringSplitOptions.RemoveEmptyEntries));
+            savedNames.AddRange(entry.Files ?? new List<string>());
             foreach (var file in form.Files)
             {
                 var safeName = System.IO.Path.GetFileName(file.FileName);
@@ -1333,7 +1261,7 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
                 await file.CopyToAsync(fs);
                 if (!savedNames.Contains(safeName)) savedNames.Add(safeName);
             }
-            entry.Files = string.Join(",", savedNames);
+            entry.Files = savedNames;
         }
         // keep newest first for display
         list.Sort((a, b) => string.CompareOrdinal(b.Time, a.Time));
@@ -2318,14 +2246,14 @@ record FeedbackEntry
     public string? By { get; set; }
     public string? Content { get; set; }
     public string? Time { get; set; }
-    public string? Files { get; set; } // comma-separated feedback attachment filenames
+    public List<string> Files { get; set; } = new(); // feedback attachment filenames
 }
 
 record FeedbackRequest(string? Inst, int Seq, string? Content);
 
-// In-process cache for task & feedback XML data. Loads once (lazy), mutates in
-// memory, and flushes dirty entries back to disk on a short debounce. The launcher
-// is a single process so a single cache is shared safely (guarded by a lock).
+// In-process cache for task & feedback data. Loads once (lazy), mutates in memory,
+// and flushes dirty entries back to SQLite on a short debounce. The launcher is a
+// single process so a single cache is shared safely (guarded by a lock).
 class TaskDataCache
 {
     private readonly object _lock = new();

@@ -41,7 +41,8 @@ public class AuthService
         public string InstanceId { get; set; } = "";      // bound instance ("" for admin)
     }
 
-    private readonly string _usersFile;
+    private readonly string _usersFile;   // legacy config/users.json (migration source)
+    private readonly string _dbPath;      // config/launcher.db (authoritative)
     private readonly List<User> _users = new();
     private readonly Dictionary<string, string> _sessions = new(); // token -> username
     private readonly object _gate = new();
@@ -51,6 +52,7 @@ public class AuthService
     public AuthService(string root)
     {
         _usersFile = Path.Combine(root, "config", "users.json");
+        _dbPath = LauncherDb.PathFor(root);
         Load();
         // Ensure a default admin account exists.
         if (!_users.Any(u => u.Username.Equals(AdminUser, StringComparison.OrdinalIgnoreCase)))
@@ -104,52 +106,89 @@ public class AuthService
         lock (_gate)
         {
             _users.Clear();
-            if (File.Exists(_usersFile))
+            var rows = LauncherDb.LoadUsers(_dbPath);
+
+            // One-time migration from the legacy config/users.json.
+            if (rows.Count == 0 && File.Exists(_usersFile))
             {
-                try
+                ParseLegacyUsersJson();
+                if (_users.Count > 0)
                 {
-                    var doc = JsonDocument.Parse(File.ReadAllText(_usersFile));
-                    if (doc.RootElement.TryGetProperty("users", out var arr))
-                    {
-                        foreach (var el in arr.EnumerateArray())
-                        {
-                            _users.Add(new User
-                            {
-                                Username = (el.TryGetProperty("Username", out var uP) ? uP.GetString() : null)
-                                           ?? (el.TryGetProperty("username", out var uL) ? uL.GetString() : null)
-                                           ?? "",
-                                PasswordHash = (el.TryGetProperty("PasswordHash", out var pH) ? pH.GetString() : null)
-                                               ?? (el.TryGetProperty("passwordHash", out var pL) ? pL.GetString() : null)
-                                               ?? "",
-                                Salt = (el.TryGetProperty("Salt", out var sH) ? sH.GetString() : null)
-                                       ?? (el.TryGetProperty("salt", out var sL) ? sL.GetString() : null)
-                                       ?? "",
-                                Iterations = (el.TryGetProperty("Iterations", out var iH) && iH.GetInt32() != 0) ? iH.GetInt32()
-                                             : (el.TryGetProperty("iterations", out var iL) ? iL.GetInt32() : 100000),
-                                Admin = (el.TryGetProperty("Admin", out var aH) && aH.GetBoolean())
-                                        || (el.TryGetProperty("admin", out var aL) && aL.GetBoolean()),
-                                InstanceId = (el.TryGetProperty("InstanceId", out var iiH) ? iiH.GetString() : null)
-                                             ?? (el.TryGetProperty("instanceId", out var iiL) ? iiL.GetString() : null)
-                                             ?? "",
-                            });
-                            // Skip entries with empty username (orphan from past bugs).
-                            if (string.IsNullOrWhiteSpace(_users.Last().Username))
-                                _users.RemoveAt(_users.Count - 1);
-                        }
-                    }
+                    Save();
+                    LauncherDb.ArchiveJson(_usersFile);
                 }
-                catch { }
+                return;
+            }
+
+            foreach (var row in rows)
+            {
+                _users.Add(new User
+                {
+                    Username = row.Username,
+                    PasswordHash = row.PasswordHash,
+                    Salt = row.Salt,
+                    Iterations = row.Iterations == 0 ? 100000 : row.Iterations,
+                    Admin = row.Admin,
+                    InstanceId = row.InstanceId,
+                });
             }
         }
+    }
+
+    // Parse the legacy config/users.json (used only for the one-time migration).
+    private void ParseLegacyUsersJson()
+    {
+        _users.Clear();
+        if (!File.Exists(_usersFile)) return;
+        try
+        {
+            var doc = JsonDocument.Parse(File.ReadAllText(_usersFile));
+            if (doc.RootElement.TryGetProperty("users", out var arr))
+            {
+                foreach (var el in arr.EnumerateArray())
+                {
+                    _users.Add(new User
+                    {
+                        Username = (el.TryGetProperty("Username", out var uP) ? uP.GetString() : null)
+                                   ?? (el.TryGetProperty("username", out var uL) ? uL.GetString() : null)
+                                   ?? "",
+                        PasswordHash = (el.TryGetProperty("PasswordHash", out var pH) ? pH.GetString() : null)
+                                       ?? (el.TryGetProperty("passwordHash", out var pL) ? pL.GetString() : null)
+                                       ?? "",
+                        Salt = (el.TryGetProperty("Salt", out var sH) ? sH.GetString() : null)
+                               ?? (el.TryGetProperty("salt", out var sL) ? sL.GetString() : null)
+                               ?? "",
+                        Iterations = (el.TryGetProperty("Iterations", out var iH) && iH.GetInt32() != 0) ? iH.GetInt32()
+                                     : (el.TryGetProperty("iterations", out var iL) ? iL.GetInt32() : 100000),
+                        Admin = (el.TryGetProperty("Admin", out var aH) && aH.GetBoolean())
+                                || (el.TryGetProperty("admin", out var aL) && aL.GetBoolean()),
+                        InstanceId = (el.TryGetProperty("InstanceId", out var iiH) ? iiH.GetString() : null)
+                                     ?? (el.TryGetProperty("instanceId", out var iiL) ? iiL.GetString() : null)
+                                     ?? "",
+                    });
+                    // Skip entries with empty username (orphan from past bugs).
+                    if (string.IsNullOrWhiteSpace(_users.Last().Username))
+                        _users.RemoveAt(_users.Count - 1);
+                }
+            }
+        }
+        catch { }
     }
 
     public void Save()
     {
         lock (_gate)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_usersFile)!);
-            var obj = new { users = _users.Select(u => new { u.Username, u.PasswordHash, u.Salt, u.Iterations, u.Admin, u.InstanceId }) };
-            File.WriteAllText(_usersFile, JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true }));
+            var rows = _users.Select(u => new LauncherUserRow
+            {
+                Username = u.Username,
+                PasswordHash = u.PasswordHash,
+                Salt = u.Salt,
+                Iterations = u.Iterations,
+                Admin = u.Admin,
+                InstanceId = u.InstanceId,
+            }).ToList();
+            LauncherDb.SaveUsers(_dbPath, rows);
         }
     }
 

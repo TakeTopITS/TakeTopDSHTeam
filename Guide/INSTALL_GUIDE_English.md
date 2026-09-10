@@ -50,7 +50,7 @@ TakeTopDshTeam/
 ├── node/
 │   ├── (Windows node.exe + npm + dsh deps)   # Windows node/runtime
 │   └── platforms/         # Linux/macOS Node distribution (tar)
-├── config/                # user accounts (users.json) and instance definitions (instances.json)
+├── config/                # accounts + instance definitions (launcher.db, SQLite; legacy users.json/instances.json auto-migrated)
 ├── instances/             # per-user DSH home dirs (instances/<user>/.dsh)
 ├── .dsh/                  # admin default dsh config / profiles / credentials
 ├── docs/                  # work experience data, etc.

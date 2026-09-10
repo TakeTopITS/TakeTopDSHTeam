@@ -53,7 +53,8 @@ public class InstanceManager
     }
 
     private readonly string _root;
-    private readonly string _instancesDir;   // config/instances.json
+    private readonly string _instancesDir;   // legacy config/instances.json (migration source)
+    private readonly string _dbPath;         // config/launcher.db (authoritative)
     private readonly string _instRoot;       // instances/<id>
     private readonly string _dshTemplate;    // .dsh template root
     private readonly int _basePort;          // first port used for auto-assignment
@@ -68,6 +69,7 @@ public class InstanceManager
         _root = root;
         _instRoot = Path.Combine(root, "instances");
         _instancesDir = Path.Combine(root, "config", "instances.json");
+        _dbPath = LauncherDb.PathFor(root);
         _dshTemplate = Path.Combine(root, ".dsh");
         _basePort = basePort;
         // A fresh clone has no admin root .dsh/.credentials.yaml (it is gitignored,
@@ -104,50 +106,52 @@ public class InstanceManager
         lock (_gate)
         {
             _instances.Clear();
-            if (File.Exists(_instancesDir))
+            var rows = LauncherDb.LoadInstances(_dbPath);
+
+            // One-time migration from the legacy config/instances.json.
+            if (rows.Count == 0 && File.Exists(_instancesDir))
             {
-                try
+                rows = ParseLegacyInstancesJson();
+                if (rows.Count > 0)
                 {
-                    var doc = JsonDocument.Parse(File.ReadAllText(_instancesDir));
-                    if (doc.RootElement.TryGetProperty("instances", out var arr))
-                    {
-                        foreach (var el in arr.EnumerateArray())
-                        {
-                            var inst = new Instance
-                            {
-                                Id = el.GetProperty("id").GetString() ?? "",
-                                Name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                                DshPort = el.TryGetProperty("dshPort", out var p) ? p.GetInt32() : 0,
-                                Workspace = el.TryGetProperty("workspace", out var w) ? w.GetString() ?? "" : "",
-                                // DshHome is ALWAYS derived from the current install root
-                                // (root\instances\<id>\.dsh) so the launcher works when
-                                // copied/moved to any directory — never trust an absolute
-                                // path persisted in instances.json.
-                                DshHome = Path.Combine(_instRoot, el.TryGetProperty("id", out var iid) ? iid.GetString() ?? "" : "", ".dsh"),
-                                OsPassword = el.TryGetProperty("osPassword", out var op) ? op.GetString() : null,
-                                TokenUrl = el.TryGetProperty("tokenUrl", out var tk) ? tk.GetString() ?? "" : "",
-                                Running = el.TryGetProperty("running", out var r) ? r.GetBoolean() : false,
-                            };
-                            // Normalize workspace to a canonical native path on load so
-                            // legacy/mixed separator entries render/store consistently.
-                            if (!string.IsNullOrWhiteSpace(inst.Workspace))
-                                inst.Workspace = Path.GetFullPath(inst.Workspace);
-                            // Re-hydrate the process handle (from a previous run) if its port is live.
-                            if (inst.Running && DshService.IsPortInUse(inst.DshPort))
-                            {
-                                if (FindProcByPort(inst.DshPort, out var pid))
-                                {
-                                    try { inst.Proc = Process.GetProcessById(pid); } catch { inst.Proc = null; }
-                                    if (inst.Proc == null) inst.Running = false;
-                                }
-                                else inst.Running = false;
-                            }
-                            else inst.Running = false;
-                            _instances.Add(inst);
-                        }
-                    }
+                    LauncherDb.SaveInstances(_dbPath, rows);
+                    LauncherDb.ArchiveJson(_instancesDir);
                 }
-                catch { /* unreadable config -> empty */ }
+            }
+
+            foreach (var row in rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.Id)) continue;
+                var inst = new Instance
+                {
+                    Id = row.Id,
+                    Name = row.Name,
+                    DshPort = row.DshPort,
+                    Workspace = row.Workspace,
+                    // DshHome is ALWAYS derived from the current install root
+                    // (root\instances\<id>\.dsh) so the launcher works when copied/moved
+                    // to any directory — never trust an absolute path.
+                    DshHome = Path.Combine(_instRoot, row.Id, ".dsh"),
+                    OsPassword = row.OsPassword,
+                    TokenUrl = row.TokenUrl,
+                    Running = row.Running,
+                };
+                // Normalize workspace to a canonical native path on load so
+                // legacy/mixed separator entries render/store consistently.
+                if (!string.IsNullOrWhiteSpace(inst.Workspace))
+                    inst.Workspace = Path.GetFullPath(inst.Workspace);
+                // Re-hydrate the process handle (from a previous run) if its port is live.
+                if (inst.Running && DshService.IsPortInUse(inst.DshPort))
+                {
+                    if (FindProcByPort(inst.DshPort, out var pid))
+                    {
+                        try { inst.Proc = Process.GetProcessById(pid); } catch { inst.Proc = null; }
+                        if (inst.Proc == null) inst.Running = false;
+                    }
+                    else inst.Running = false;
+                }
+                else inst.Running = false;
+                _instances.Add(inst);
             }
 
             // Auto-correct any instance whose port is now held by another process
@@ -155,6 +159,37 @@ public class InstanceManager
             // port so the user never has to touch port config. Skip default dsh.
             RebalancePorts();
         }
+    }
+
+    // Parse the legacy config/instances.json (used only for the one-time migration).
+    private List<LauncherInstanceRow> ParseLegacyInstancesJson()
+    {
+        var rows = new List<LauncherInstanceRow>();
+        if (!File.Exists(_instancesDir)) return rows;
+        try
+        {
+            var doc = JsonDocument.Parse(File.ReadAllText(_instancesDir));
+            if (doc.RootElement.TryGetProperty("instances", out var arr))
+            {
+                foreach (var el in arr.EnumerateArray())
+                {
+                    var id = el.TryGetProperty("id", out var iid) ? iid.GetString() ?? "" : "";
+                    if (string.IsNullOrWhiteSpace(id)) continue;
+                    rows.Add(new LauncherInstanceRow
+                    {
+                        Id = id,
+                        Name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                        DshPort = el.TryGetProperty("dshPort", out var p) ? p.GetInt32() : 0,
+                        Workspace = el.TryGetProperty("workspace", out var w) ? w.GetString() ?? "" : "",
+                        OsPassword = el.TryGetProperty("osPassword", out var op) ? op.GetString() : null,
+                        TokenUrl = el.TryGetProperty("tokenUrl", out var tk) ? tk.GetString() ?? "" : "",
+                        Running = el.TryGetProperty("running", out var r) && r.GetBoolean(),
+                    });
+                }
+            }
+        }
+        catch { /* unreadable config -> empty */ }
+        return rows;
     }
 
     // Ensure every instance's port is free; reallocate when it was taken over by
@@ -1149,19 +1184,17 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
     {
         lock (_gate)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_instancesDir)!);
-            var obj = new { instances = _instances.Select(i => new
+            var rows = _instances.Select(i => new LauncherInstanceRow
             {
-                id = i.Id,
-                name = i.Name,
-                dshPort = i.DshPort,
-                workspace = i.Workspace,
-                osPassword = i.OsPassword,
-                tokenUrl = i.TokenUrl,
-                running = i.Running,
-            }) };
-            var json = JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_instancesDir, json);
+                Id = i.Id,
+                Name = i.Name,
+                DshPort = i.DshPort,
+                Workspace = i.Workspace,
+                OsPassword = i.OsPassword,
+                TokenUrl = i.TokenUrl,
+                Running = i.Running,
+            }).ToList();
+            LauncherDb.SaveInstances(_dbPath, rows);
         }
     }
 }

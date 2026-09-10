@@ -1,0 +1,1758 @@
+<!--
+  TakeTopDSH Team — multi-user DeepSeek Harness platform
+  Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
+  EMail: service@taketopits.com
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TakeTopDSH Team Launcher</title>
+<!-- MIT-licensed libs for file viewer: highlight.js (code highlight), marked (Markdown) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #1c1e21; }
+  .wrap { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border: 1px solid #e0e2e6; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  h1 { font-size: 20px; margin: 0 0 14px; }
+  h2 { font-size: 15px; margin: 10px 0 6px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .row-nowrap { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; margin-bottom: 8px; }
+  .row-nowrap input { flex: none; }
+  label { font-weight: 600; font-size: 14px; }
+  .rich-toolbar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; border: 1px solid #d5d9df; border-radius: 7px; padding: 4px; background: #f8fafc; }
+  .rich-toolbar button { padding: 5px 9px; background: #fff; border: 1px solid #d5d9df; border-radius: 5px; color: #334155; font-size: 13px; cursor: pointer; line-height: 1; }
+  .rich-toolbar button:hover { background: #eef4ff; border-color: #2563eb; }
+  .rich-toolbar button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  input { padding: 6px 8px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 14px; width: 120px; }
+  button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; transition: background-color .15s ease, transform .05s ease; }
+  button:hover { filter: brightness(0.92); }
+  button:active { transform: translateY(1px); }
+  button.secondary { background: #64748b; }
+  button.secondary:hover { background: #55627a; }
+  button.danger { background: #dc2626; }
+  button.danger:hover { background: #b91c1c; }
+  button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+  button .btn-spinner { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; vertical-align: -1px; animation: spin .7s linear infinite; }
+  .status { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.running { background: #16a34a; }
+  .dot.stopped { background: #9ca3af; }
+  #logs { background: #0f172a; color: #cbd5e1; font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; height: 240px; overflow-y: auto; white-space: pre-wrap; }
+  .muted { color: #6b7280; font-size: 13px; }
+  .ok { color: #16a34a; }
+  .err { color: #dc2626; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .topbar select { padding: 6px 10px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 14px; background: #fff; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #c8ccd2; border-top-color:#2563eb; border-radius:50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fm-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid #eef0f3; cursor:default; }
+  .fm-row:hover { background:#f5f7fa; }
+  .fm-row.fm-dir { cursor:pointer; }
+  .fm-row.fm-dir:hover { background:#eef4ff; }
+  .fm-glyph { display:inline-block; width:16px; height:16px; line-height:16px; text-align:center; margin-right:2px; border-radius:3px; color:#475569; font-weight:700; cursor:pointer; user-select:none; }
+  .fm-glyph:hover { background:#dbe2ea; }
+  .fm-row.fm-file .fm-glyph { cursor:default; color:#9aa4b2; }
+  .fm-name { flex:0 1 auto; min-width:max-content; white-space:nowrap; }
+  .fm-actions { display:inline-flex; gap:4px; opacity:0.35; transition:opacity .15s ease; }
+  .fm-row:hover .fm-actions { opacity:1; }
+  .fm-act { padding:2px 7px; border:0; border-radius:5px; background:#eef1f5; color:#334155; font-size:12px; cursor:pointer; }
+  .fm-act:hover { background:#dbe2ea; }
+  .fm-act:disabled { opacity:.4; cursor:not-allowed; background:#f1f3f6; color:#9aa4b2; }
+  .fm-act.fm-danger { background:#fee2e2; color:#b91c1c; }
+  .fm-act.fm-danger:hover { background:#fecaca; }
+  .fm-md { line-height:1.6; color:#1f2937; }
+  .fm-md pre, .fm-md code { background:#f3f4f6; border-radius:4px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .fm-md pre { padding:10px 12px; overflow:auto; }
+  .fm-md pre code { background:none; padding:0; }
+  .fm-md h1,.fm-md h2,.fm-md h3 { border-bottom:1px solid #e5e7eb; padding-bottom:4px; }
+  .fm-md table { border-collapse:collapse; }
+  .fm-md th,.fm-md td { border:1px solid #d1d5db; padding:4px 8px; }
+  .fm-md blockquote { border-left:3px solid #d1d5db; margin:8px 0; padding:2px 12px; color:#6b7280; }
+  /* left-pane tabs (File Manager | My Tasks) inside /fm */
+  .fm-tabs { display:flex; gap:6px; padding:10px 14px 6px; background:#fff; border-bottom:1px solid #e0e2e6; }
+  .fm-tab { flex:1; padding:9px 10px; border:1px solid #d5d9df; border-radius:7px; background:#fff; color:#475569; font-size:14px; font-weight:600; cursor:pointer; text-align:center; }
+  .fm-tab:hover { background:#f5f7fa; }
+  .fm-tab.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .fm-tasks { padding:12px 14px; }
+  .fm-task-table { width:99%; min-width:max-content; border-collapse:collapse; font-size:13px; white-space:nowrap; }
+  .fm-task-table th, .fm-task-table td { padding:8px 10px; border-bottom:1px solid #eef0f3; text-align:left; vertical-align:top; }
+  #fmList, #fmTasksView, .fm-tasks { overflow-x:auto; }
+  .fm-task-table th { background:#f8fafc; color:#475569; font-weight:700; }
+  .fm-st { font-weight:600; }
+  .fm-st.processing { color:#d97706; } .fm-st.done { color:#16a34a; } .fm-st.cancelled { color:#9ca3af; } .fm-st.pending { color:#64748b; }
+  .fm-empty { padding:20px; text-align:center; color:#9ca3af; font-size:13px; }
+</style>
+</head>
+<body>
+<!-- Login gate -->
+<div id="loginGate" style="position:fixed;inset:0;background:#f5f6f8;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #e0e2e6;border-radius:12px;padding:28px 34px;width:340px;box-shadow:0 10px 30px rgba(0,0,0,.08);position:relative;">
+    <select id="loginLangSel" style="position:absolute;top:14px;right:14px;padding:4px 8px;border:1px solid #c8ccd2;border-radius:6px;font-size:12px;background:#fff;"></select>
+    <h2 style="margin:0 0 4px;font-size:19px;" id="loginTitle">TakeTopDSH Team 登录</h2>
+    <div style="color:#6b7280;font-size:13px;margin-bottom:16px;" id="loginSub">请输入用户名和密码</div>
+    <div class="row" style="margin-bottom:10px;">
+      <input id="loginUser" placeholder="用户名" style="width:100%;" />
+    </div>
+    <div class="row" style="margin-bottom:14px;">
+      <input id="loginPass" type="password" placeholder="密码" style="width:100%;" />
+    </div>
+    <button id="loginBtn" style="width:100%;">登录</button>
+    <div id="loginMsg" class="muted" style="margin-top:8px;color:#dc2626;"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="topbar">
+    <div></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="userInfo" class="muted"></span>
+      <button id="changePassBtn" class="secondary" style="display:none;" data-i18n="changePass">改密码</button>
+      <button id="logoutBtn" class="secondary" style="display:none;" data-i18n="logout">退出登录</button>
+      <select id="langSelect">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" data-admin>
+    <h1 data-i18n="title">TakeTopDSH Team 启动器</h1>
+    <div class="row">
+      <label data-i18n="port">端口</label>
+      <input id="port" type="number" value="46000" />
+      <button id="startBtn" data-i18n="start">▶ 启动</button>
+      <button id="stopBtn" class="danger" data-i18n="stop">■ 停止</button>
+      <button id="openWebBtn" class="secondary" onclick="openWithToken()" data-i18n="openDsh" style="margin-left:42px;">打开DSH</button>
+    </div>
+    <div class="status"><span id="dot" class="dot stopped"></span><span id="stateText">Stopped</span></div>
+    <div id="tokenHint" class="muted" style="min-height:18px;margin-top:6px;"></div>
+  </div>
+
+  <div class="card" data-admin>
+    <h2 data-i18n="configTitle">配置</h2>
+    <div class="row">
+      <label data-i18n="cfgUrl">appsettings URL</label>
+      <input id="cfgUrl" style="width: 260px" />
+      <button id="saveCfgBtn" class="secondary" data-i18n="save">保存</button>
+      <span id="cfgSaved" class="muted"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="extUrl">外部访问地址</label>
+      <input id="extUrl" style="width: 260px" data-ph="extUrlPh" />
+    </div>
+    <div class="row">
+      <label data-i18n="workspace">工作区路径</label>
+      <input id="workspace" style="width: 280px" data-ph="workspacePh" />
+      <button id="browseWsBtn" class="secondary" data-i18n="browse">浏览</button>
+      <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
+      <span id="wsSaved" class="muted"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="defaultLang">缺省语言</label>
+      <select id="defaultLangSel" style="width: 200px;"></select>
+      <button id="saveLangBtn" class="secondary" data-i18n="save">保存</button>
+      <span id="langSaved" class="muted"></span>
+    </div>
+    <div class="muted" style="margin-top:4px" id="configHint"></div>
+  </div>
+
+    <div class="card" data-admin>
+    <h2 data-i18n="instTitle">实例管理（多用户）</h2>
+    <div class="row-nowrap">
+      <label data-i18n="instName">用户名</label>
+      <input id="instId" style="width: 120px" placeholder="userA" oninput="updateInstWs()" />
+      <label data-i18n="instWs">工作区</label>
+      <input id="instWs" style="width: 200px" placeholder="留空=自动按 全局工作区/用户名" data-ph="instWsPh" />
+      <label data-i18n="instPass">密码</label>
+      <input id="instPass" type="password" style="width: 110px" placeholder="******" />
+      <button id="createInstBtn" class="secondary" data-i18n="instCreate">新建实例</button>
+    </div>
+    <div class="muted" style="margin-top:2px;min-height:18px;" id="instMsg"></div>
+    <div id="instList" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- File manager: every logged-in user manages their own workspace -->
+  <div class="card" id="fileManagerCard">
+    <h2 data-i18n="fileTitle">文件管理</h2>
+    <div class="row-nowrap" style="margin-bottom:6px;">
+      <button id="fmUploadBtn" class="secondary" data-i18n="fileUpload">上传文件</button>
+      <button id="fmRefreshBtn" class="secondary" data-i18n="fileRefresh">刷新</button>
+      <button id="fmNewFolderBtn" class="secondary" data-i18n="fileNewFolder">新建文件夹</button>
+      <span id="fmMoveHint" class="muted" style="display:none;font-weight:600;"></span>
+      <button id="fmMovePickBtn" class="secondary" style="display:none;" data-i18n="filePickThisDir">选择此目录</button>
+      <button id="fmMoveCancelBtn" class="secondary" style="display:none;" data-i18n="fileCancel">取消</button>
+      <span id="fmPwd" class="muted" style="word-break:break-all;">/</span>
+    </div>
+    <input type="file" id="fmFileInput" multiple style="display:none;" />
+    <div id="fmList" style="border:1px solid #e0e2e6;border-radius:8px;overflow:auto;min-height:200px;max-height:50vh;padding:6px 8px;"></div>
+    <div class="muted" style="margin-top:6px;min-height:18px;" id="fmMsg"></div>
+  </div>
+
+  <!-- File viewer modal -->
+  <div id="viewerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10000; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:10px; width:min(92vw,900px); height:min(86vh,700px); display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.3);">
+      <div style="display:flex; align-items:center; padding:10px 16px; border-bottom:1px solid #e5e7eb; gap:8px;">
+        <strong id="viewerTitle" style="flex:1; word-break:break-all; font-size:15px;"></strong>
+        <button id="viewerCloseBtn" class="secondary" data-i18n="fileCancel">关闭</button>
+      </div>
+      <div id="viewerBody" style="flex:1; overflow:auto; padding:14px 18px; background:#fbfbfc;"></div>
+    </div>
+  </div>
+
+  <div class="card" data-admin>
+    <h2 data-i18n="updateTitle">更新</h2>
+    <div class="row">
+      <button id="checkUpdateBtn" class="secondary" data-i18n="checkUpdate">Check Update</button>
+      <span id="verInfo" class="muted" style="display:inline-flex;align-items:center;gap:6px;"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="logTitle">日志</h2>
+    <div class="row">
+      <button id="clearLogs" class="secondary" data-i18n="clear">清空</button>
+    </div>
+    <div id="logs"></div>
+    <div class="muted" style="margin-top:6px" data-i18n="dshRoot">DSH Root: <span id="rootPath"></span></div>
+  </div>
+</div>
+
+<!-- Modal: browse server directories to pick a workspace -->
+<div id="browseModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:10px; width:560px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,.25);">
+    <div style="padding:14px 18px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
+      <strong data-i18n="browseTitle">选择服务器目录（工作区）</strong>
+      <button id="browseCloseBtn" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
+    </div>
+    <div id="browseBreadcrumb" style="padding:8px 18px; font-size:13px; color:#2563eb; word-break:break-all; border-bottom:1px solid #f0f0f0;"></div>
+    <div id="browseList" style="flex:1; overflow-y:auto; padding:6px 10px; min-height:260px; max-height:48vh; font-size:14px;"></div>
+    <div style="padding:12px 18px; border-top:1px solid #eee; display:flex; gap:10px; align-items:center;">
+      <input id="browsePath" style="flex:1;" data-ph="browsePathPh" />
+      <button id="browseUpBtn" class="secondary" data-i18n="upDir">上一级</button>
+      <button id="browseSelectBtn" class="secondary" data-i18n="selectDir">选定此目录</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: change password (user) / reset password (admin) -->
+<div id="passModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:10px; width:360px; max-width:92vw; box-shadow:0 10px 30px rgba(0,0,0,.25);">
+    <div style="padding:14px 18px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
+      <strong id="passModalTitle" data-i18n="changePassTitle">修改密码</strong>
+      <button id="passModalClose" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div id="passOldRow" style="margin-bottom:10px;">
+        <label data-i18n="oldPass">旧密码</label><br/>
+        <input id="passOld" type="password" style="width:100%;margin-top:4px;" />
+      </div>
+      <div style="margin-bottom:10px;">
+        <label id="passNewLabel" data-i18n="newPass">新密码</label><br/>
+        <input id="passNew" type="password" style="width:100%;margin-top:4px;" />
+      </div>
+      <div style="margin-bottom:14px;">
+        <label data-i18n="confirmPass">确认新密码</label><br/>
+        <input id="passConfirm" type="password" style="width:100%;margin-top:4px;" />
+      </div>
+      <input id="passTargetUser" type="hidden" value="" />
+      <button id="passSaveBtn" style="width:100%;">OK</button>
+      <div id="passMsg" style="margin-top:8px;font-size:13px;color:#dc2626;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Authenticate same-origin fetches when the launcher opened this page with a
+// launcher_token URL (no session cookie is sent inside iframes under SameSite=Lax).
+// The launcher middleware already accepts ?launcher_token on every /api/* request,
+// so we transparently append it to our own API calls.
+(function () {
+  var lt = new URLSearchParams(location.search).get('launcher_token');
+  if (!lt) return;
+  var orig = window.fetch;
+  window.fetch = function (url, opts) {
+    var u = String(url);
+    if (u.indexOf('/api/') === 0) {
+      u += (u.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(lt);
+    }
+    return orig(u, opts || {});
+  };
+})();
+const $ = s => document.querySelector(s);
+let logCursor = 0;
+let isAdmin = false;
+let currentUser = '';
+let globalWorkspacePath = '';
+
+// Wrap an async handler so the button shows a spinner + disables while the
+// request is in-flight, then restores it. `fn` may return a Promise; the button
+// is re-enabled only when it settles. Callback `done(result)` runs if provided.
+async function withLoading(btn, fn, done) {
+  if (!btn || btn.disabled) { return; }
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>' + original;
+  const startAt = Date.now();
+  try {
+    const res = await fn();
+    if (done) done(res);
+    return res;
+  } finally {
+    // Keep the spinner visible for a minimum so fast operations (start/stop/etc.)
+    // still show a clear "working" spinner instead of a blip.
+    const remain = 700 - (Date.now() - startAt);
+    if (remain > 0) await new Promise(r => setTimeout(r, remain));
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
+// ---- i18n ----
+const I18N = {
+  zh: {
+    title: "TakeTopDSH Team 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "启动", instStop: "停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDSH Team 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
+    extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
+    workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
+    browse: "浏览", save: "保存", updateTitle: "更新", checkUpdate: "Check Update", checking: "检查中...", checkFail: "检查失败: ",
+    logTitle: "日志", clear: "清空", dshRoot: "DSH Root: ",
+    configHint: "工作区是 AI 读写文件、执行命令的根目录（服务器上的目录）。点\"浏览\"从服务器目录里选，或手动输入。留空则用 dsh 默认（安装目录）。更改后需重新启动 DSH Web 生效。外部访问地址填反向代理对外的地址（供 dsh 信任代理 Host），留空表示仅本机使用。",
+    browseTitle: "选择服务器目录（工作区）", browsePathPh: "当前目录", upDir: "上一级", selectDir: "选定此目录", selfDirDeny: "不能选择 TakeTopDSH 自身的目录", selfDirDenyMsg: "不能以此为工作区（会修改 TakeTopDSH 自身）",
+    loading: "加载中...", noRoots: "（没有可浏览的根目录）", noSub: "（此目录下没有子文件夹）", cannotRead: "无法读取该目录：",
+    stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
+    gettingAddr: "正在获取访问地址，请稍候...", readyOpen: "就绪，正在打开...",
+    timeoutHint: "等待超时：未能获取访问地址，请确认 DSH Web 已启动（状态显示 Running）。",
+    getAddrFail: "获取访问地址失败：", saved: "已保存", saveFail: "保存失败",
+    verCur: "当前 ", verLatest: " | 最新 ", verNo: " | 无法检测",
+    changePass: "改密码", changePassTitle: "修改密码", oldPass: "旧密码", newPass: "新密码", confirmPass: "确认新密码",
+    passChanged: "密码已修改", passChangeFail: "修改失败", passMismatch: "两次输入的新密码不一致",
+    resetPass: "重置密码", resetPassTitle: "重置密码", resetPassDone: "密码已重置",
+    resetPassNew: "新密码", resetPassConfirm: "确认新密码",
+
+    fmTabFiles: "文件管理", fmTabTasks: "我的任务",
+    openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
+    fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
+    fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动",
+    fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
+    fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
+    fmOpen: "打开", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
+    fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败"
+  },
+  en: {
+    title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "Start", instStop: "Stop", instOpen: "Open", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDSH Team Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
+    extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
+    workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
+    browse: "Browse", save: "Save", updateTitle: "Update", checkUpdate: "Check Update", checking: "Checking...", checkFail: "Check failed: ",
+    logTitle: "Logs", clear: "Clear", dshRoot: "DSH Root: ",
+    configHint: "Workspace is the server directory where AI reads/writes files and runs commands. Click Browse to pick a server folder, or type it. Leave empty to use the dsh default (install dir). Restart DSH Web after changing. External URL is the reverse-proxy public address (lets dsh trust the proxy Host); empty = local only.",
+    browseTitle: "Choose a server directory (workspace)", browsePathPh: "Current directory", upDir: "Up", selectDir: "Select this directory", selfDirDeny: "Cannot choose TakeTopDSH's own directory", selfDirDenyMsg: "Cannot use this as workspace (would modify TakeTopDSH itself)",
+    loading: "Loading...", noRoots: "(no browsable roots)", noSub: "(no subfolders here)", cannotRead: "Cannot read directory: ",
+    stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
+    gettingAddr: "Getting access URL, please wait...", readyOpen: "Ready, opening...",
+    timeoutHint: "Timed out: could not get the access URL. Make sure DSH Web is running (status shows Running).",
+    getAddrFail: "Failed to get access URL: ", saved: "Saved", saveFail: "Save failed",
+    verCur: "Current ", verLatest: " | Latest ", verNo: " | unavailable",
+    changePass: "Change Password", changePassTitle: "Change Password", oldPass: "Old password", newPass: "New password", confirmPass: "Confirm new password",
+    passChanged: "Password changed", passChangeFail: "Change failed", passMismatch: "New passwords do not match",
+    resetPass: "Reset Password", resetPassTitle: "Reset Password", resetPassDone: "Password reset",
+    resetPassNew: "New password", resetPassConfirm: "Confirm new password",
+
+    fmTabFiles: "File Manager", fmTabTasks: "My Tasks",
+    openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
+    fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
+    fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved",
+    fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
+    fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
+    fmOpen: "Open", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
+    fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed"
+  }
+};
+
+let LANGS = I18N.en;
+function t(key) { return LANGS[key] || key; }
+
+function normLang(code) {
+  const c = String(code || '').toLowerCase();
+  if (c === 'zh' || c === 'zh-cn' || c === 'zhcn' || c === 'cn') return 'zh';
+  if (c === 'en' || c === 'en-us' || c === 'en-gb' || c === 'us') return 'en';
+  return c;
+}
+
+// The language the user actually selected (persisted as tt_lang cookie/localStorage).
+// Used wherever the page renders so it never clobbers the chosen language back to a
+// default. Falls back to the first configured language.
+function preferredLang() {
+  try {
+    const cm = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);
+    if (cm) return decodeURIComponent(cm[1]);
+  } catch (e) {}
+  try { const ls = localStorage.getItem('tt_lang'); if (ls) return ls; } catch (e) {}
+  return 'zh';
+}
+
+// Display label for a language code used in the dropdown (fallback when the
+// config list has no explicit label, e.g. a plain code).
+function langLabel(code) {
+  const n = normLang(code);
+  if (n === 'zh' || n === 'zh-cn') return '中文';
+  if (n === 'en') return 'English';
+  return code;
+}
+
+// Populate the language dropdown with the ordered list from /api/config.
+// Languages come from appsettings.json DshWeb.DefaultLanguage as
+// "English:en,中文:zh-cn" -> items { label, code }; dropdown shows label, uses code.
+// useSaved=true (logged-in page): honor an existing per-visitor choice;
+// useSaved=false (login gate): always default to the server's first language.
+async function initLangSel(sel, useSaved) {
+  let items = [{ label: 'English', code: 'en' }, { label: '中文', code: 'zh-cn' }];
+  try {
+    const r = await fetch('/api/languages', { cache: 'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      if (j.languages && j.languages.length) {
+        items = j.languages.map((x) => { const code = typeof x === 'string' ? x : String(x.code); return { label: langLabel(code), code: code }; });
+      }
+    } else {
+      // fallback to /api/config for logged-in pages
+      const rc = await fetch('/api/config', { cache: 'no-store' });
+      if (rc.ok) { const j = await rc.json(); if (j.languages && j.languages.length) items = j.languages.map((x) => { const code = typeof x === 'string' ? x : String(x.code); return { label: langLabel(code), code: code }; }); }
+    }
+  } catch (e) { }
+  sel.innerHTML = items.map((it) => '<option value="' + it.code + '">' + it.label + '</option>').join('');
+  // useSaved=true (admin/main page): honor the remembered choice (cookie/localStorage),
+  // so the language follows what the user picked. useSaved=false (login gate):
+  // ALWAYS use the server-configured FIRST language, so opening the login page
+  // shows the admin-selected default (e.g. 中文) regardless of past switches.
+  function readLang() {
+    try {
+      const m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);
+      if (m) return decodeURIComponent(m[1]);
+      return localStorage.getItem('tt_lang');
+    } catch (e) { return null; }
+  }
+  let selVal;
+  if (useSaved) {
+    const saved = readLang();
+    selVal = (saved && items.some((it) => it.code === saved)) ? saved : items[0].code;
+  } else {
+    selVal = items[0].code;
+  }
+  sel.value = selVal;
+}
+
+function applyLang(lang) {
+  LANGS = I18N[normLang(lang)] || I18N.en;
+  document.documentElement.lang = lang;
+  // static texts
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    // For dshRoot, keep inner span
+    if (key === 'dshRoot') {
+      el.childNodes[0].nodeValue = t('dshRoot');
+      return;
+    }
+    el.textContent = t(key);
+  });
+  // placeholders
+  document.querySelectorAll('[data-ph]').forEach(el => {
+    const key = el.getAttribute('data-ph');
+    el.setAttribute('placeholder', t(key));
+  });
+  // login gate texts (not marked data-i18n because they live under loginGate)
+  const lt = $('#loginTitle'); if (lt) lt.textContent = t('loginTitle');
+  const ls = $('#loginSub'); if (ls) ls.textContent = t('loginSub');
+  const lu = $('#loginUser'); if (lu) lu.placeholder = t('loginUserPh');
+  const lp = $('#loginPass'); if (lp) lp.placeholder = t('loginPassPh');
+  const lb = $('#loginBtn'); if (lb) lb.textContent = t('loginBtn');
+  // keep the two language selectors in sync
+  const ls2 = $('#loginLangSel'); if (ls2 && ls2.value !== lang) ls2.value = lang;
+  const lsMain = $('#langSelect'); if (lsMain && lsMain.value !== lang) lsMain.value = lang;
+  // Re-render dynamic content that depends on the dictionary.
+  if (typeof loadInstances === 'function') { try { loadInstances(); } catch (e) { } }
+
+  if (typeof fmLoad === 'function') { try { fmLoad(); } catch (e) { } }
+  // Persist the chosen language so login page -> admin page -> DSH stay in sync.
+  // Use a cookie (cross-page, cross-navigation) AND localStorage.
+  try {
+    document.cookie = 'tt_lang=' + encodeURIComponent(lang) + '; path=/; max-age=31536000; SameSite=Lax';
+    localStorage.setItem('tt_lang', lang);
+  } catch (e) { }
+}
+
+async function refresh() {
+  const st = await (await fetch('/api/status')).json();
+  const on = st.state === 'running';
+  $('#dot').className = 'dot ' + (on ? 'running' : 'stopped');
+  $('#stateText').textContent = on ? (st.pid ? (t('stateRunningPid') + st.pid + ')') : t('stateRunning')) : t('stateStopped');
+  $('#startBtn').disabled = on;
+  $('#stopBtn').disabled = !on;
+}
+
+async function loadLogs() {
+  const r = await (await fetch('/api/logs?from=' + logCursor)).json();
+  if (r && Array.isArray(r.logs) && r.logs.length) {
+    const box = $('#logs');
+    box.textContent += r.logs.join('\n') + '\n';
+    box.scrollTop = box.scrollHeight;
+    logCursor = r.total;
+  }
+}
+
+async function loadConfig() {
+  const c = await (await fetch('/api/config')).json();
+  $('#rootPath').textContent = c.root;
+  DshSelfRoot = c.root || '';   // remember this app's own dir (never selectable as workspace)
+  $('#cfgUrl').value = c.url;
+  $('#extUrl').value = c.externalUrl || '';
+  $('#port').value = String(c.url || '').split(':').pop() || 46000;
+  // fill the admin "default language" dropdown and preselect the server default
+  const langSelEl = $('#defaultLangSel');
+  if (langSelEl && Array.isArray(c.languages) && c.languages.length) {
+    const items = c.languages.map((x) => { const code = typeof x === 'string' ? x : String(x.code); return { label: langLabel(code), code: code }; });
+    langSelEl.innerHTML = items.map((it) => '<option value="' + it.code + '">' + it.label + '</option>').join('');
+    langSelEl.value = items[0].code;
+    window.__langItems = items;   // remember order for reordering on save
+  }
+  try {
+    const w = await (await fetch('/api/workspace')).json();
+    $('#workspace').value = w.workspace || '';
+    globalWorkspacePath = w.workspace || '';
+  } catch (e) { /* workspace endpoint optional */ }
+}
+
+async function init() {
+  // ---- "fm" standalone mode: used inside the /work split page's left pane.
+  // Render ONLY the file manager, full-width within the pane; skip every card.
+  if (location.pathname === '/fm') {
+    document.querySelectorAll('.wrap > .card, .wrap > .topbar').forEach(el => { el.style.display = 'none'; });
+    $('#fileManagerCard').style.display = '';
+    $('#fileManagerCard').style.margin = '0';
+    $('#fileManagerCard').style.border = '0';
+    $('#fileManagerCard').style.boxShadow = 'none';
+    $('#fileManagerCard').style.borderRadius = '0';
+    $('#fileManagerCard').style.minHeight = '100vh';
+    $('#fileManagerCard').style.padding = '12px 14px';
+    // Two tabs in the left pane: File Manager | My Tasks.
+    buildFmTabs();
+    await checkAuth();
+    if (isAdmin) {
+      document.querySelectorAll('[data-admin]').forEach(el => el.style.display = 'none');
+    }
+    // Apply the saved language so the file-manager labels match the rest of the app.
+    applyLang(preferredLang());
+    try { await initFileManager(); } catch (e) {}
+    return;
+  }
+
+  $('#startBtn').onclick = () => withLoading($('#startBtn'), async () => {
+    const port = parseInt($('#port').value) || 46000;
+    logCursor = 0; $('#logs').textContent = '';
+    await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port }) });
+    refresh();
+  });
+  $('#stopBtn').onclick = () => withLoading($('#stopBtn'), async () => { await fetch('/api/stop', { method: 'POST' }); refresh(); });
+  $('#saveCfgBtn').onclick = () => withLoading($('#saveCfgBtn'), async () => {
+    const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: $('#cfgUrl').value, externalUrl: $('#extUrl').value }) });
+    $('#cfgSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
+    setTimeout(() => $('#cfgSaved').textContent = '', 1500);
+  });
+  $('#saveWsBtn').onclick = () => withLoading($('#saveWsBtn'), async () => {
+    const v = $('#workspace').value;
+    if (isSelfDir(v)) {
+      $('#wsSaved').textContent = t('selfDirDenyMsg');
+      setTimeout(() => $('#wsSaved').textContent = '', 3000);
+      return;
+    }
+    const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: $('#workspace').value }) });
+    $('#wsSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
+    setTimeout(() => $('#wsSaved').textContent = '', 1500);
+  });
+  $('#saveLangBtn').onclick = () => withLoading($('#saveLangBtn'), async () => {
+    // Reorder the language list so the selected code becomes the first (default).
+    const chosen = $('#defaultLangSel').value;
+    const items = (window.__langItems || []).slice();
+    const idx = items.findIndex((it) => it.code === chosen);
+    let ordered;
+    if (idx > 0) {
+      const chosenItem = items.splice(idx, 1)[0];
+      ordered = [chosenItem].concat(items);
+    } else {
+      ordered = items;
+    }
+    // Persist as "显示名:代码" with a canonical display name derived from the
+    // code (en->English, zh-cn->中文), so the saved file is always well-formed.
+    const raw = ordered.map((it) => langLabel(it.code) + ':' + it.code).join(',');
+    const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultLanguage: raw }) });
+    if (r.ok) {
+      $('#langSaved').textContent = t('saved');
+      setTimeout(() => $('#langSaved').textContent = '', 1500);
+      // apply immediately so the UI (and login gate) reflect the new default
+      applyLang(chosen);
+      await initLangSel($('#langSelect'), true);
+      const loginLS = $('#loginLangSel'); if (loginLS) await initLangSel(loginLS, false);
+    } else {
+      $('#langSaved').textContent = t('saveFail');
+      setTimeout(() => $('#langSaved').textContent = '', 1500);
+    }
+  });
+  $('#checkUpdateBtn').onclick = async () => {
+    const btn = $('#checkUpdateBtn');
+    const info = $('#verInfo');
+    btn.disabled = true;
+    info.innerHTML = '<span class="spinner"></span> ' + t('checking');  // show spinner + text
+    try {
+      const res = await fetch('/api/update', { method: 'GET' });
+      const u = await res.json();
+      info.textContent = u.latest ? (t('verCur') + u.current + t('verLatest') + u.latest) : (t('verCur') + u.current + t('verNo'));
+    } catch (e) {
+      info.textContent = t('checkFail') + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  $('#clearLogs').onclick = () => { $('#logs').textContent = ''; logCursor = 0; };
+
+  // browse modal
+  $('#browseWsBtn').onclick = () => openBrowse('');
+  $('#browseCloseBtn').onclick = () => { $('#browseModal').style.display = 'none'; };
+  $('#browseUpBtn').onclick = () => openBrowse($('#browsePath').dataset.parent || '');
+  $('#browseSelectBtn').onclick = () => {
+    const v = $('#browsePath').value;
+    if (isSelfDir(v)) {
+      $('#browseList').textContent = t('selfDirDeny');
+      return;
+    }
+    $('#workspace').value = v;
+    $('#browseModal').style.display = 'none';
+  };
+
+  // language switch (main, logged-in UI): remember personal choice
+  const langSel = $('#langSelect');
+  await initLangSel(langSel, true);
+  langSel.onchange = () => applyLang(langSel.value);
+  applyLang(langSel.value);
+  // login gate language switch: default = server default (admin-set), so every
+  // visitor sees the configured language on first open; they may switch locally.
+  // useSaved=true: honor an existing tt_lang so the selected language survives
+  // the login page -> admin page transition instead of being reset to default.
+  const loginLangSel = $('#loginLangSel');
+  if (loginLangSel) {
+    await initLangSel(loginLangSel, true);
+    loginLangSel.onchange = () => applyLang(loginLangSel.value);
+    applyLang(loginLangSel.value);
+  }
+
+  // instance manager (admin only)
+  $('#createInstBtn').onclick = () => withLoading($('#createInstBtn'), async () => {
+    const id = $('#instId').value.trim();
+    const ws = $('#instWs').value.trim();
+    const pass = $('#instPass').value.trim();
+    const msg = $('#instMsg');
+    if (!id) { msg.textContent = t('instName') + '?'; msg.className = 'muted err'; return; }
+    const r = await fetch('/api/instances', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: id, workspace: ws, password: pass }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) {
+      msg.textContent = t('instCreated') + ': ' + id;
+      msg.className = 'muted ok';
+      $('#instId').value = ''; $('#instWs').value = ''; $('#instPass').value = '';
+      loadInstances();
+    } else {
+      msg.textContent = (j.error || t('instError')) + '（' + id + '）';
+      msg.className = 'muted err';
+    }
+  });
+
+  // login / logout
+  $('#loginBtn').onclick = doLogin;
+  $('#loginPass').onkeydown = (e) => { if (e.key === 'Enter') doLogin(); };
+  $('#logoutBtn').onclick = async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    location.reload();
+  };
+
+  await checkAuth();
+
+  await loadConfig();
+  await refresh();
+  await loadLogs();
+  if ((await fetch('/api/auth/me', { cache: 'no-store' })).ok) {
+    try { await loadInstances(); } catch (e) { }
+    try { await initFileManager(); } catch (e) { }
+  }
+  setInterval(() => { refresh(); loadLogs(); }, 1000);
+}
+
+async function checkAuth() {
+  const r = await fetch('/api/auth/me', { cache: 'no-store' });
+  if (r.ok) {
+    const me = await r.json();
+    // Restore the control page cards (they were hidden while logged out).
+    if (location.pathname === '/fm') {
+      document.querySelectorAll('.wrap > .card, .topbar').forEach(el => el.style.display = 'none');
+      $('#fileManagerCard').style.display = '';
+    } else {
+      document.querySelectorAll('.wrap > .card, .topbar').forEach(el => el.style.display = '');
+      // The file manager moved into the workbench (left pane); hide it on /admin.
+      $('#fileManagerCard').style.display = 'none';
+    }
+    $('#loginGate').style.display = 'none';
+    $('#userInfo').textContent = me.username + (me.admin ? ' (admin)' : '');
+    isAdmin = me.admin;
+    currentUser = me.username;
+    $('#logoutBtn').style.display = '';
+    $('#changePassBtn').style.display = '';
+    // Admin-only cards are hidden for non-admin; show their own instance card.
+    document.querySelectorAll('[data-admin]').forEach(el => {
+      el.style.display = me.admin ? '' : 'none';
+    });
+
+    applyLang(preferredLang());
+  } else {
+    // Not logged in: show login gate, hide main cards.
+    $('#loginGate').style.display = 'flex';
+    document.querySelectorAll('.wrap > .card, .topbar').forEach(el => el.style.display = 'none');
+  }
+}
+
+async function doLogin() {
+  const u = $('#loginUser').value.trim();
+  const p = $('#loginPass').value;
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+  if (r.ok) { location.href = '/admin'; }
+  else { const j = await r.json(); $('#loginMsg').textContent = j.error || '登录失败'; }
+}
+
+// ================= File manager (per-user workspace) =================
+let fmRoot = '';
+let fmPath = '';
+let fmMoveSrc = null;   // { path, name } being moved (null = not in move mode)
+let fmMoveTarget = '';  // currently selected target directory in move mode
+let fmExpanded = new Set();  // directories expanded inline (tree) by path
+let fmExpandCache = new Map();  // path -> entries[] for expanded dirs (avoids refetch)
+
+async function fmRequest(method, url, opts) {
+  // Automatically inject the ?inst= parameter for all /api/files/ calls so
+  // every file operation targets the correct instance workspace.
+  var instParam = new URLSearchParams(location.search).get('inst') || '';
+  if (instParam && url.startsWith('/api/files/')) {
+    var sep = url.includes('?') ? '&' : '?';
+    url += sep + 'inst=' + encodeURIComponent(instParam);
+  }
+  const r = await fetch(url, Object.assign({ method: method }, opts || {}));
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, ok: r.ok, data: j };
+}
+
+// Build the two left-pane tabs (File Manager | My Tasks) used in /fm mode, and
+// the tasks view that lists tasks assigned to the logged-in user.
+function buildFmTabs() {
+  var fc = $('#fileManagerCard');
+  var tabs = document.createElement('div');
+  tabs.className = 'fm-tabs';
+  tabs.innerHTML = '<button class="fm-tab active" data-v="files" data-i18n="fmTabFiles">文件管理</button>'
+                 + '<button class="fm-tab" data-v="tasks" data-i18n="fmTabTasks">我的任务</button>';
+  fc.parentNode.insertBefore(tabs, fc);
+  var tv = document.createElement('div');
+  tv.id = 'fmTasksView'; tv.className = 'fm-tasks'; tv.style.display = 'none';
+  fc.parentNode.insertBefore(tv, fc);
+
+  tabs.querySelectorAll('.fm-tab').forEach(function (b) {
+    b.onclick = function () {
+      tabs.querySelectorAll('.fm-tab').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      var v = b.getAttribute('data-v');
+      fc.style.display = (v === 'files') ? '' : 'none';
+      tv.style.display = (v === 'tasks') ? '' : 'none';
+      if (v === 'tasks') loadMyTasks(tv);
+    };
+  });
+}
+
+// Render the logged-in user's assigned tasks (admin may assign to self too).
+async function loadMyTasks(container) {
+  var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈' };
+  var st = { processing:'处理中', done:'完成', cancelled:'取消', pending:'待处理' };
+  var lang = preferredLang();
+  var lc = String(lang||'').toLowerCase();
+  var en = !(lc === 'zh' || lc === 'zh-cn' || lc === 'zhcn' || lc === 'cn');
+  if (en) { dict = { thSeq:'No.', thType:'Type', thName:'Name', thCreator:'Created By', thAssigned:'Assigned At', thStatus:'Status', thFiles:'Files', thFeedback:'Feedback' }; st = { processing:'Processing', done:'Done', cancelled:'Cancelled', pending:'Pending' }; }
+  try {
+    var inst = currentUser || 'admin';
+    var tasks = [];
+    var total = 0;
+    async function fetchPage(p) {
+      var d = await (await fetch('/api/tasks?inst=' + encodeURIComponent(inst) + '&page=' + p + '&pageSize=' + PAGE_SIZE)).json();
+      tasks = d.tasks || [];
+      total = (typeof d.total === 'number') ? d.total : tasks.length;
+    }
+    await fetchPage(1);
+    if (!tasks.length) { container.innerHTML = '<div class="fm-empty">' + (en?'No tasks':'暂无任务') + '</div>'; return; }
+    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th>' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th></tr></thead></table>';
+    container.innerHTML = hdr;
+    var state = { page: 1 };
+    function renderPage() {
+      var tbl = container.querySelector('table');
+      var old = tbl.querySelector('tbody'); if (old) old.remove();
+      var body = document.createElement('tbody');
+      tasks.forEach(function (task) {
+        var filesHtml = (task.files||[]).map(function(f){
+          var n = String(f).split('/').pop();
+          var dl = '/api/files/download?inst=' + encodeURIComponent(inst) + '&path=' + encodeURIComponent('TaskData/Doc/' + n);
+          return '<div><a href="' + dl + '" target="_blank" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + n + '</a></div>';
+        }).join('');
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + task.seq + '</td><td>' + (task.type||'') + '</td>'
+          + '<td><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.seq + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
+          + '<td><button class="fm-feedback-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Feedback':'反馈') + '</button></td>'
+          + '<td>' + (task.createdBy||'') + '</td>'
+          + '<td>' + (task.assignedAt||'') + '</td>'
+          + '<td><span class="fm-st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
+          + '<td>' + filesHtml + '</td>';
+        body.appendChild(tr);
+      });
+      tbl.appendChild(body);
+      container.querySelectorAll('a.fm-task-name-link').forEach(function (a) {
+        a.onclick = function (ev) {
+          ev.preventDefault();
+          var seq = parseInt(a.getAttribute('data-task'), 10);
+          var task = tasks.find(function(t){ return t.seq === seq; });
+          if (task) showTaskView(task, en);
+        };
+      });
+      container.querySelectorAll('button.fm-feedback-btn').forEach(function (b) {
+        b.onclick = function () {
+          var seq = parseInt(b.getAttribute('data-task'), 10);
+          var task = tasks.find(function(t){ return t.seq === seq; });
+          if (task) openFeedback(inst, task, en);
+        };
+      });
+      var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (state.page > pages) state.page = pages;
+      var pag = container.querySelector('.tt-pager');
+      if (!pag) { pag = document.createElement('div'); pag.className = 'tt-pager'; pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:12px;'; container.appendChild(pag); }
+      if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+      var html = '<span style="color:#6b7280;margin-right:8px;">' + total + ' items</span>';
+      html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">«</button> ';
+      for (var p = 1; p <= pages; p++) {
+        html += '<button data-p="' + p + '" style="padding:3px 10px;border:1px solid ' + (p===state.page?'#2563eb':'#d5d9df') + ';border-radius:5px;background:' + (p===state.page?'#2563eb':'#fff') + ';color:' + (p===state.page?'#fff':'#334155') + ';cursor:pointer;margin:0 1px;">' + p + '</button> ';
+      }
+      html += '<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">»</button>';
+      pag.innerHTML = html;
+      pag.querySelectorAll('button[data-p]').forEach(function(b) {
+        b.onclick = async function() {
+          var v = b.getAttribute('data-p');
+          if (v === 'prev') state.page = Math.max(1, state.page - 1);
+          else if (v === 'next') state.page = Math.min(pages, state.page + 1);
+          else state.page = parseInt(v, 10);
+          await fetchPage(state.page);
+          renderPage();
+        };
+      });
+    }
+    renderPage();
+  } catch (e) { container.innerHTML = '<div class="fm-empty">' + (en?'Load failed':'加载失败') + '</div>'; }
+}
+
+// Simple read-only overlay to view a task's rich content (called from My Tasks).
+function showTaskView(task, en) {
+  var el = document.getElementById('taskContentView');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'taskContentView';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    el.innerHTML = '<div style="background:#fff;border-radius:10px;width:min(640px,94vw);max-height:86vh;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><strong id="tcvTitle" style="font-size:16px;"></strong><button id="tcvClose" style="padding:4px 12px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Close':'关闭') + '</button></div>'
+      + '<div id="tcvBody" style="border:1px solid #e0e2e6;border-radius:6px;padding:12px;font-size:14px;line-height:1.6;overflow:auto;min-height:120px;"></div>'
+      + '<div id="tcvFiles" style="margin-top:10px;"></div>'
+      + '</div>';
+    document.body.appendChild(el);
+    el.querySelector('#tcvClose').onclick = function(){ el.style.display = 'none'; };
+    el.addEventListener('click', function(ev){ if (ev.target === el) el.style.display = 'none'; });
+  }
+  el.querySelector('#tcvTitle').textContent = task.name || '';
+  el.querySelector('#tcvBody').innerHTML = task.content || '';
+  // Attachment file list (click to preview image / prompt download otherwise)
+  var inst = currentUser || 'admin';
+  var files = task.files || [];
+  var fbox = el.querySelector('#tcvFiles');
+  if (!files.length) { fbox.innerHTML = ''; }
+  else {
+    var fhtml = '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px;">' + (en?'Attachments':'附件文件') + '</div>';
+    files.forEach(function(f){
+      var name = String(f).split('/').pop();
+      fhtml += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="tcv-file" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + name + '</a></div>';
+    });
+    fbox.innerHTML = fhtml;
+    fbox.querySelectorAll('a.tcv-file').forEach(function(a){
+      a.onclick = function(){ openTaskFile2(a.getAttribute('data-file')); };
+    });
+  }
+  el.style.display = 'flex';
+}
+
+// Preview an image attachment full-screen, or prompt to download otherwise.
+function openTaskFile2(rel) {
+  var name = String(rel).split('/').pop();
+  var ext = (name.split('.').pop() || '').toLowerCase();
+  var inst = currentUser || 'admin';
+  var dl = '/api/files/download?inst=' + encodeURIComponent(inst) + '&path=' + encodeURIComponent('TaskData/Doc/' + name) + '&inline=1';
+  var imgs = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
+  function showImg(url) {
+    var ov = document.getElementById('tcvImgView');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'tcvImgView';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
+      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', function(){ ov.style.display = 'none'; });
+    }
+    ov.querySelector('img').src = url;
+    ov.style.display = 'flex';
+  }
+  function showRead() {
+    fetch('/api/files/read?inst=' + encodeURIComponent(inst), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path:'TaskData/Doc/' + name }) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(d){
+        if (d && d.ok && d.type === 'image' && d.dataUri) showImg(d.dataUri);
+        else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + name + '?')) window.open(dl, '_blank');
+      });
+  }
+  if (imgs.indexOf(ext) >= 0) showRead();
+  else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + name + '?')) window.open(dl, '_blank');
+}
+
+function openFbFile(fn) {
+  var ext = (fn.split('.').pop() || '').toLowerCase();
+  var dl = '/api/files/download?inst=' + encodeURIComponent(fbInst) + '&path=' + encodeURIComponent('TaskData/Feedback/' + fbSeq + '/' + fn) + '&inline=1';
+  var imgs = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
+  function showImg(url) {
+    var ov = document.getElementById('fbImgView');
+    if (!ov) {
+      ov = document.createElement('div'); ov.id = 'fbImgView';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
+      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', function(){ ov.style.display = 'none'; });
+    }
+    ov.querySelector('img').src = url;
+    ov.style.display = 'flex';
+  }
+  function showRead() {
+    fetch('/api/files/read?inst=' + encodeURIComponent(fbInst), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path:'TaskData/Feedback/' + fbSeq + '/' + fn }) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(d){
+        if (d && d.ok && d.type === 'image' && d.dataUri) showImg(d.dataUri);
+        else if (confirm('该类型文件无法预览，是否下载：' + fn + '?')) window.open(dl, '_blank');
+      });
+  }
+  if (imgs.indexOf(ext) >= 0) showRead();
+  else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + fn + '?')) window.open(dl, '_blank');
+}
+
+// ---- Task feedback (one per user per day; same-day is editable) ----
+var fbModal, fbInst = '', fbSeq = 0, fbEn = false, fbPendingFiles = [];
+function ensureFbModal(en) {
+  if (fbModal) return;
+  fbEn = en;
+  fbModal = document.createElement('div');
+  fbModal.id = 'fbModal';
+  fbModal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10001;display:none;align-items:center;justify-content:center;';
+  fbModal.innerHTML =
+    '<div style="background:#fff;border-radius:10px;width:min(760px,96vw);max-height:90vh;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow-y:auto;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+    +   '<strong id="fbTitle" style="font-size:16px;"></strong>'
+    +   '<button id="fbClose" style="padding:4px 14px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Close':'关闭') + '</button>'
+    + '</div>'
+    + '<label id="fbLbl" style="font-weight:600;font-size:13px;margin-bottom:4px;">' + (en?'Task completion feedback':'任务完成情况反馈') + '</label>'
+    + '<div class="rich-toolbar" id="fbToolbar">'
+    +   '<button type="button" data-cmd="bold" title="Bold"><b>B</b></button>'
+    +   '<button type="button" data-cmd="italic" title="Italic"><i>I</i></button>'
+    +   '<button type="button" data-cmd="underline" title="Underline"><u>U</u></button>'
+    +   '<button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>'
+    +   '<button type="button" data-cmd="insertUnorderedList" title="Bullet">•≡</button>'
+    +   '<button type="button" data-cmd="insertOrderedList" title="Numbered">1≡</button>'
+    +   '<button type="button" data-cmd="formatBlock" data-val="blockquote" title="Quote">❝</button>'
+    +   '<button type="button" id="fbImage" title="Insert image">🖼</button>'
+    +   '<button type="button" data-cmd="removeFormat" title="Clear">⌫</button>'
+    + '</div>'
+    + '<div id="fbEditor" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:80px;max-height:240px;font-size:14px;line-height:1.5;overflow:auto;"></div>'
+    + '<div style="margin-top:6px;"><label for="fbFileInput" style="display:inline-block;padding:5px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">📎 ' + (en?'Attach file':'添加附件') + '</label><input type="file" id="fbFileInput" multiple accept="*/*" style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" /><div id="fbFileChips" style="margin-top:4px;"></div></div>'
+    + '<div style="margin:10px 0 6px;font-weight:600;font-size:13px;" id="fbRecTitle">' + (en?'Feedback records':'反馈记录') + '</div>'
+    + '<div style="flex:1;overflow:auto;border:1px solid #eef0f3;border-radius:6px;">'
+    +   '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+    +   '<thead><tr><th style="text-align:left;padding:8px;background:#f8fafc;">' + (en?'No.':'序号') + '</th><th style="text-align:left;padding:8px;background:#f8fafc;">' + (en?'Content':'反馈内容') + '</th><th style="text-align:left;padding:8px;background:#f8fafc;">' + (en?'By':'反馈人') + '</th><th style="text-align:left;padding:8px;background:#f8fafc;">' + (en?'Time':'时间') + '</th><th style="text-align:left;padding:8px;background:#f8fafc;">' + (en?'Files':'附件') + '</th></tr></thead>'
+    +   '<tbody id="fbBody"></tbody></table>'
+    + '</div>'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;"><button id="fbSave" style="padding:7px 16px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Submit':'提交') + '</button></div>'
+    + '</div>';
+  document.body.appendChild(fbModal);
+  fbModal.style.display = 'flex';
+  fbModal.querySelector('#fbClose').onclick = function(){ fbModal.style.display = 'none'; };
+  fbModal.addEventListener('click', function(ev){ if (ev.target === fbModal) fbModal.style.display = 'none'; });
+  fbModal.querySelector('#fbSave').onclick = saveFeedback;
+  fbPendingFiles = [];
+  fbModal.querySelector('#fbFileInput').addEventListener('change', function(){
+    var chips = fbModal.querySelector('#fbFileChips'); chips.innerHTML = '';
+    fbPendingFiles = [];
+    Array.from(this.files).forEach(function(f){ fbPendingFiles.push(f); var s = document.createElement('span'); s.style.cssText = 'display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;'; s.textContent = f.name; chips.appendChild(s); });
+  });
+  fbModal.querySelector('#fbImage').addEventListener('click', function(){
+    var inp = fbModal.querySelector('#fbFileInput'); inp.accept = 'image/*';
+    inp.onchange = function(){ var file = inp.files[0]; if (!file) { inp.accept = '*/*'; return; } var fd = new FormData(); fd.append('path','TaskData/Feedback'); fd.append('file',file,'img_'+Date.now()+'_'+(file.name||'image.png'));
+      fetch('/api/files/upload?inst=' + encodeURIComponent(fbInst), {method:'POST', body:fd}).then(function(r){return r.json();}).then(function(d){
+        if(d.ok && d.saved && d.saved.length){ var downPath = 'TaskData/Feedback/' + fbSeq + '/' + d.saved[0]; var editor = fbModal.querySelector('#fbEditor'); var img = document.createElement('img'); img.src = '/api/files/download?inst=' + encodeURIComponent(fbInst) + '&path=' + encodeURIComponent(downPath); img.style.cssText = 'display:block;margin:6px 0;max-width:100%;'; editor.appendChild(img); var p = document.createElement('div'); p.appendChild(document.createElement('br')); editor.appendChild(p); }
+      }).catch(function(){}).finally(function(){ inp.accept = '*/*'; inp.onchange = null; }); };
+    inp.click();
+  });
+  fbModal.querySelectorAll('#fbToolbar button[data-cmd]').forEach(function(b){
+    b.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
+    b.addEventListener('click', function(){ fbModal.querySelector('#fbEditor').focus(); var cmd = b.getAttribute('data-cmd'); if(cmd === 'formatBlock') document.execCommand(cmd,false,b.getAttribute('data-val')); else document.execCommand(cmd,false,null); });
+  });
+  fbModal.querySelector('#fbEditor').addEventListener('dblclick', function(ev){
+    var t = ev.target; if(t && t.tagName && t.tagName.toUpperCase() === 'IMG'){
+      ev.preventDefault(); var cur = (t.style && t.style.width) || '';
+      var val = prompt(fbEn ? 'Set image width (number=px e.g. 400; percentage e.g. 50%; blank=100%)' : '设置图片显示宽度 (数字=px，如 400；百分比如 50%；留空=100%)', cur);
+      if(val === null) return; val = String(val || '').trim();
+      if(!val){ t.style.width = ''; return; }
+      if(/^\d+(\.\d+)?$/.test(val)) val = val + 'px';
+      else if(!/%$/.test(val)) val = val + '%';
+      t.style.width = val; t.style.height = 'auto';
+    }
+  });
+}
+function openFeedback(inst, task, en) {
+  fbInst = inst; fbSeq = task.seq; fbEn = en;
+  fbPendingFiles = [];
+  ensureFbModal(en);
+  fbModal.querySelector('#fbTitle').textContent = (en?'Task: ':'任务：') + (task.name || '') + ' (#' + task.seq + ')';
+  fbModal.querySelector('#fbSave').textContent = en ? 'Submit' : '提交';
+  fbModal.querySelector('#fbEditor').innerHTML = '';
+  fbModal.querySelector('#fbFileInput').value = '';
+  fbModal.querySelector('#fbFileChips').innerHTML = '';
+  loadFeedback();
+  fbModal.style.display = 'flex';
+}
+async function loadFeedback() {
+  try {
+    var r = await fetch('/api/feedback?inst=' + encodeURIComponent(fbInst) + '&seq=' + fbSeq);
+    var d = await r.json().catch(function(){ return {}; });
+    var entries = d.entries || [];
+    var body = fbModal.querySelector('#fbBody');
+    var tableWrap = body.closest('div[style]');
+    // remove old pager
+    var oldPag = tableWrap.querySelector('.tt-pager');
+    if (oldPag) oldPag.remove();
+    if (!entries.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:16px;">' + (fbEn?'No feedback yet':'暂无反馈') + '</td></tr>'; }
+    else {
+      var now = new Date(); var today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      pagFb(tableWrap, entries, today);
+    }
+  } catch (e) { }
+}
+function pagFb(wrap, entries, today) {
+  var pg = { page: 1, data: entries };
+  function render() {
+    var total = pg.data.length;
+    var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (pg.page > pages) pg.page = pages;
+    var s = (pg.page - 1) * PAGE_SIZE;
+    var slice = pg.data.slice(s, s + PAGE_SIZE);
+    var body = fbModal.querySelector('#fbBody');
+    body.innerHTML = '';
+    slice.forEach(function(e, i){
+      var filesHtml = '';
+      if (e.files) { e.files.split(',').filter(Boolean).forEach(function(fn){ filesHtml += '<div><a href="javascript:void(0)" onclick="openFbFile(\'' + fn.replace(/'/g, "\\'") + '\')" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">' + fn + '</a></div>'; }); }
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td style="padding:8px;">' + (total - (s + i)) + '</td><td style="padding:8px;">' + (e.content||'') + '</td><td style="padding:8px;">' + (e.by||'') + '</td><td style="padding:8px;">' + (e.time||'') + '</td><td style="padding:8px;">' + filesHtml + '</td>';
+      body.appendChild(tr);
+    });
+    var pag = wrap.querySelector('.tt-pager');
+    if (!pag) { pag = document.createElement('div'); pag.className = 'tt-pager'; pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:12px;'; wrap.parentNode.appendChild(pag); }
+    var mine = entries.find(function(e){
+      var byMatch = (e.by||'').toLowerCase() === (currentUser||'').toLowerCase();
+      if (!byMatch) return false;
+      if (e.date && e.date === today) return true;
+      if (e.time && e.time.slice(0,10) === today) return true;
+      return false;
+    });
+    if (mine) { fbModal.querySelector('#fbEditor').innerHTML = mine.content || ''; }
+    if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+    var html = '<span style="color:#6b7280;margin-right:8px;">' + total + ' items</span>';
+    html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">«</button> ';
+    for (var p = 1; p <= pages; p++) {
+      html += '<button data-p="' + p + '" style="padding:3px 10px;border:1px solid ' + (p===pg.page?'#2563eb':'#d5d9df') + ';border-radius:5px;background:' + (p===pg.page?'#2563eb':'#fff') + ';color:' + (p===pg.page?'#fff':'#334155') + ';cursor:pointer;margin:0 1px;">' + p + '</button> ';
+    }
+    html += '<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">»</button>';
+    pag.innerHTML = html;
+    pag.querySelectorAll('button[data-p]').forEach(function(b) {
+      b.onclick = function() {
+        var v = b.getAttribute('data-p');
+        if (v === 'prev') pg.page = Math.max(1, pg.page - 1);
+        else if (v === 'next') pg.page = Math.min(pages, pg.page + 1);
+        else pg.page = parseInt(v, 10);
+        render();
+      };
+    });
+  }
+  render();
+}
+async function saveFeedback() {
+  var editor = fbModal.querySelector('#fbEditor');
+  var html = editor.innerHTML.trim();
+  if (!html || html === '<br>' || html === '<div><br></div>') { alert(fbEn ? 'Please enter feedback' : '请填写反馈内容'); return; }
+  var fd = new FormData();
+  fd.append('inst', fbInst); fd.append('seq', fbSeq); fd.append('content', html);
+  for (var i = 0; i < fbPendingFiles.length; i++) { fd.append('files', fbPendingFiles[i]); }
+  var r = await fetch('/api/feedback', { method:'POST', body: fd });
+  var d = await r.json().catch(function(){ return {}; });
+  if (!d.ok) { alert(d.error || 'Failed'); return; }
+  fbPendingFiles = [];
+  fbModal.querySelector('#fbFileInput').value = '';
+  fbModal.querySelector('#fbFileChips').innerHTML = '';
+  loadFeedback();
+}
+
+async function initFileManager() {
+  $('#fmUploadBtn').onclick = () => $('#fmFileInput').click();
+  $('#fmFileInput').onchange = async () => {
+    const files = $('#fmFileInput').files;
+    if (!files.length) return;
+    const fd = new FormData();
+    fd.append('path', fmPath);
+    for (const f of files) fd.append('file', f);
+    const res = await fmRequest('POST', '/api/files/upload', { body: fd });
+    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(); }
+    else fmNote(res.data.error || t('fileError'), true);
+    $('#fmFileInput').value = '';
+  };
+  $('#fmRefreshBtn').onclick = () => fmLoad();
+  $('#fmNewFolderBtn').onclick = () => {
+    const name = prompt(t('fileNewFolder') + ':');
+    if (!name) return;
+    fmRename('', name, true);
+  };
+  $('#fmMovePickBtn').onclick = () => fmMoveConfirm();
+  $('#fmMoveCancelBtn').onclick = () => fmMoveCancel();
+  $('#viewerCloseBtn').onclick = () => fmViewerClose();
+  await fmLoad();
+}
+
+// ---- Move-mode helpers (pick a destination directory) ----
+function fmMoveEnter(src) {
+  fmMoveSrc = src;
+  fmMoveTarget = '';
+  fmMoveEnterPath('');   // start from workspace root for a clean relative target
+  $('#fmMoveHint').style.display = '';
+  $('#fmMovePickBtn').style.display = '';
+  $('#fmMoveCancelBtn').style.display = '';
+}
+function fmMoveEnterPath(rel) {
+  fmPath = rel;
+  fmLoad();
+}
+function fmMoveCancel() {
+  fmMoveSrc = null;
+  fmMoveTarget = '';
+  fmPath = '';
+  $('#fmMoveHint').style.display = 'none';
+  $('#fmMovePickBtn').style.display = 'none';
+  $('#fmMoveCancelBtn').style.display = 'none';
+  fmLoad();
+}
+async function fmMoveConfirm() {
+  if (!fmMoveSrc) { fmMoveCancel(); return; }
+  const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: fmMoveSrc.path, toPath: fmMoveTarget || '' }) });
+  if (res.ok) { fmNote(t('fileMoved')); }
+  else fmNote(res.data.error || t('fileError'), true);
+  fmMoveCancel();
+}
+
+// ---- File viewer ----
+function fmViewerOpen() { $('#viewerModal').style.display = 'flex'; }
+function fmViewerClose() { $('#viewerModal').style.display = 'none'; $('#viewerBody').innerHTML = ''; }
+
+function fmGuessLang(ext) {
+  const map = { '.js':'javascript','.ts':'typescript','.jsx':'javascript','.tsx':'typescript','.json':'json',
+    '.html':'html','.htm':'html','.css':'css','.xml':'xml','.yml':'yaml','.yaml':'yaml','.md':'markdown',
+    '.py':'python','.java':'java','.c':'c','.h':'c','.cpp':'cpp','.cs':'csharp','.go':'go','.rs':'rust',
+    '.rb':'ruby','.php':'php','.sh':'bash','.bash':'bash','.bat':'dos','.ps1':'powershell','.sql':'sql',
+    '.ini':'ini','.toml':'ini','.conf':'ini','.txt':'plaintext','.log':'plaintext','.csv':'plaintext' };
+  return map[ext] || 'plaintext';
+}
+
+async function fmOpenFile(path, name) {
+  const extRaw = (name.split('.').pop() || '').toLowerCase();
+  const ext = extRaw ? '.' + extRaw : '';
+  // Files we can preview inline; everything else is downloaded to the OS app.
+  if (!fmCanPreview(extRaw)) { fmDownloadFile(path, name); return; }
+  const res = await fmRequest('POST', '/api/files/read', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+  if (!res.ok) { fmNote(res.data.error || t('fileError'), true); return; }
+  const d = res.data;
+  $('#viewerTitle').textContent = name;
+  const body = $('#viewerBody');
+  fmViewerOpen();
+  if (d.type === 'image') {
+    body.innerHTML = '<div style="display:flex;justify-content:center;padding:10px;"><img id="viewerImg" style="max-width:100%;max-height:70vh;" src="' + escp(d.dataUri || '') + '" alt="' + escp(name) + '" /></div>';
+    return;
+  }
+  const lang = fmGuessLang(ext);
+  if (ext === '.md' || ext === '.markdown') {
+    body.innerHTML = '<div id="viewerMd" class="fm-md"></div>';
+    $('#viewerMd').innerHTML = marked.parse(d.content || '');
+    body.style.background = '#fff';
+    return;
+  }
+  body.innerHTML = '<pre><code id="viewerCode" class="language-' + escp(lang) + '" style="white-space:pre;overflow:auto;">' + escp(d.content || '') + '</code></pre>';
+  try { hljs.highlightElement($('#viewerCode')); } catch (e) { }
+}
+
+// Which extensions the built-in viewer can render inline.
+function fmCanPreview(ext) {
+  if (!ext) return false;
+  const img = ['png','jpg','jpeg','gif','bmp','webp','svg','ico'];
+  const text = ['txt','log','md','markdown','csv','ini','json','yml','yaml','xml','html','htm','css','js','mjs','cjs','ts','tsx','jsx','py','java','c','h','cpp','hpp','cs','go','rs','rb','php','sh','bash','sql','bat','ps1','conf','toml','env','properties','gitignore'];
+  return img.includes(ext) || text.includes(ext);
+}
+
+// Trigger a browser download of a non-previewable file via /api/files/download.
+// Asks first, so clicking "打开" never downloads without explicit consent.
+function fmDownloadFile(path, name) {
+  if (!confirm((t('fileAskDownload') || '下载') + ': ' + name + '?')) return;
+  const a = document.createElement('a');
+  a.href = '/api/files/download?path=' + encodeURIComponent(path);
+  a.download = name || '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  fmNote(t('fileDownloaded'));
+}
+
+function fmNote(text, isErr) {
+  const el = $('#fmMsg');
+  el.textContent = text || '';
+  el.className = 'muted ' + (isErr ? 'err' : 'ok');
+}
+
+function escp(s) { return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+var PAGE_SIZE = 25;
+function paginateBox(container, data, renderRow, emptyMsg, extraClass) {
+  var state = { page: 1, data: data };
+  var cls = extraClass || 'tt-pager';
+  function render() {
+    var total = state.data.length;
+    var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (state.page > pages) state.page = pages;
+    var start = (state.page - 1) * PAGE_SIZE;
+    var slice = state.data.slice(start, start + PAGE_SIZE);
+    renderRow(container, slice, start);
+    var pag = container.querySelector('.' + cls);
+    if (!pag) { pag = document.createElement('div'); pag.className = cls; pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:12px;'; container.appendChild(pag); }
+    if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+    var html = '<span style="color:#6b7280;margin-right:8px;">' + total + ' items</span>';
+    html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">«</button> ';
+    for (var p = 1; p <= pages; p++) {
+      html += '<button data-p="' + p + '" style="padding:3px 10px;border:1px solid ' + (p===state.page?'#2563eb':'#d5d9df') + ';border-radius:5px;background:' + (p===state.page?'#2563eb':'#fff') + ';color:' + (p===state.page?'#fff':'#334155') + ';cursor:pointer;margin:0 1px;">' + p + '</button> ';
+    }
+    html += '<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">»</button>';
+    pag.innerHTML = html;
+    pag.querySelectorAll('button[data-p]').forEach(function(b) {
+      b.onclick = function() {
+        var v = b.getAttribute('data-p');
+        if (v === 'prev') state.page = Math.max(1, state.page - 1);
+        else if (v === 'next') state.page = Math.min(pages, state.page + 1);
+        else state.page = parseInt(v, 10);
+        render();
+      };
+    });
+  }
+  render();
+}
+
+function fmtSize(n) {
+  if (n == null) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n/1048576).toFixed(1) + ' MB';
+  return (n/1073741824).toFixed(1) + ' GB';
+}
+
+async function fmLoad() {
+  const box = $('#fmList');
+  const moving = !!fmMoveSrc;
+  // Move mode: show only the current directory's sub-dirs (navigate to pick a target).
+  if (moving) {
+    $('#fmMoveHint').textContent = (t('fileMoveTo') || '移动到') + ': ' + (fmMoveSrc.name || '') + ' → /' + fmPath;
+    const res = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(fmPath));
+    box.innerHTML = fmRenderMove(res.ok ? (res.data.entries || []) : []);
+    bindDirBehavior(box, true);
+    return;
+  }
+  // Non-move: render the FULL tree from the workspace root (Explorer-style).
+  // Only `fmExpanded` dirs reveal their children; everything stays visible.
+  fmRoot = null;
+  // Ensure children for every expanded dir are cached so the tree renders fully.
+  for (const key of fmExpanded) {
+    if (!fmExpandCache.has(key)) await fmPrefetchNested(key);
+  }
+  const rootRes = await fmRequest('GET', '/api/files/list?path=');
+  if (!rootRes.ok) { fmNote(rootRes.data.error || t('fileError'), true); return; }
+  fmRoot = rootRes.data.root;
+  $('#fmPwd').textContent = '/' + (fmPath || '');
+  box.innerHTML = fmRenderTree(rootRes.data.entries || [], '');
+  bindDirBehavior(box, false);
+}
+
+// Recursively render the full tree (dirs first), expanding only dirs in fmExpanded.
+function fmRenderTree(entries, prefix) {
+  let html = '';
+  for (const e of entries) {
+    const fpath = prefix ? prefix + '/' + e.name : e.name;
+    html += fmRenderRow(e, fpath, prefix);
+    if (e.type === 'dir' && fmExpanded.has(fpath)) {
+      const kids = fmExpandCache.get(fpath);
+      if (kids && kids.length > 0) {
+        html += fmRenderTree(kids, fpath);
+      } else {
+        // Empty directory: show a placeholder ".." at the appropriate indent.
+        const depth = prefix === '' ? 1 : prefix.split('/').length + 1;
+        html += '<div class="fm-row fm-empty" data-empty="1" style="padding-left:' + (depth * 22) + 'px;">'
+             + '<span class="fm-name muted">📄 ..</span></div>';
+      }
+    }
+  }
+  return html;
+}
+
+function fmRenderRow(e, fpath, parentPrefix) {
+  const isDir = e.type === 'dir';
+  const icon = isDir ? '📁' : '📄';
+  const size = isDir ? '' : ' <span class="muted">' + fmtSize(e.size) + '</span>';
+  const isExpanded = isDir && fmExpanded.has(fpath);
+  const glyph = isDir ? (isExpanded ? '-' : '+') : '';   // +/- collapse toggle
+  const openAct = isDir
+    ? '<button class="fm-act" data-act="open" disabled title="' + t('fmOpen') + '">' + t('fmOpen') + '</button>'
+    : '<button class="fm-act" data-act="open" title="' + t('fmOpen') + '">' + t('fmOpen') + '</button>';
+  const rowDepth = parentPrefix === '' ? 0 : parentPrefix.split('/').length;
+  const pad = rowDepth > 0 ? 'padding-left:' + (rowDepth * 22) + 'px;' : '';
+  return rowHtml(icon, e.name, fpath, e.type, size,
+    { style: pad, glyph: glyph, actions: openAct
+      + '<button class="fm-act" data-act="zip" title="' + t('fmZip') + '">' + t('fmZip') + '</button>'
+      + (isDir ? '' : (/\.zip$/i.test(e.name) ? '<button class="fm-act" data-act="unzip" title="' + t('fmUnzip') + '">' + t('fmUnzip') + '</button>' : ''))
+      + '<button class="fm-act" data-act="rename" title="' + t('fmRename') + '">' + t('fmRename') + '</button>'
+      + '<button class="fm-act" data-act="move" title="' + t('fmMove') + '">' + t('fmMove') + '</button>'
+      + '<button class="fm-act fm-danger" data-act="delete" title="' + t('fmDelete') + '">' + t('fmDelete') + '</button>' });
+}
+
+function bindDirBehavior(box, moving) {
+  box.querySelectorAll('.fm-row .fm-act').forEach(btn => {
+    btn.onclick = (ev) => { ev.stopPropagation(); fmAction(btn.dataset.act, btn.closest('.fm-row')); };
+  });
+  // Clicking the +/- glyph toggles expansion WITHOUT selecting the dir.
+  box.querySelectorAll('.fm-row .fm-glyph').forEach(g => {
+    const row = g.closest('.fm-row');
+    if (row && row.dataset.type === 'dir' && g.textContent.trim() !== '') {
+      g.onclick = (ev) => { ev.stopPropagation(); fmAction('expand', row); };
+    }
+  });
+  box.querySelectorAll('.fm-row.fm-dir').forEach(row => {
+    row.onclick = () => {
+      const path = row.dataset.path || '';
+      if (moving) { fmMoveEnterPath(path); return; }
+      // Explorer-style: clicking a dir selects it (becomes the upload/current dir).
+      fmPath = path;
+      $('#fmPwd').textContent = '/' + (fmPath || '');
+    };
+  });
+}
+
+function rowHtml(icon, name, fpath, type, size, extra) {
+  const glyph = extra && extra.glyph;
+  return '<div class="fm-row fm-' + type + '" data-path="' + escp(fpath) + '" data-type="' + type + '" data-name="' + escp(name) + '"'
+       + ' draggable="true" ondragstart="fmDragStart(event)" style="' + (extra && extra.style || '') + '">'
+       + '<span class="fm-name"><span class="fm-glyph" data-glyph="1">' + (glyph || '\u00a0') + '</span>' + icon + ' ' + escp(name) + '</span>' + (size || '')
+       + '<span class="fm-actions">' + (extra && extra.actions || '') + '</span></div>';
+}
+// Allow dragging a file row from the file-manager pane into the DSH composer,
+// transferring the file's path/name so the DSH prompt can reference it.
+function fmDragStart(ev) {
+  const row = ev.target.closest('.fm-row');
+  if (!row) return;
+  const path = row.dataset.path || '';
+  const name = row.dataset.name || '';
+  try { ev.dataTransfer.setData('text/plain', path); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-path', path); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
+}
+// Allow dragging a task name from the "My Tasks" list into the DSH composer.
+function fmTaskDragStart(ev) {
+  const link = ev.target.closest('.fm-task-name-link');
+  if (!link) return;
+  const name = (link.textContent || '').trim();
+  try { ev.dataTransfer.setData('text/plain', name); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
+}
+
+// Move mode: show current dir's sub-directories to pick a target.
+function fmRenderMove(entries) {
+  let html = '';
+  if (fmPath) html += '<div class="fm-row fm-dir" data-path="" data-type="dir"><span>📁 ..</span></div>';
+  for (const e of entries) {
+    if (e.type !== 'dir') continue;
+    html += '<div class="fm-row fm-dir" data-pick="1" data-path="' + escp(fmPath ? fmPath + '/' + e.name : e.name) + '" data-type="dir">'
+         + '<span class="fm-name">📁 ' + escp(e.name) + '</span></div>';
+  }
+  return html;
+}
+
+// Recursively prefetch children of any dir in fmExpanded (and their nested ones).
+async function fmPrefetchNested(dirPath) {
+  const stack = [dirPath];
+  while (stack.length) {
+    const p = stack.pop();
+    if (fmExpandCache.has(p)) continue;
+    const rr = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(p));
+    const entries = rr.ok ? (rr.data.entries || []) : [];
+    fmExpandCache.set(p, entries);
+    for (const e of entries) {
+      if (e.type === 'dir' && fmExpanded.has(p ? p + '/' + e.name : e.name)) stack.push(p ? p + '/' + e.name : e.name);
+    }
+  }
+}
+
+async function fmAction(act, row) {
+  const path = row.dataset.path;
+  const name = row.dataset.name;
+  const type = row.dataset.type;
+  if (act === 'open' && type === 'file') { fmOpenFile(path, name); return; }
+  if (act === 'expand' && type === 'dir') {
+    if (fmExpanded.has(path)) {
+      fmExpanded.delete(path);
+    } else {
+      fmExpanded.add(path);
+      // Prefetch children (and any nested expanded dirs) for the tree.
+      if (!fmExpandCache.has(path)) {
+        const rr = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(path));
+        fmExpandCache.set(path, rr.ok ? (rr.data.entries || []) : []);
+      }
+      await fmPrefetchNested(path);
+    }
+    fmLoad(); return;
+  }
+  if (act === 'delete') {
+    if (!confirm(t('fileDeleteConfirm') + ' ' + name + '?')) return;
+    const res = await fmRequest('POST', '/api/files/delete', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+    if (res.ok) { fmNote(t('fileDeleted')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+  } else if (act === 'rename') {
+    const n = prompt(t('fileRenameTo'), name);
+    if (!n || n === name) return;
+    const parent = fmPath ? fmPath + '/' : '';
+    const res = await fmRequest('POST', '/api/files/rename', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, newPath: parent + n }) });
+    if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+  } else if (act === 'move') {
+    fmMoveEnter({ path: path, name: name });
+  } else if (act === 'zip') {
+    const res = await fmRequest('POST', '/api/files/zip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+    if (res.ok) { fmNote(t('fileZipped')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+  } else if (act === 'unzip') {
+    const res = await fmRequest('POST', '/api/files/unzip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+    if (res.ok) { fmNote(t('fileUnzipped')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+  }
+}
+
+// Helper used by "new folder": rename relative to current dir (creates dir).
+async function fmRename(src, name, createDir) {
+  const parent = fmPath ? fmPath + '/' : '';
+  const target = parent + name;
+  if (createDir) {
+    // create a placeholder file then delete it? Instead create dir via mkdir on server.
+    const res = await fmRequest('POST', '/api/files/mkdir', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) });
+    if (res.ok) { fmNote(t('fileCreated')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+  }
+}
+
+// ---- Instance manager ----
+async function loadInstances() {
+  try {
+    const r = await fetch('/api/instances');
+    const data = await r.json();
+    console.log('[LIST] api response:', JSON.stringify(data));
+    const box = $('#instList');
+    box.textContent = '';
+    const list = data.instances || [];
+    console.log('[LIST] count:', list.length, 'ids:', list.map(i => i.id));
+    if (!list.length) { box.innerHTML = '<div class="muted">' + t('noInstances') + '</div>'; return; }
+    try {
+    var hdrHtml = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    hdrHtml += '<thead><tr style="background:#f5f6f8;">'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thUser') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thPort') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thWs') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thState') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thOps') + '</th>'
+         + '</tr></thead></table>';
+    box.innerHTML = hdrHtml;
+    paginateBox(box, list, function(container, slice, startIdx) {
+      var tbl = container.querySelector('table');
+      var old = tbl.querySelector('tbody'); if (old) old.remove();
+      var body = document.createElement('tbody');
+      for (var idx = 0; idx < slice.length; idx++) {
+        var i = slice[idx];
+        const stateColor = i.running ? '#16a34a' : '#6b7280';
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #eee';
+        tr.innerHTML = '<td style="padding:6px 8px;font-weight:600;">' + esc(i.id) + '</td>'
+             + '<td style="padding:6px 8px;">' + i.dshPort + '</td>'
+             + '<td style="padding:6px 8px;">' + esc(i.workspace) + '</td>'
+             + '<td style="padding:6px 8px;color:' + stateColor + ';">' + (i.running ? t('instRunning') : t('instStopped')) + '</td>'
+             + '<td style="padding:6px 8px;white-space:nowrap;">';
+        if (i.running) {
+          tr.innerHTML += '<button class="secondary" onclick="instOpen(\'' + esc(i.id) + '\')">' + t('instOpen') + '</button> ';
+          tr.innerHTML += '<button class="secondary" onclick="instStop(this,\'' + esc(i.id) + '\')">' + t('instStop') + '</button> ';
+        } else {
+          tr.innerHTML += '<button onclick="instStart(this,\'' + esc(i.id) + '\')">' + t('instStart') + '</button> ';
+        }
+        if (isAdmin) {
+          tr.innerHTML += '<button class="danger" onclick="instDelete(this,\'' + esc(i.id) + '\')">' + t('instDelete') + '</button>';
+          tr.innerHTML += ' <button class="secondary" onclick="showResetPassModal(\'' + esc(i.id) + '\')">' + t('resetPass') + '</button>';
+        }
+        tr.innerHTML += '</td>';
+        body.appendChild(tr);
+      }
+      tbl.appendChild(body);
+    }, t('noInstances'));
+    } catch (renderErr) { console.error('[LIST] render error:', renderErr); box.textContent = 'render error: ' + renderErr.message; }
+  } catch (e) { console.error('[LIST] fetch error:', e); $('#instList').textContent = t('instError') + ': ' + e.message; }
+}
+function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function updateInstWs() {
+  const u = ($('#instId').value || '').trim();
+  const ws = $('#instWs');
+  if (u && globalWorkspacePath) {
+    ws.value = globalWorkspacePath.replace(/\\/g, '/').replace(/\/+$/, '') + '/' + u;
+    ws.placeholder = globalWorkspacePath + '/' + u;
+  } else {
+    ws.value = '';
+    ws.placeholder = t('instWsPh');
+  }
+}
+function instStart(btn, id) { return withLoading(btn, async () => {
+  const r = await fetch('/api/instances/' + id + '/start', { method: 'POST' });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || t('instError')); return; }
+  const j = await r.json().catch(() => ({}));
+  if (j.running) { loadInstances(); return; }
+  // Show a soft hint: the first start of a restricted-user instance can be slow.
+  const startHint = document.createElement('div');
+  startHint.setAttribute('data-start-hint', '1');
+  startHint.style.cssText = 'display:inline-block;background:#1c1e21;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;margin-left:10px;vertical-align:middle;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+  startHint.textContent = t('startHint');
+  // Place the hint right AFTER the clicked button.
+  if (btn && btn.parentNode) btn.insertAdjacentElement('afterend', startHint);
+  else document.body.appendChild(startHint);
+  const clearHint = () => { if (startHint && startHint.parentNode) startHint.parentNode.removeChild(startHint); };
+  // Accepted (async). Poll until running (max 120s) so the button stays loading.
+  const startMs = Date.now();
+  // Match by the requested id, or by the logged-in user's bound instance when the
+  // id is blank/unknown (defensive): we must not break early and leave the UI on
+  // "已停止" while the instance is actually starting.
+  const matchId = (it) => (id && it.id === id) || it.id === currentUser;
+  let lastState = null;
+  while (Date.now() - startMs < 120000) {
+    await new Promise(res => setTimeout(res, 2000));
+    try {
+      const lr = await fetch('/api/instances');
+      if (lr.ok) {
+        const ld = await lr.json();
+        const it = (ld.instances || []).find(matchId);
+        if (it) {
+          lastState = !!it.running;
+          if (it.running) { clearHint(); loadInstances(); return; }
+        }
+      }
+    } catch (e) { /* transient */ }
+  }
+  clearHint();
+  loadInstances();
+}); }
+function instStop(btn, id) { return withLoading(btn, async () => {
+  const r = await fetch('/api/instances/' + id + '/stop', { method: 'POST' });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || t('instError')); }
+  loadInstances();
+}); }
+async function instOpen(id) {
+  // Open the split workspace page: left = this user's file manager, right = DSH.
+  // Still same-origin via the launcher proxy so the DSH language injection works.
+  try {
+    const st = await fetch('/api/session-token');
+    if (st.ok) {
+      const d = await st.json();
+      window.location.href = '/work?inst=' + encodeURIComponent(id) + '&launcher_token=' + encodeURIComponent(d.token);
+      return;
+    }
+  } catch (e) { }
+  // fallback: direct open
+  const r = await fetch('/api/instances/' + id + '/open');
+  if (r.ok) { const d = await r.json(); window.location.href = d.url; }
+  else { window.location.href = '/'; }
+}
+async function openWithToken() {
+  try {
+    const r = await fetch('/api/session-token');
+    if (r.ok) {
+      const d = await r.json();
+      // Split workspace page (no ?inst → default/own instance on the right pane).
+      window.location.href = '/work?launcher_token=' + encodeURIComponent(d.token);
+    } else {
+      window.location.href = '/';
+    }
+  } catch (e) { window.location.href = '/'; }
+}
+
+
+function instDelete(btn, id) {
+  if (!confirm('Delete ' + id + '?')) return;
+  return withLoading(btn, async () => {
+    const r = await fetch('/api/instances/' + id, { method: 'DELETE' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) alert(j.error || t('instError'));
+    await loadInstances();
+  });
+}
+
+// ---- Password change / reset ----
+function openPassModal(title, showOld, targetUser) {
+  $('#passModalTitle').textContent = title;
+  $('#passOldRow').style.display = showOld ? '' : 'none';
+  $('#passTargetUser').value = targetUser || '';
+  $('#passOld').value = '';
+  $('#passNew').value = '';
+  $('#passConfirm').value = '';
+  $('#passMsg').textContent = '';
+  $('#passModal').style.display = 'flex';
+}
+$('#passModalClose').onclick = () => { $('#passModal').style.display = 'none'; };
+$('#changePassBtn').onclick = () => openPassModal(t('changePassTitle'), true, '');
+$('#passSaveBtn').onclick = async () => {
+  const target = $('#passTargetUser').value;
+  const np = $('#passNew').value;
+  const cp = $('#passConfirm').value;
+  const op = $('#passOld').value;
+  if (np !== cp) { $('#passMsg').textContent = t('passMismatch'); return; }
+  if (np.length < 6) { $('#passMsg').textContent = '密码至少6位'; return; }
+  let r;
+  if (target) {
+    // admin reset
+    r = await fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: target, newPassword: np }) });
+  } else {
+    // user change own password
+    if (!op) { $('#passMsg').textContent = t('oldPass') + '?'; return; }
+    r = await fetch('/api/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldPassword: op, newPassword: np }) });
+  }
+  const j = await r.json();
+  if (j.ok) { $('#passModal').style.display = 'none'; alert(target ? t('resetPassDone') : t('passChanged')); }
+  else { $('#passMsg').textContent = j.error || t('passChangeFail'); }
+};
+function showResetPassModal(username) { openPassModal(t('resetPassTitle') + ': ' + username, false, username); }
+
+// Render the server directory listing inside the modal.
+let browseRoots = [];
+let DshSelfRoot = '';   // this app's own install dir; never allow selecting it.
+
+function normPath(p) { return (p || '').replace(/\\/g, '/').replace(/\/+$/, ''); }
+function isSelfDir(p) {
+  if (!DshSelfRoot || !p) return false;
+  const t = normPath(p), s = normPath(DshSelfRoot);
+  return t === s || t.startsWith(s + '/');
+}
+
+async function openBrowse(path) {
+  $('#browseModal').style.display = 'flex';
+  $('#browseList').textContent = t('loading');
+  $('#browseBreadcrumb').textContent = '';
+  // Pass the instance id (if any) so the server defaults to its workspace.
+  var instParam = new URLSearchParams(location.search).get('inst') || '';
+  var instQs = instParam ? '?inst=' + encodeURIComponent(instParam) : '';
+  if (!path) {
+    try {
+      const r = await (await fetch('/api/browse' + instQs)).json();
+      browseRoots = r.roots || [];
+    } catch (e) { browseRoots = []; }
+    renderBrowseRoots();
+    return;
+  }
+  await loadBrowseDir(path);
+}
+
+function renderBrowseRoots() {
+  const list = $('#browseList');
+  list.textContent = '';
+  if (!browseRoots.length) { list.textContent = t('noRoots'); return; }
+  for (const root of browseRoots) {
+    if (isSelfDir(root.path)) continue;   // never offer this app's own dir
+    const row = document.createElement('button');
+    row.textContent = root.name + '  [' + root.path + ']';
+    row.style.cssText = 'display:block;width:100%;text-align:left;padding:8px;margin:2px 0;border:1px solid #e0e2e6;border-radius:6px;background:#fff;color:#1c1e21;cursor:pointer;';
+    row.onclick = () => loadBrowseDir(root.path);
+    list.appendChild(row);
+  }
+}
+
+async function loadBrowseDir(path) {
+  // Refuse to navigate into this app's own directory.
+  if (isSelfDir(path)) {
+    $('#browseList').textContent = t('selfDirDeny');
+    $('#browseBreadcrumb').textContent = path;
+    return;
+  }
+  $('#browseList').textContent = t('loading');
+  $('#browsePath').value = path;
+  try {
+    const r = await (await fetch('/api/browse?path=' + encodeURIComponent(path))).json();
+    $('#browsePath').value = r.path;
+    $('#browsePath').dataset.parent = r.parent || '';
+    $('#browseBreadcrumb').textContent = r.path;
+    const list = $('#browseList');
+    list.textContent = '';
+    if (r.entries && r.entries.length) {
+      for (const e of r.entries) {
+        if (isSelfDir(e.path)) continue;   // hide this app's own dir from the tree
+        const row = document.createElement('button');
+        row.textContent = '📁 ' + e.name + '  [' + e.path + ']';
+        row.style.cssText = 'display:block;width:100%;text-align:left;padding:8px;margin:2px 0;border:1px solid #e0e2e6;border-radius:6px;background:#fff;color:#1c1e21;cursor:pointer;';
+        row.onclick = () => loadBrowseDir(e.path);
+        list.appendChild(row);
+      }
+    } else {
+      list.textContent = t('noSub');
+    }
+  } catch (e) {
+    $('#browseList').textContent = t('cannotRead') + e.message;
+  }
+}
+init();
+</script>
+</body>
+</html>

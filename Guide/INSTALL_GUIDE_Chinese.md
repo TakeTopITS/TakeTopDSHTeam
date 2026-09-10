@@ -50,7 +50,7 @@ TakeTopDshTeam/
 ├── node/
 │   ├── (Windows node.exe + npm + dsh 依赖)   # Windows node/runtime
 │   └── platforms/         # Linux/macOS Node 分发包 (tar)
-├── config/                # 用户账号 (users.json) 与实例定义 (instances.json)
+├── config/                # 用户账号与实例定义 (launcher.db，SQLite；旧 users.json/instances.json 会自动迁移)
 ├── instances/              # 每个用户实例的 dsh 家目录 (instances/<user>/.dsh)
 ├── .dsh/                  # admin 默认 dsh 配置 / profiles / credentials
 ├── docs/                  # 工作经验数据等
