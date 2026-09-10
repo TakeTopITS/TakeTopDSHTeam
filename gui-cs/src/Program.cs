@@ -1286,6 +1286,7 @@ app.Use(async (ctx, next) =>
     // its API calls and cannot initialize (shows "选择工作区"/blank).
     bool launcherOwned =
         path == "/favicon.ico" ||
+        path.StartsWith("/vendor") ||
         path.StartsWith("/api/login") ||
         path.StartsWith("/api/languages") ||
         path.StartsWith("/api/logout") ||

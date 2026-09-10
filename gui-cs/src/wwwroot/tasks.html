@@ -187,6 +187,13 @@
     </div>
   </div>
 
+<!-- Office preview libs + shared attachment preview (see /vendor/licenses) -->
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/docx-preview.min.js"></script>
+<script src="/vendor/exceljs.min.js"></script>
+<script type="module" src="/vendor/pptx-loader.js"></script>
+<script src="/vendor/preview.js"></script>
+
 <script>
 (function () {
   var I18N = {
@@ -507,26 +514,8 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path: path }) })
       .then(function(r){ return r.json().catch(function(){ return {}; }); });
   }
-  function fbPreviewOpen(fn, inst, path) {
-    readFileForPreview(inst, path).then(function(d){
-      if (d && d.ok && d.type === 'image' && d.dataUri) {
-        $('#imgPreviewImg').src = d.dataUri;
-        $('#imgPreview').classList.add('show');
-      } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + fn + '?')) {
-        window.open(fbFileUrl(fn, false), '_blank');
-      }
-    });
-  }
-  function fbFileUrl(fn, inline) {
-    return withToken('/api/files/download?inst=' + encodeURIComponent(fb2Inst) + '&path=' + encodeURIComponent('TaskData/Feedback/' + fb2Seq + '/' + fn) + (inline ? '&inline=1' : ''));
-  }
   function openFbFile(fn) {
-    var ext = (fn.split('.').pop() || '').toLowerCase();
-    if (PREVIEW_IMG.indexOf(ext) >= 0) {
-      fbPreviewOpen(fn, fb2Inst, 'TaskData/Feedback/' + fb2Seq + '/' + fn);
-    } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + fn + '?')) {
-      window.open(fbFileUrl(fn, false), '_blank');
-    }
+    TTPreview.open({ inst: fb2Inst, path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: fn, token: launcherToken });
   }
   function fileUrl(f, member, creator, inline) {
     var name = String(f).split('/').pop();
@@ -535,26 +524,8 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
   function openTaskFile(f, member, creator) {
     var name = String(f).split('/').pop();
-    var primary = member || creator || curMember || '';
-    var ext = (name.split('.').pop() || '').toLowerCase();
-    if (PREVIEW_IMG.indexOf(ext) >= 0) {
-      // Try the task's member workspace first; fall back to the creator's workspace.
-      readFileForPreview(primary, 'TaskData/Doc/' + name).then(function(d){
-        if (!(d && d.ok && d.type === 'image' && d.dataUri) && creator && creator !== primary) {
-          return readFileForPreview(creator, 'TaskData/Doc/' + name);
-        }
-        return d;
-      }).then(function(d){
-        if (d && d.ok && d.type === 'image' && d.dataUri) {
-          $('#imgPreviewImg').src = d.dataUri;
-          $('#imgPreview').classList.add('show');
-        } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + name + '?')) {
-          window.open(fileUrl(f, primary, creator, false), '_blank');
-        }
-      });
-    } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + name + '?')) {
-      window.open(fileUrl(f, primary, creator, false), '_blank');
-    }
+    var inst = member || creator || curMember || '';
+    TTPreview.open({ inst: inst, path: 'TaskData/Doc/' + name, name: name, token: launcherToken });
   }
   function renderChips(){
     $('#fileChips').innerHTML = pendingFiles.map(function(f, i){

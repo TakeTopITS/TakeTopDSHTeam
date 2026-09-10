@@ -27,6 +27,15 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<!-- Office preview libs bundled locally (permissive licenses — see /vendor/licenses).
+     jszip provides the global JSZip required by docx-preview. -->
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/docx-preview.min.js"></script>
+<script src="/vendor/exceljs.min.js"></script>
+<!-- .pptx uses an ES-module bundle; it sets window.TTPptx when ready. -->
+<script type="module" src="/vendor/pptx-loader.js"></script>
+<!-- Shared attachment preview (Office/images/text) used by task & feedback lists. -->
+<script src="/vendor/preview.js"></script>
 <style>
   body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #1c1e21; }
   .wrap { max-width: 860px; margin: 24px auto; padding: 0 16px; }
@@ -69,6 +78,10 @@
   .fm-row.fm-dir:hover { background:#eef4ff; }
   .fm-row.fm-drop-target { background:#dcfce7 !important; outline:2px dashed #10b981; outline-offset:-2px; }
   .fm-row.fm-root-row { background:#f8fafc; font-weight:600; color:#334155; border-bottom:2px solid #e2e8f0; }
+  .fm-xlsx { border-collapse:collapse; font-size:12px; }
+  .fm-xlsx td { border:1px solid #e5e7eb; padding:3px 7px; white-space:nowrap; vertical-align:top; }
+  .fm-xlsx tr:first-child td { background:#f1f5f9; font-weight:600; }
+  .fm-xlsx-wrap { overflow:auto; margin:0 0 14px; }
   .fm-glyph { display:inline-block; width:16px; height:16px; line-height:16px; text-align:center; margin-right:2px; border-radius:3px; color:#475569; font-weight:700; cursor:pointer; user-select:none; }
   .fm-glyph:hover { background:#dbe2ea; }
   .fm-row.fm-file .fm-glyph { cursor:default; color:#9aa4b2; }
@@ -369,7 +382,8 @@ const I18N = {
     fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
     fmOpen: "打开", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
     fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败",
-    fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录"
+    fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录",
+    fileLoading: "加载中…", filePreviewFailed: "预览失败"
   },
   en: {
     title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
@@ -401,7 +415,8 @@ const I18N = {
     fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
     fmOpen: "Open", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
     fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed",
-    fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root"
+    fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root",
+    fileLoading: "Loading…", filePreviewFailed: "Preview failed"
   }
 };
 
@@ -910,8 +925,7 @@ async function loadMyTasks(container) {
       tasks.forEach(function (task) {
         var filesHtml = (task.files||[]).map(function(f){
           var n = String(f).split('/').pop();
-          var dl = '/api/files/download?inst=' + encodeURIComponent(inst) + '&path=' + encodeURIComponent('TaskData/Doc/' + n);
-          return '<div><a href="' + dl + '" target="_blank" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + n + '</a></div>';
+          return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
         }).join('');
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + task.seq + '</td><td>' + (task.type||'') + '</td>'
@@ -922,6 +936,9 @@ async function loadMyTasks(container) {
           + '<td><span class="fm-st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
           + '<td>' + filesHtml + '</td>';
         body.appendChild(tr);
+        tr.querySelectorAll('a.fm-task-file').forEach(function(a){
+          a.onclick = function(){ TTPreview.open({ inst: inst, path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
+        });
       });
       tbl.appendChild(body);
       // Hint: task names can be dragged into the AI dialog on the right.
@@ -1015,65 +1032,11 @@ function showTaskView(task, en) {
 // Preview an image attachment full-screen, or prompt to download otherwise.
 function openTaskFile2(rel) {
   var name = String(rel).split('/').pop();
-  var ext = (name.split('.').pop() || '').toLowerCase();
-  var inst = currentUser || 'admin';
-  var dl = '/api/files/download?inst=' + encodeURIComponent(inst) + '&path=' + encodeURIComponent('TaskData/Doc/' + name) + '&inline=1';
-  var imgs = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
-  function showImg(url) {
-    var ov = document.getElementById('tcvImgView');
-    if (!ov) {
-      ov = document.createElement('div');
-      ov.id = 'tcvImgView';
-      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
-      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>'
-        + '<button style="position:fixed;top:14px;right:18px;padding:8px 16px;background:#fff;color:#1c1e21;border:0;border-radius:6px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10021;">×</button>';
-      document.body.appendChild(ov);
-      ov.querySelector('button').onclick = function(){ ov.style.display = 'none'; };
-      ov.addEventListener('click', function(){ ov.style.display = 'none'; });
-    }
-    ov.querySelector('img').src = url;
-    ov.style.display = 'flex';
-  }
-  function showRead() {
-    fetch('/api/files/read?inst=' + encodeURIComponent(inst), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path:'TaskData/Doc/' + name }) })
-      .then(function(r){ return r.json().catch(function(){ return {}; }); })
-      .then(function(d){
-        if (d && d.ok && d.type === 'image' && d.dataUri) showImg(d.dataUri);
-        else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + name + '?')) window.open(dl, '_blank');
-      });
-  }
-  if (imgs.indexOf(ext) >= 0) showRead();
-  else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + name + '?')) window.open(dl, '_blank');
+  TTPreview.open({ inst: currentUser || 'admin', path: 'TaskData/Doc/' + name, name: name });
 }
 
 function openFbFile(fn) {
-  var ext = (fn.split('.').pop() || '').toLowerCase();
-  var dl = '/api/files/download?inst=' + encodeURIComponent(fbInst) + '&path=' + encodeURIComponent('TaskData/Feedback/' + fbSeq + '/' + fn) + '&inline=1';
-  var imgs = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
-  function showImg(url) {
-    var ov = document.getElementById('fbImgView');
-    if (!ov) {
-      ov = document.createElement('div'); ov.id = 'fbImgView';
-      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
-      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>'
-        + '<button style="position:fixed;top:14px;right:18px;padding:8px 16px;background:#fff;color:#1c1e21;border:0;border-radius:6px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:10021;">×</button>';
-      document.body.appendChild(ov);
-      ov.querySelector('button').onclick = function(){ ov.style.display = 'none'; };
-      ov.addEventListener('click', function(){ ov.style.display = 'none'; });
-    }
-    ov.querySelector('img').src = url;
-    ov.style.display = 'flex';
-  }
-  function showRead() {
-    fetch('/api/files/read?inst=' + encodeURIComponent(fbInst), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path:'TaskData/Feedback/' + fbSeq + '/' + fn }) })
-      .then(function(r){ return r.json().catch(function(){ return {}; }); })
-      .then(function(d){
-        if (d && d.ok && d.type === 'image' && d.dataUri) showImg(d.dataUri);
-        else if (confirm('该类型文件无法预览，是否下载：' + fn + '?')) window.open(dl, '_blank');
-      });
-  }
-  if (imgs.indexOf(ext) >= 0) showRead();
-  else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + fn + '?')) window.open(dl, '_blank');
+  TTPreview.open({ inst: fbInst, path: 'TaskData/Feedback/' + fbSeq + '/' + fn, name: fn });
 }
 
 // ---- Task feedback (one per user per day; same-day is editable) ----
@@ -1278,6 +1241,9 @@ function fmGuessLang(ext) {
 async function fmOpenFile(path, name) {
   const extRaw = (name.split('.').pop() || '').toLowerCase();
   const ext = extRaw ? '.' + extRaw : '';
+  // Office documents: render with the bundled, permissively-licensed viewers.
+  const officeKind = fmOfficeKind(extRaw);
+  if (officeKind) { fmOpenOffice(path, name, officeKind); return; }
   // Files we can preview inline; everything else is downloaded to the OS app.
   if (!fmCanPreview(extRaw)) { fmDownloadFile(path, name); return; }
   const res = await fmRequest('POST', '/api/files/read', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
@@ -1299,6 +1265,83 @@ async function fmOpenFile(path, name) {
   }
   body.innerHTML = '<pre><code id="viewerCode" class="language-' + escp(lang) + '" style="white-space:pre;overflow:auto;">' + escp(d.content || '') + '</code></pre>';
   try { hljs.highlightElement($('#viewerCode')); } catch (e) { }
+}
+
+// Office kinds handled by the bundled viewers.
+function fmOfficeKind(ext) {
+  if (ext === 'docx') return 'word';
+  if (ext === 'xlsx' || ext === 'xlsm') return 'excel';
+  if (ext === 'pptx') return 'ppt';
+  return '';
+}
+
+// Wait until a global (e.g. the async ES-module pptx renderer) is available.
+async function fmWaitGlobal(get, timeoutMs) {
+  const t0 = Date.now();
+  while (!get()) {
+    if (Date.now() - t0 > timeoutMs) return false;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return true;
+}
+
+// Render an Office document (docx/xlsx/pptx) inside the viewer modal.
+async function fmOpenOffice(path, name, kind) {
+  $('#viewerTitle').textContent = name;
+  const body = $('#viewerBody');
+  body.style.background = '#fff';
+  body.innerHTML = '<div class="muted" style="padding:20px;">' + escp(t('fileLoading') || 'Loading…') + '</div>';
+  fmViewerOpen();
+  let buf;
+  try {
+    const resp = await fetch('/api/files/download?inline=true&path=' + encodeURIComponent(path), { credentials: 'same-origin' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    buf = await resp.arrayBuffer();
+  } catch (e) {
+    body.innerHTML = '<div class="err" style="padding:20px;">' + escp(t('filePreviewFailed') || 'Preview failed') + ': ' + escp(String((e && e.message) || e)) + '</div>';
+    return;
+  }
+  try {
+    if (kind === 'word') {
+      if (!window.docx) throw new Error('docx-preview not loaded');
+      body.innerHTML = '';
+      await window.docx.renderAsync(buf, body, null, { inWrapper: true, className: 'docx-preview', breakPages: true });
+    } else if (kind === 'excel') {
+      if (!window.ExcelJS) throw new Error('exceljs not loaded');
+      const wb = new window.ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      body.innerHTML = fmRenderXlsx(wb);
+    } else if (kind === 'ppt') {
+      const ready = await fmWaitGlobal(function () { return !!window.TTPptx; }, 10000);
+      if (!ready) throw new Error('pptx renderer not loaded');
+      body.innerHTML = '';
+      await window.TTPptx.open(buf, body);
+    }
+  } catch (e) {
+    body.innerHTML = '<div class="err" style="padding:20px;">' + escp(t('filePreviewFailed') || 'Preview failed') + ': ' + escp(String((e && e.message) || e)) + '</div>';
+  }
+}
+
+// Render every worksheet of an ExcelJS workbook as an HTML table.
+function fmRenderXlsx(wb) {
+  let html = '';
+  try {
+    wb.eachSheet(function (ws) {
+      html += '<div style="margin:10px 0 4px;font-weight:600;font-size:13px;">' + escp(ws.name) + '</div>';
+      html += '<div class="fm-xlsx-wrap"><table class="fm-xlsx">';
+      ws.eachRow({ includeEmpty: false }, function (row) {
+        html += '<tr>';
+        row.eachCell({ includeEmpty: true }, function (cell) {
+          let v = '';
+          try { v = cell.text != null ? String(cell.text) : ''; } catch (e2) { v = ''; }
+          html += '<td>' + escp(v) + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</table></div>';
+    });
+  } catch (e) { }
+  return html || '<div class="muted" style="padding:20px;">(empty)</div>';
 }
 
 // Which extensions the built-in viewer can render inline.
