@@ -1,13 +1,14 @@
 # Contributing
 
-Thanks for contributing! To keep this project's licensing (AGPL-3.0) with complete
-copyright ownership, all external contributions must satisfy:
+Thanks for contributing! To keep this project's licensing (Business Source
+License 1.1, BSL 1.1) with complete copyright ownership, all external
+contributions must satisfy:
 
 1. The code you submit is your own original work, or you are authorized to submit it.
 2. You agree to sign and comply with the Contributor License Agreement (CLA), assigning
    the relevant copyright in your contribution to
    TakeTop Information Technology (Shanghai) Co., Ltd. (泰顶拓鼎信息科技（上海）有限公司)
-3. Follow the existing code style and license header (AGPL-3.0-or-later).
+3. Follow the existing code style and license header (BSL 1.1).
 
 ## Process
 
