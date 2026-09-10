@@ -67,6 +67,8 @@
   .fm-row:hover { background:#f5f7fa; }
   .fm-row.fm-dir { cursor:pointer; }
   .fm-row.fm-dir:hover { background:#eef4ff; }
+  .fm-row.fm-drop-target { background:#dcfce7 !important; outline:2px dashed #10b981; outline-offset:-2px; }
+  .fm-row.fm-root-row { background:#f8fafc; font-weight:600; color:#334155; border-bottom:2px solid #e2e8f0; }
   .fm-glyph { display:inline-block; width:16px; height:16px; line-height:16px; text-align:center; margin-right:2px; border-radius:3px; color:#475569; font-weight:700; cursor:pointer; user-select:none; }
   .fm-glyph:hover { background:#dbe2ea; }
   .fm-row.fm-file .fm-glyph { cursor:default; color:#9aa4b2; }
@@ -208,9 +210,6 @@
       <button id="fmUploadBtn" class="secondary" data-i18n="fileUpload">上传文件</button>
       <button id="fmRefreshBtn" class="secondary" data-i18n="fileRefresh">刷新</button>
       <button id="fmNewFolderBtn" class="secondary" data-i18n="fileNewFolder">新建文件夹</button>
-      <span id="fmMoveHint" class="muted" style="display:none;font-weight:600;"></span>
-      <button id="fmMovePickBtn" class="secondary" style="display:none;" data-i18n="filePickThisDir">选择此目录</button>
-      <button id="fmMoveCancelBtn" class="secondary" style="display:none;" data-i18n="fileCancel">取消</button>
       <span id="fmPwd" class="muted" style="word-break:break-all;">/</span>
     </div>
     <input type="file" id="fmFileInput" multiple style="display:none;" />
@@ -369,7 +368,8 @@ const I18N = {
     fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
     fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
     fmOpen: "打开", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
-    fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败"
+    fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败",
+    fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录"
   },
   en: {
     title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
@@ -400,7 +400,8 @@ const I18N = {
     fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
     fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
     fmOpen: "Open", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
-    fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed"
+    fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed",
+    fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root"
   }
 };
 
@@ -838,8 +839,7 @@ function myInstOpen() {
 // ================= File manager (per-user workspace) =================
 let fmRoot = '';
 let fmPath = '';
-let fmMoveSrc = null;   // { path, name } being moved (null = not in move mode)
-let fmMoveTarget = '';  // currently selected target directory in move mode
+let fmDragSource = null;  // { path, name } being dragged for drag-to-folder move
 let fmExpanded = new Set();  // directories expanded inline (tree) by path
 let fmExpandCache = new Map();  // path -> entries[] for expanded dirs (avoids refetch)
 
@@ -1248,50 +1248,18 @@ async function initFileManager() {
     fd.append('path', fmPath);
     for (const f of files) fd.append('file', f);
     const res = await fmRequest('POST', '/api/files/upload', { body: fd });
-    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(); }
+    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(true); }
     else fmNote(res.data.error || t('fileError'), true);
     $('#fmFileInput').value = '';
   };
-  $('#fmRefreshBtn').onclick = () => fmLoad();
+  $('#fmRefreshBtn').onclick = () => fmLoad(true);
   $('#fmNewFolderBtn').onclick = () => {
     const name = prompt(t('fileNewFolder') + ':');
     if (!name) return;
     fmRename('', name, true);
   };
-  $('#fmMovePickBtn').onclick = () => fmMoveConfirm();
-  $('#fmMoveCancelBtn').onclick = () => fmMoveCancel();
   $('#viewerCloseBtn').onclick = () => fmViewerClose();
   await fmLoad();
-}
-
-// ---- Move-mode helpers (pick a destination directory) ----
-function fmMoveEnter(src) {
-  fmMoveSrc = src;
-  fmMoveTarget = '';
-  fmMoveEnterPath('');   // start from workspace root for a clean relative target
-  $('#fmMoveHint').style.display = '';
-  $('#fmMovePickBtn').style.display = '';
-  $('#fmMoveCancelBtn').style.display = '';
-}
-function fmMoveEnterPath(rel) {
-  fmPath = rel;
-  fmLoad();
-}
-function fmMoveCancel() {
-  fmMoveSrc = null;
-  fmMoveTarget = '';
-  fmPath = '';
-  $('#fmMoveHint').style.display = 'none';
-  $('#fmMovePickBtn').style.display = 'none';
-  $('#fmMoveCancelBtn').style.display = 'none';
-  fmLoad();
-}
-async function fmMoveConfirm() {
-  if (!fmMoveSrc) { fmMoveCancel(); return; }
-  const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: fmMoveSrc.path, toPath: fmMoveTarget || '' }) });
-  if (res.ok) { fmNote(t('fileMoved')); }
-  else fmNote(res.data.error || t('fileError'), true);
-  fmMoveCancel();
 }
 
 // ---- File viewer ----
@@ -1404,20 +1372,14 @@ function fmtSize(n) {
   return (n/1073741824).toFixed(1) + ' GB';
 }
 
-async function fmLoad() {
+async function fmLoad(force) {
   const box = $('#fmList');
-  const moving = !!fmMoveSrc;
-  // Move mode: show only the current directory's sub-dirs (navigate to pick a target).
-  if (moving) {
-    $('#fmMoveHint').textContent = (t('fileMoveTo') || '移动到') + ': ' + (fmMoveSrc.name || '') + ' → /' + fmPath;
-    const res = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(fmPath));
-    box.innerHTML = fmRenderMove(res.ok ? (res.data.entries || []) : []);
-    bindDirBehavior(box, true);
-    return;
-  }
-  // Non-move: render the FULL tree from the workspace root (Explorer-style).
+  // Render the FULL tree from the workspace root (Explorer-style).
   // Only `fmExpanded` dirs reveal their children; everything stays visible.
   fmRoot = null;
+  // Stale-cache guard: after any mutation (or an explicit Refresh) drop cached
+  // listings so expanded folders are re-read from disk instead of showing ghosts.
+  if (force) fmExpandCache.clear();
   // Ensure children for every expanded dir are cached so the tree renders fully.
   for (const key of fmExpanded) {
     if (!fmExpandCache.has(key)) await fmPrefetchNested(key);
@@ -1426,8 +1388,12 @@ async function fmLoad() {
   if (!rootRes.ok) { fmNote(rootRes.data.error || t('fileError'), true); return; }
   fmRoot = rootRes.data.root;
   $('#fmPwd').textContent = '/' + (fmPath || '');
-  box.innerHTML = fmRenderTree(rootRes.data.entries || [], '');
-  bindDirBehavior(box, false);
+  // A synthetic "workspace root" row at the top: a drop target so files can be
+  // moved back up to the workspace root (there is no parent folder row for it).
+  const rootRow = '<div class="fm-row fm-dir fm-root-row" data-root="1" data-path="" data-type="dir" title="' + escp(t('fmDropRootTip') || '') + '">'
+    + '<span class="fm-name">📁 / (' + escp(t('fmWorkspaceRoot') || 'workspace root') + ')</span></div>';
+  box.innerHTML = rootRow + fmRenderTree(rootRes.data.entries || [], '');
+  bindDirBehavior(box);
 }
 
 // Recursively render the full tree (dirs first), expanding only dirs in fmExpanded.
@@ -1467,11 +1433,10 @@ function fmRenderRow(e, fpath, parentPrefix) {
       + '<button class="fm-act" data-act="zip" title="' + t('fmZip') + '">' + t('fmZip') + '</button>'
       + (isDir ? '' : (/\.zip$/i.test(e.name) ? '<button class="fm-act" data-act="unzip" title="' + t('fmUnzip') + '">' + t('fmUnzip') + '</button>' : ''))
       + '<button class="fm-act" data-act="rename" title="' + t('fmRename') + '">' + t('fmRename') + '</button>'
-      + '<button class="fm-act" data-act="move" title="' + t('fmMove') + '">' + t('fmMove') + '</button>'
       + '<button class="fm-act fm-danger" data-act="delete" title="' + t('fmDelete') + '">' + t('fmDelete') + '</button>' });
 }
 
-function bindDirBehavior(box, moving) {
+function bindDirBehavior(box) {
   box.querySelectorAll('.fm-row .fm-act').forEach(btn => {
     btn.onclick = (ev) => { ev.stopPropagation(); fmAction(btn.dataset.act, btn.closest('.fm-row')); };
   });
@@ -1485,18 +1450,21 @@ function bindDirBehavior(box, moving) {
   box.querySelectorAll('.fm-row.fm-dir').forEach(row => {
     row.onclick = () => {
       const path = row.dataset.path || '';
-      if (moving) { fmMoveEnterPath(path); return; }
       // Explorer-style: clicking a dir selects it (becomes the upload/current dir).
       fmPath = path;
       $('#fmPwd').textContent = '/' + (fmPath || '');
     };
+    // Drag a file/folder row onto this directory row to move it here.
+    row.addEventListener('dragover', (ev) => fmDragOver(ev, row));
+    row.addEventListener('dragleave', (ev) => fmDragLeave(ev, row));
+    row.addEventListener('drop', (ev) => fmDrop(ev, row));
   });
 }
 
 function rowHtml(icon, name, fpath, type, size, extra) {
   const glyph = extra && extra.glyph;
   return '<div class="fm-row fm-' + type + '" data-path="' + escp(fpath) + '" data-type="' + type + '" data-name="' + escp(name) + '"'
-       + ' draggable="true" ondragstart="fmDragStart(event)" style="' + (extra && extra.style || '') + '">'
+       + ' draggable="true" ondragstart="fmDragStart(event)" ondragend="fmDragEnd()" style="' + (extra && extra.style || '') + '">'
        + '<span class="fm-name"><span class="fm-glyph" data-glyph="1">' + (glyph || '\u00a0') + '</span>' + icon + ' ' + escp(name) + '</span>' + (size || '')
        + '<span class="fm-actions">' + (extra && extra.actions || '') + '</span></div>';
 }
@@ -1507,10 +1475,45 @@ function fmDragStart(ev) {
   if (!row) return;
   const path = row.dataset.path || '';
   const name = row.dataset.name || '';
+  fmDragSource = { path: path, name: name };
   try { ev.dataTransfer.setData('text/plain', path); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-path', path); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
-  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copyMove'; } catch (e) {}
+}
+function fmDragEnd() {
+  fmDragSource = null;
+  document.querySelectorAll('.fm-drop-target').forEach(el => el.classList.remove('fm-drop-target'));
+}
+// Drag a file/folder row and drop it onto a directory row to move it there.
+function fmDragOver(ev, row) {
+  if (!fmDragSource) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  try { ev.dataTransfer.dropEffect = 'move'; } catch (e) {}
+  row.classList.add('fm-drop-target');
+}
+function fmDragLeave(ev, row) {
+  row.classList.remove('fm-drop-target');
+}
+async function fmDrop(ev, row) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const target = row.dataset.path || '';
+  const src = fmDragSource;
+  fmDragSource = null;
+  row.classList.remove('fm-drop-target');
+  if (!src || !src.path) return;
+  const srcParent = src.path.includes('/') ? src.path.substring(0, src.path.lastIndexOf('/')) : '';
+  if (srcParent === target) return;   // already in that folder
+  const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: src.path, toPath: target }) });
+  if (res.ok) {
+    if (target) fmExpanded.add(target);   // reveal the destination so the moved item is visible
+    fmNote(t('fileMoved'));
+  } else {
+    fmNote(res.data.error || t('fileError'), true);
+  }
+  await fmLoad(true);
 }
 // Allow dragging a task name from the "My Tasks" list into the DSH composer.
 function fmTaskDragStart(ev) {
@@ -1520,18 +1523,6 @@ function fmTaskDragStart(ev) {
   try { ev.dataTransfer.setData('text/plain', name); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
   try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
-}
-
-// Move mode: show current dir's sub-directories to pick a target.
-function fmRenderMove(entries) {
-  let html = '';
-  if (fmPath) html += '<div class="fm-row fm-dir" data-path="" data-type="dir"><span>📁 ..</span></div>';
-  for (const e of entries) {
-    if (e.type !== 'dir') continue;
-    html += '<div class="fm-row fm-dir" data-pick="1" data-path="' + escp(fmPath ? fmPath + '/' + e.name : e.name) + '" data-type="dir">'
-         + '<span class="fm-name">📁 ' + escp(e.name) + '</span></div>';
-  }
-  return html;
 }
 
 // Recursively prefetch children of any dir in fmExpanded (and their nested ones).
@@ -1555,37 +1546,27 @@ async function fmAction(act, row) {
   const type = row.dataset.type;
   if (act === 'open' && type === 'file') { fmOpenFile(path, name); return; }
   if (act === 'expand' && type === 'dir') {
-    if (fmExpanded.has(path)) {
-      fmExpanded.delete(path);
-    } else {
-      fmExpanded.add(path);
-      // Prefetch children (and any nested expanded dirs) for the tree.
-      if (!fmExpandCache.has(path)) {
-        const rr = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(path));
-        fmExpandCache.set(path, rr.ok ? (rr.data.entries || []) : []);
-      }
-      await fmPrefetchNested(path);
-    }
-    fmLoad(); return;
+    if (fmExpanded.has(path)) fmExpanded.delete(path);
+    else fmExpanded.add(path);
+    fmLoad(true); return;
   }
   if (act === 'delete') {
     if (!confirm(t('fileDeleteConfirm') + ' ' + name + '?')) return;
     const res = await fmRequest('POST', '/api/files/delete', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileDeleted')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileDeleted')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'rename') {
     const n = prompt(t('fileRenameTo'), name);
     if (!n || n === name) return;
-    const parent = fmPath ? fmPath + '/' : '';
+    const lastSlash = path.lastIndexOf('/');
+    const parent = lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '';
     const res = await fmRequest('POST', '/api/files/rename', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, newPath: parent + n }) });
-    if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
-  } else if (act === 'move') {
-    fmMoveEnter({ path: path, name: name });
+    if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'zip') {
     const res = await fmRequest('POST', '/api/files/zip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileZipped')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileZipped')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'unzip') {
     const res = await fmRequest('POST', '/api/files/unzip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileUnzipped')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileUnzipped')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   }
 }
 
@@ -1596,7 +1577,7 @@ async function fmRename(src, name, createDir) {
   if (createDir) {
     // create a placeholder file then delete it? Instead create dir via mkdir on server.
     const res = await fmRequest('POST', '/api/files/mkdir', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) });
-    if (res.ok) { fmNote(t('fileCreated')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileCreated')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   }
 }
 

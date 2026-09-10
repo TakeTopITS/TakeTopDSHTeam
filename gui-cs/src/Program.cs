@@ -568,6 +568,13 @@ app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
             var name = Path.GetFileName(src);
             dst = Path.Combine(dst, name);
         }
+        // Moving onto itself (same folder it already lives in) is a no-op, not a conflict.
+        if (string.Equals(dst.TrimEnd(Path.DirectorySeparatorChar), src.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            return Results.Json(new { ok = false, error = "源和目标相同" }, statusCode: 400);
+        // Refuse to move a directory into its own subtree.
+        if (Directory.Exists(src) &&
+            dst.StartsWith(src.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            return Results.Json(new { ok = false, error = "不能移动到自身子目录" }, statusCode: 400);
         if (File.Exists(dst) || Directory.Exists(dst)) return Results.Json(new { ok = false, error = "目标已存在" }, statusCode: 409);
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
         if (File.Exists(src)) File.Move(src, dst);
