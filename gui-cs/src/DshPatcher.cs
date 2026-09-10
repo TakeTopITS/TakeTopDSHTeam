@@ -2,18 +2,15 @@
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
-// This program is free software: you can redistribute it and/or modify it under
-// the terms of the GNU Affero General Public License as published by the Free
-// Software Foundation, either version 3 of the License, or (at your option) any
-// later version.
+// This software is licensed under the Business Source License 1.1 (BSL 1.1).
+// You may copy, modify, redistribute, and make non-production use; production
+// use is free for an organization with up to 10 users. Use by more than 10
+// users requires a commercial license. See LICENSE for the full terms and
+// LICENSE-COMMERCIAL.md for commercial licensing.
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-// details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// On the Change Date (2030-09-11) this version automatically converts to the
+// Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+// WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 // (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
@@ -79,6 +76,8 @@ public static class DshPatcher
         Say(PatchSettingsVisibility(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-settings-general"), "lib", "client.js"), !hideSettings));
         Say(PatchHeroPreview(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-conversation"), "lib", "client.js")));
         Say(PatchSandboxModeLock(Path.Combine(ResolvePluginDir(dshPkg, "dsh-sandbox-policy"), "lib", "index.js")));
+        Say(PatchSandboxWrite(Path.Combine(ResolvePluginDir(dshPkg, "dsh-sandbox"), "lib", "index.js")));
+        Say(PatchFsEscalation(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-fs"), "lib", "index.js")));
         // Shell tools are declared in the AGENT presets (agent-plane), which a host
         // cordis.patch.yml cannot disable — patch the preset files directly.
         foreach (var preset in new[] { "standard", "minimal", "ptc", "cordis" })
@@ -350,5 +349,62 @@ public static class DshPatcher
                 : "[preset-shell] no shell row found (skipped)";
         File.WriteAllText(file, patched);
         return "[preset-shell] applied (bash/pwsh disabled)";
+    }
+
+    // ====== 10) Filesystem write containment: workspace-only + no escalation ======
+    // Two channels let the model create files OUTSIDE its workspace:
+    //   (a) writableRoots() grants the host /tmp and os.tmpdir() under
+    //       workspace-write, so writes to the platform temp area need NO approval;
+    //   (b) write/edit (like bash/pwsh) advertise `sandbox_permissions`, letting an
+    //       approved call stamp danger-full-access and write anywhere.
+    // In a multi-user deployment a single user's approval must never grant access to
+    // the whole machine (another user's files/OS temp), so close both at their single
+    // owner: writableRoots() and ESCALATION_TARGETS (plus suppress the escalation hint).
+    private static string PatchSandboxWrite(string file)
+    {
+        if (!File.Exists(file)) return "[sandbox-write] not found";
+        var src = File.ReadAllText(file);
+        var did = new List<string>();
+
+        // (a) writableRoots: drop "/tmp" and os.tmpdir() so workspace-write can only
+        // write inside the workspace root (shared by the fs fence and subprocess profiles).
+        var oldRoots = "\treturn [...new Set([\n\t\tpolicy.workspaceRoot,\n\t\t\"/tmp\",\n\t\ttmpdir()\n\t].map(canonicalPath))];";
+        var newRoots = "\treturn [...new Set([\n\t\tpolicy.workspaceRoot\n\t].map(canonicalPath))]; // PATCH: workspace-only (no host temp)";
+        if (src.IndexOf("PATCH: workspace-only", StringComparison.Ordinal) >= 0) did.Add("roots:already");
+        else if (src.IndexOf(oldRoots, StringComparison.Ordinal) >= 0) { src = src.Replace(oldRoots, newRoots); did.Add("roots"); }
+
+        // (b) empty the escalation vocabulary every tool derives its `sandbox_permissions`
+        // enum from, so no tool advertises an escalation request.
+        var oldTargets = "const ESCALATION_TARGETS = [\"workspace-write\", \"danger-full-access\"];";
+        var newTargets = "const ESCALATION_TARGETS = []; // PATCH: no sandbox escalation";
+        if (src.IndexOf("PATCH: no sandbox escalation", StringComparison.Ordinal) >= 0) did.Add("targets:already");
+        else if (src.IndexOf(oldTargets, StringComparison.Ordinal) >= 0) { src = src.Replace(oldTargets, newTargets); did.Add("targets"); }
+
+        // (c) never emit the "escalation available — retry ... sandbox_permissions" hint.
+        var hint = new Regex("return `\\[sandbox: escalation available[\\s\\S]*?`;");
+        if (src.IndexOf("PATCH: escalation hint removed", StringComparison.Ordinal) >= 0) did.Add("hint:already");
+        else if (hint.IsMatch(src)) { src = hint.Replace(src, "return \"\"; // PATCH: escalation hint removed", 1); did.Add("hint"); }
+
+        if (did.Count == 0 || did.TrueForAll(x => x.EndsWith(":already", StringComparison.Ordinal)))
+            return "[sandbox-write] already patched";
+        File.WriteAllText(file, src);
+        return "[sandbox-write] applied (" + string.Join(",", did) + ")";
+    }
+
+    // ====== 11) Disable sandbox escalation on the write/edit (fs) tools ======
+    // dsh-tool-fs derives its advertised `sandbox_permissions` fields from
+    // `ESCALATION_TARGETS`; forcing escalationModes to [] removes the params from the
+    // write/edit schemas and makes any explicit sandbox_permissions fail closed.
+    private static string PatchFsEscalation(string file)
+    {
+        if (!File.Exists(file)) return "[fs-escalation] not found";
+        var src = File.ReadAllText(file);
+        if (src.IndexOf("this.escalationModes = [];", StringComparison.Ordinal) >= 0)
+            return "[fs-escalation] already patched";
+        var old = "this.escalationModes = defaultMode === void 0 ? [] : ESCALATION_TARGETS;";
+        if (src.IndexOf(old, StringComparison.Ordinal) < 0)
+            return "[fs-escalation] source changed (SKIPPED) — escalation marker not found";
+        File.WriteAllText(file, src.Replace(old, "this.escalationModes = []; // PATCH: no sandbox escalation"));
+        return "[fs-escalation] applied (write/edit escalation disabled)";
     }
 }

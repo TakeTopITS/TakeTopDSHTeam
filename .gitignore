@@ -439,6 +439,15 @@ gui-cs/src/obj/
 *.db.bak
 *.xml.bak
 
+# Default workspace/data directory inside the install dir (runtime data: DB,
+# task/feedback attachments). Must never be committed.
+/WorkSpace/
+
+# Root single-file launcher is a build artifact (>100 MiB, over GitHub's
+# per-file limit). Do not track it; users run start.bat, which uses the tracked
+# self-contained publish folder under gui-cs/src/bin/.../win-x64/publish/.
+/TakeTopDshLauncher.exe
+
 # ---- Runtime / credential data (auto-regenerated on first launch) ----
 # These are rebuilt automatically by the launcher, so they are safe to exclude
 # from the repo. Applies to clone-and-run: the app creates/derives them on boot.

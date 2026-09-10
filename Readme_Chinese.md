@@ -15,7 +15,7 @@ TakeTopDSHTeam turns [DeepSeek Harness] into a **team-ready, multi-user platform
 
 TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
 
-> **AGPL-3.0.** Licensed under the **GNU AGPL-3.0-or-later** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for up to 10 users**; above 10 users a paid license is required ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). All use must comply with the AGPL; **closed-source commercial use is not permitted**. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
+> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). Earlier MIT-licensed releases remain under MIT. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
 
 ---
 
@@ -130,12 +130,14 @@ Full **Chinese / English** toggle across the console, workbench, file manager, t
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** — see [LICENSE](LICENSE) / [COPYING](COPYING).
+This project is licensed under the **Business Source License 1.1 (BSL 1.1)** — see [LICENSE](LICENSE) / [COPYING](COPYING). BSL 1.1 is a **source-available** license (it is not OSI open source).
 
-- You may use, copy, modify and distribute the software provided you comply with the AGPL; in particular **Section 13**: if you run a modified version as a network service, you must offer its users the Corresponding Source of your modified version. **Closed-source commercial use is not permitted.**
-- **Free for organizations with up to 10 users**; above 10 users a paid license is required (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
+- You may copy, modify, create derivative works, redistribute, and make **non-production** use of the software.
+- **Additional Use Grant:** production use is **free for an organization with up to 10 users**; above 10 users a **commercial license** is required (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
+- **Automatic conversion:** on the Change Date (**2030-09-11**) — or the fourth anniversary of a version's first public release, whichever is earlier — that version converts to the **Apache License, Version 2.0** (fully open source). The license applies per version.
+- Earlier releases published under the **MIT License remain available under MIT** permanently.
 
-The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The AGPL grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
 Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 

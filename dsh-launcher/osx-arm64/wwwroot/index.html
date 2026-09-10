@@ -190,6 +190,7 @@
       <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
       <span id="wsSaved" class="muted"></span>
     </div>
+    <div id="wsDefaultWarn" data-i18n="wsDefaultWarn" style="display:none;margin:6px 0 2px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;white-space:pre-line"></div>
     <div class="row">
       <label data-i18n="defaultLang">缺省语言</label>
       <select id="defaultLangSel" style="width: 200px;"></select>
@@ -331,6 +332,7 @@ let logCursor = 0;
 let isAdmin = false;
 let currentUser = '';
 let globalWorkspacePath = '';
+let workspaceIsDefault = false;
 
 // Wrap an async handler so the button shows a spinner + disables while the
 // request is in-flight, then restores it. `fn` may return a Promise; the button
@@ -362,6 +364,10 @@ const I18N = {
     openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDSH Team 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
+    wsDefaultWarn: "⚠ 尚未设置工作区：当前使用默认目录（发行版目录下的 WorkSpace）。升级/替换发行版时可能被覆盖，或与其它副本共用。请先设置专用工作区目录。",
+    wsDefaultWarnTitle: "请先设置工作区目录",
+    wsDefaultWarnBody: "检测到尚未设置工作区，当前使用默认路径：\n{path}\n\n该默认目录位于发行版目录内，升级或替换发行版时可能被覆盖而导致数据丢失。\n请点击“浏览”选择专用目录并“保存”后再开始使用（若保留默认，升级时务必保留 WorkSpace 文件夹）。",
+    wsDefaultOk: "去设置工作区",
     browse: "浏览", save: "保存", updateTitle: "更新", checkUpdate: "Check Update", checking: "检查中...", checkFail: "检查失败: ",
     applyUpdate: "升级", upgrading: "升级中（会重启 DSH）...", upgradeOk: "已升级: ", upgradeFail: "升级失败", applyUpdateConfirm: "将停止并重启所有 DSH 实例，并升级到最新版本。确定继续？",
     logTitle: "日志", clear: "清空", dshRoot: "DSH Root: ",
@@ -397,6 +403,10 @@ const I18N = {
     openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDSH Team Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
+    wsDefaultWarn: "⚠ No workspace set: using the DEFAULT (the WorkSpace folder inside the release dir). It may be overwritten on upgrade or shared with other copies. Set a dedicated workspace directory first.",
+    wsDefaultWarnTitle: "Set a workspace directory first",
+    wsDefaultWarnBody: "No workspace is configured; the default is in use:\n{path}\n\nThis default lives inside the release folder and may be overwritten (data loss) when you upgrade or replace the release.\nClick \"Browse\" to pick a dedicated directory and \"Save\" before use (if you keep the default, always preserve the WorkSpace folder when upgrading).",
+    wsDefaultOk: "Set workspace now",
     browse: "Browse", save: "Save", updateTitle: "Update", checkUpdate: "Check Update", checking: "Checking...", checkFail: "Check failed: ",
     applyUpdate: "Upgrade", upgrading: "Upgrading (DSH will restart)...", upgradeOk: "Upgraded: ", upgradeFail: "Upgrade failed", applyUpdateConfirm: "This stops and restarts all DSH instances and upgrades to the latest version. Continue?",
     logTitle: "Logs", clear: "Clear", dshRoot: "DSH Root: ",
@@ -579,7 +589,36 @@ async function loadConfig() {
     const w = await (await fetch('/api/workspace')).json();
     $('#workspace').value = w.workspace || '';
     globalWorkspacePath = w.workspace || '';
+    workspaceIsDefault = !!w.isDefault;
+    renderWsDefaultWarn();
+    if (workspaceIsDefault && location.pathname !== '/fm') showWsDefaultModal();
   } catch (e) { /* workspace endpoint optional */ }
+}
+
+// Warn while the admin has not chosen a dedicated workspace: the portable default
+// can be shared across clones/versions or overwritten on upgrade.
+function renderWsDefaultWarn() {
+  const el = document.getElementById('wsDefaultWarn');
+  if (el) el.style.display = workspaceIsDefault ? '' : 'none';
+}
+
+function showWsDefaultModal() {
+  if (document.getElementById('wsDefaultModal')) return;
+  const body = t('wsDefaultWarnBody').replace('{path}', globalWorkspacePath || '(default)');
+  const ov = document.createElement('div');
+  ov.id = 'wsDefaultModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML =
+    '<div style="background:#fff;max-width:540px;width:100%;border-radius:10px;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
+    + '<div style="font-size:16px;font-weight:600;color:#b91c1c;margin-bottom:8px">&#9888; ' + t('wsDefaultWarnTitle') + '</div>'
+    + '<div id="wsDefaultModalBody" style="font-size:13px;color:#334155;white-space:pre-line;line-height:1.7"></div>'
+    + '<div style="text-align:right;margin-top:14px"><button id="wsDefaultModalOk" style="padding:6px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px"></button></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('wsDefaultModalBody').textContent = body;
+  const ok = document.getElementById('wsDefaultModalOk');
+  ok.textContent = t('wsDefaultOk');
+  ok.onclick = () => { ov.remove(); const w = document.getElementById('workspace'); if (w) w.focus(); };
 }
 
 async function init() {
@@ -627,6 +666,11 @@ async function init() {
       return;
     }
     const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: $('#workspace').value }) });
+    if (r.ok) {
+      workspaceIsDefault = !String(v || '').trim();
+      renderWsDefaultWarn();
+      if (!workspaceIsDefault) { const m = document.getElementById('wsDefaultModal'); if (m) m.remove(); }
+    }
     $('#wsSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
     setTimeout(() => $('#wsSaved').textContent = '', 1500);
   });
@@ -2036,7 +2080,11 @@ let DshSelfRoot = '';   // this app's own install dir; never allow selecting it.
 function normPath(p) { return (p || '').replace(/\\/g, '/').replace(/\/+$/, ''); }
 function isSelfDir(p) {
   if (!DshSelfRoot || !p) return false;
-  const t = normPath(p), s = normPath(DshSelfRoot);
+  const t = normPath(p).toLowerCase(), s = normPath(DshSelfRoot).toLowerCase();
+  // The dedicated data folder <root>/WorkSpace is allowed as a workspace; the rest
+  // of the install tree (app code, node, .dsh) must never be selected.
+  const data = normPath(DshSelfRoot + '/WorkSpace').toLowerCase();
+  if (t === data || t.startsWith(data + '/')) return false;
   return t === s || t.startsWith(s + '/');
 }
 

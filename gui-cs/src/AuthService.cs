@@ -2,18 +2,15 @@
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
-// This program is free software: you can redistribute it and/or modify it under
-// the terms of the GNU Affero General Public License as published by the Free
-// Software Foundation, either version 3 of the License, or (at your option) any
-// later version.
+// This software is licensed under the Business Source License 1.1 (BSL 1.1).
+// You may copy, modify, redistribute, and make non-production use; production
+// use is free for an organization with up to 10 users. Use by more than 10
+// users requires a commercial license. See LICENSE for the full terms and
+// LICENSE-COMMERCIAL.md for commercial licensing.
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-// details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// On the Change Date (2030-09-11) this version automatically converts to the
+// Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+// WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 // (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
@@ -42,7 +39,7 @@ public class AuthService
     }
 
     private readonly string _usersFile;   // legacy config/users.json (migration source)
-    private readonly string _dbPath;      // config/launcher.db (authoritative)
+    private readonly string _root;        // install root (central DB path derived per call)
     private readonly List<User> _users = new();
     private readonly Dictionary<string, string> _sessions = new(); // token -> username
     private readonly object _gate = new();
@@ -52,7 +49,7 @@ public class AuthService
     public AuthService(string root)
     {
         _usersFile = Path.Combine(root, "config", "users.json");
-        _dbPath = LauncherDb.PathFor(root);
+        _root = root;
         Load();
         // Ensure a default admin account exists.
         if (!_users.Any(u => u.Username.Equals(AdminUser, StringComparison.OrdinalIgnoreCase)))
@@ -106,7 +103,7 @@ public class AuthService
         lock (_gate)
         {
             _users.Clear();
-            var rows = LauncherDb.LoadUsers(_dbPath);
+            var rows = LauncherDb.LoadUsers(_root);
 
             // One-time migration from the legacy config/users.json.
             if (rows.Count == 0 && File.Exists(_usersFile))
@@ -188,7 +185,7 @@ public class AuthService
                 Admin = u.Admin,
                 InstanceId = u.InstanceId,
             }).ToList();
-            LauncherDb.SaveUsers(_dbPath, rows);
+            LauncherDb.SaveUsers(_root, rows);
         }
     }
 

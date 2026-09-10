@@ -2,18 +2,15 @@
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
-// This program is free software: you can redistribute it and/or modify it under
-// the terms of the GNU Affero General Public License as published by the Free
-// Software Foundation, either version 3 of the License, or (at your option) any
-// later version.
+// This software is licensed under the Business Source License 1.1 (BSL 1.1).
+// You may copy, modify, redistribute, and make non-production use; production
+// use is free for an organization with up to 10 users. Use by more than 10
+// users requires a commercial license. See LICENSE for the full terms and
+// LICENSE-COMMERCIAL.md for commercial licensing.
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-// details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// On the Change Date (2030-09-11) this version automatically converts to the
+// Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+// WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 // (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
@@ -258,6 +255,14 @@ public class DshService
         var target = Path.GetFullPath(ws.Trim());
         var self = Path.GetFullPath(_root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var selfPrefix = self + Path.DirectorySeparatorChar;
+        // Allow the dedicated data folder <root>\WorkSpace (and anything under it);
+        // keep the rest of the install tree (app code, node, .dsh) off-limits so the
+        // AI can never modify the TakeTopDSH / dsh code itself.
+        var dataDir = Path.Combine(self, "WorkSpace");
+        var dataPrefix = dataDir + Path.DirectorySeparatorChar;
+        if (target.Equals(dataDir, StringComparison.OrdinalIgnoreCase) ||
+            target.StartsWith(dataPrefix, StringComparison.OrdinalIgnoreCase))
+            return target;
         if (target.Equals(self, StringComparison.OrdinalIgnoreCase) ||
             target.StartsWith(selfPrefix, StringComparison.OrdinalIgnoreCase))
         {
@@ -831,10 +836,43 @@ public class DshService
             if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
                 web.TryGetProperty("WorkspacePath", out var ws) &&
                 ws.ValueKind == JsonValueKind.String)
-                return ws.GetString() ?? "";
+            {
+                var v = ws.GetString();
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
         }
         catch { }
-        return "";
+        return DefaultWorkspacePath(_root);
+    }
+
+    // Portable default used when the admin has not configured a workspace: a
+    // dedicated `WorkSpace` folder inside the install dir (e.g.
+    // D:\TakeTopDshTeam\WorkSpace), so a fresh clone runs with no configuration.
+    // Only this subfolder is exposed to the AI — the rest of the install tree
+    // (app code, node, .dsh) stays off-limits (see SanitizeWorkspace). Keep this
+    // folder when replacing/upgrading the release; the admin page warns about that.
+    public static string DefaultWorkspacePath(string root)
+    {
+        return Path.Combine(root, "WorkSpace");
+    }
+
+    // True when the admin has not set a workspace (the portable default is in use).
+    // The admin page warns strongly in this case: a default path may be shared by
+    // several clones or overwritten on upgrade, risking data loss.
+    public bool IsWorkspaceDefault()
+    {
+        try
+        {
+            var path = Path.Combine(_root, "appsettings.json");
+            if (!File.Exists(path)) return true;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
+                web.TryGetProperty("WorkspacePath", out var ws) &&
+                ws.ValueKind == JsonValueKind.String)
+                return string.IsNullOrWhiteSpace(ws.GetString());
+        }
+        catch { }
+        return true;
     }
 
     // Address the launcher + instances bind to (127.0.0.1 loopback, or the

@@ -2,18 +2,15 @@
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
-// This program is free software: you can redistribute it and/or modify it under
-// the terms of the GNU Affero General Public License as published by the Free
-// Software Foundation, either version 3 of the License, or (at your option) any
-// later version.
+// This software is licensed under the Business Source License 1.1 (BSL 1.1).
+// You may copy, modify, redistribute, and make non-production use; production
+// use is free for an organization with up to 10 users. Use by more than 10
+// users requires a commercial license. See LICENSE for the full terms and
+// LICENSE-COMMERCIAL.md for commercial licensing.
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-// details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// On the Change Date (2030-09-11) this version automatically converts to the
+// Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+// WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 // (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
@@ -40,6 +37,9 @@ if (args.Any(a => a.Equals("--apply-patch", StringComparison.OrdinalIgnoreCase))
 }
 
 var dsh = new DshService(root);
+// Consolidate the previous launcher DB (config/launcher.db) into the single
+// central business database before any store reads it.
+LauncherDb.MigrateUsersAndInstances(root);
 var instMgr = new InstanceManager(root, dsh.ReadInstancesStartPort());
 dsh.SetInstanceManager(instMgr);
 var auth = new AuthService(root);
@@ -101,6 +101,29 @@ app.Use(async (ctx, next) =>
         ctx.Items["username"] = user;
         ctx.Items["isAdmin"] = auth.Find(user)?.Admin == true;
         await next();
+        return;
+    }
+    await next();
+});
+
+// ---- Workspace-not-set guard (always on, no toggle) ----
+// While the admin still uses the portable DEFAULT workspace, refuse data-creating
+// operations: a default directory can be shared by other clones/versions or be
+// overwritten on an upgrade, which would lose data. Setting the workspace itself
+// (/api/workspace) and read/login endpoints stay allowed so the admin can fix it.
+app.Use(async (ctx, next) =>
+{
+    var path = ctx.Request.Path.Value ?? "";
+    var method = ctx.Request.Method;
+    var mutating =
+        (HttpMethods.IsPost(method) && (path == "/api/instances" || path == "/api/start" || path == "/api/tasks" || path == "/api/feedback")) ||
+        (HttpMethods.IsPut(method) && path == "/api/tasks") ||
+        (HttpMethods.IsDelete(method) && path == "/api/tasks");
+    if (mutating && dsh.IsWorkspaceDefault())
+    {
+        ctx.Response.StatusCode = 409;
+        ctx.Response.ContentType = "application/json; charset=utf-8";
+        await ctx.Response.WriteAsync("{\"ok\":false,\"error\":\"workspace_not_set\",\"message\":\"请先设置工作区目录（当前使用默认路径，升级或其它副本可能覆盖数据）\"}");
         return;
     }
     await next();
@@ -179,7 +202,7 @@ app.MapGet("/api/config", () =>
     };
 });
 // Workspace configuration (set by an admin on the control page).
-app.MapGet("/api/workspace", () => new { workspace = dsh.ReadWorkspacePath() });
+app.MapGet("/api/workspace", () => new { workspace = dsh.ReadWorkspacePath(), isDefault = dsh.IsWorkspaceDefault() });
 app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
@@ -1103,9 +1126,9 @@ string TaskDataDir(string instId)
     return dir;
 }
 
-// Tasks/feedback are stored in SQLite at <workspace>/TaskData/tasks-<instId>.db.
-// TaskDocPath/FeedbackDocPath point at the legacy XML files and are used only
-// once, to migrate existing data on first start (see SqliteStore).
+// Tasks/feedback live in the single central database (see LauncherDb), keyed by
+// `owner`. The paths below point at the LEGACY per-member stores and are used
+// only once, to import existing data on first access.
 string TaskDbPath(string instId)
 {
     return System.IO.Path.Combine(TaskDataDir(instId), $"tasks-{instId}.db");
@@ -1122,6 +1145,12 @@ string FeedbackDocPath(string instId)
     return System.IO.Path.Combine(TaskDataDir(instId), $"feedback-{instId}.xml");
 }
 
+// Legacy paths may be unavailable (member workspace not configured); treat that
+// as "no legacy data" rather than failing the request.
+string SafeTaskDbPath(string instId) { try { return TaskDbPath(instId); } catch { return ""; } }
+string SafeTaskDocPath(string instId) { try { return TaskDocPath(instId); } catch { return ""; } }
+string SafeFeedbackDocPath(string instId) { try { return FeedbackDocPath(instId); } catch { return ""; } }
+
 Dictionary<int, List<FeedbackEntry>> ReadFeedback(string instId)
 {
     return taskCache.GetFeedback(instId, () => LoadFeedbackFromDisk(instId));
@@ -1133,19 +1162,19 @@ void WriteFeedback(string instId, Dictionary<int, List<FeedbackEntry>> dict)
 }
 
 // ---- Disk serializers (used by the cache to load lazily and flush) ----
-// Backed by SQLite (one DB per member, at TaskDbPath). The legacy XML paths are
-// passed only so SqliteStore can import existing data on first use.
+// Backed by the single central database; `instId` is the row `owner`. The legacy
+// per-member paths are passed only so LauncherDb can import old data once.
 List<TaskRecord> LoadTasksFromDisk(string instId)
-    => SqliteStore.LoadTasks(TaskDbPath(instId), TaskDocPath(instId));
+    => LauncherDb.LoadTasks(root, instId, SafeTaskDbPath(instId), SafeTaskDocPath(instId), SafeFeedbackDocPath(instId));
 
 void WriteTasksToDisk(string instId, List<TaskRecord> tasks)
-    => SqliteStore.SaveTasks(TaskDbPath(instId), tasks);
+    => LauncherDb.SaveTasks(root, instId, tasks);
 
 Dictionary<int, List<FeedbackEntry>> LoadFeedbackFromDisk(string instId)
-    => SqliteStore.LoadFeedback(TaskDbPath(instId), FeedbackDocPath(instId));
+    => LauncherDb.LoadFeedback(root, instId, SafeTaskDbPath(instId), SafeTaskDocPath(instId), SafeFeedbackDocPath(instId));
 
 void WriteFeedbackToDisk(string instId, Dictionary<int, List<FeedbackEntry>> dict)
-    => SqliteStore.SaveFeedback(TaskDbPath(instId), dict);
+    => LauncherDb.SaveFeedback(root, instId, dict);
 
 // Debounced flush hook: every FLUSH_INTERVAL the cache writes its dirty entries to disk.
 void ScheduleTaskFlush()

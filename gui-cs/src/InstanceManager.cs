@@ -2,18 +2,15 @@
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
-// This program is free software: you can redistribute it and/or modify it under
-// the terms of the GNU Affero General Public License as published by the Free
-// Software Foundation, either version 3 of the License, or (at your option) any
-// later version.
+// This software is licensed under the Business Source License 1.1 (BSL 1.1).
+// You may copy, modify, redistribute, and make non-production use; production
+// use is free for an organization with up to 10 users. Use by more than 10
+// users requires a commercial license. See LICENSE for the full terms and
+// LICENSE-COMMERCIAL.md for commercial licensing.
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-// details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// On the Change Date (2030-09-11) this version automatically converts to the
+// Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+// WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 // (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
@@ -54,7 +51,6 @@ public class InstanceManager
 
     private readonly string _root;
     private readonly string _instancesDir;   // legacy config/instances.json (migration source)
-    private readonly string _dbPath;         // config/launcher.db (authoritative)
     private readonly string _instRoot;       // instances/<id>
     private readonly string _dshTemplate;    // .dsh template root
     private readonly int _basePort;          // first port used for auto-assignment
@@ -69,7 +65,6 @@ public class InstanceManager
         _root = root;
         _instRoot = Path.Combine(root, "instances");
         _instancesDir = Path.Combine(root, "config", "instances.json");
-        _dbPath = LauncherDb.PathFor(root);
         _dshTemplate = Path.Combine(root, ".dsh");
         _basePort = basePort;
         // A fresh clone has no admin root .dsh/.credentials.yaml (it is gitignored,
@@ -106,7 +101,7 @@ public class InstanceManager
         lock (_gate)
         {
             _instances.Clear();
-            var rows = LauncherDb.LoadInstances(_dbPath);
+            var rows = LauncherDb.LoadInstances(_root);
 
             // One-time migration from the legacy config/instances.json.
             if (rows.Count == 0 && File.Exists(_instancesDir))
@@ -114,7 +109,7 @@ public class InstanceManager
                 rows = ParseLegacyInstancesJson();
                 if (rows.Count > 0)
                 {
-                    LauncherDb.SaveInstances(_dbPath, rows);
+                    LauncherDb.SaveInstances(_root, rows);
                     LauncherDb.ArchiveJson(_instancesDir);
                 }
             }
@@ -1194,7 +1189,7 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
                 TokenUrl = i.TokenUrl,
                 Running = i.Running,
             }).ToList();
-            LauncherDb.SaveInstances(_dbPath, rows);
+            LauncherDb.SaveInstances(_root, rows);
         }
     }
 }

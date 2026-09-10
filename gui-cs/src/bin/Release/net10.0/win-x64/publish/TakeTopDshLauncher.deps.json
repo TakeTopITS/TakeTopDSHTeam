@@ -7,7 +7,7 @@
   "targets": {
     ".NETCoreApp,Version=v10.0": {},
     ".NETCoreApp,Version=v10.0/win-x64": {
-      "TakeTopDshLauncher/1.0.0": {
+      "TakeTopDshLauncher/1.1.0": {
         "dependencies": {
           "Microsoft.Data.Sqlite": "10.0.12",
           "runtimepack.Microsoft.NETCore.App.Runtime.win-x64": "10.0.12",
@@ -1392,7 +1392,7 @@
     }
   },
   "libraries": {
-    "TakeTopDshLauncher/1.0.0": {
+    "TakeTopDshLauncher/1.1.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

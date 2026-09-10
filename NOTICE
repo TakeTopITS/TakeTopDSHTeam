@@ -7,14 +7,25 @@ EMail: service@taketopits.com
 License
 -------
 
-This software is licensed under the GNU Affero General Public License v3.0
-or later (AGPL-3.0-or-later). See the LICENSE / COPYING file for the full text.
+This software is licensed under the Business Source License 1.1 (BSL 1.1).
+See the LICENSE / COPYING file for the full text.
 
-  - All use must comply with the AGPL; in particular, if you run a modified
-    version as a network service you must offer its users the Corresponding
-    Source. Closed-source commercial use is not permitted.
-  - Use is free for up to 10 users; above 10 users a paid license is required
+  - Source-available. You may copy, modify, create derivative works,
+    redistribute, and make non-production use of the software.
+  - Additional Use Grant: production use is free for an organization with up to
+    10 users. Use by more than 10 users requires a commercial license
     (see LICENSE-COMMERCIAL.md).
+  - On the Change Date (2030-09-11), this version automatically converts to the
+    Apache License, Version 2.0. The license applies per version: each version
+    converts to Apache-2.0 on the earlier of its stated Change Date or the fourth
+    anniversary of its first public release.
+
+Note on earlier versions
+------------------------
+
+Earlier releases of this software were published under the MIT License. Those
+releases remain available under MIT permanently and are not affected by this
+change, which applies only to this and later versions.
 
 Intellectual property
 ---------------------
@@ -22,11 +33,6 @@ Intellectual property
 This software and all of its source code, design, documentation and related
 materials are the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
-
-The AGPL-3.0 grants permission to use, copy, modify and distribute the
-software subject to its conditions (notably Section 13's network source
-disclosure), but does not transfer ownership of the intellectual property,
-which remains vested in the copyright holder.
 
 Third-party components
 ----------------------
