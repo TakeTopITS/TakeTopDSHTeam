@@ -3,12 +3,15 @@
  * MIT License. Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
  *
  * Opens the bundled viewers (docx-preview / exceljs / @aiden0z/pptx-renderer)
- * for Office files, shows images, and renders text; anything else falls back to
- * a download prompt. Used by both the launcher page and the Task Assignment page
- * so clicking any attachment file name previews it consistently.
+ * for Office files, shows images, renders text, and shows PDFs with the
+ * browser's built-in viewer. Anything else falls back to a download prompt.
  *
- * Requires the vendor scripts (jszip, docx-preview, exceljs, pptx-loader.js).
- * Usage: TTPreview.open({ inst, path, name, token })
+ * A file may live in a different workspace than the task/feedback it belongs to,
+ * so callers can pass `insts` (a list of candidate workspace ids); we probe them
+ * in order and use the first one that actually has the file.
+ *
+ * Usage: TTPreview.open({ insts: [a, b], path, name, token })
+ *        TTPreview.open({ inst, path, name, token })
  */
 (function () {
   'use strict';
@@ -107,57 +110,107 @@
     body.innerHTML = LOADING;
     m.style.display = 'flex';
 
-    var base = [['inst', opts.inst], ['launcher_token', opts.token]];
-    var readUrl = buildUrl('/api/files/read', base);
-    var dlUrl = buildUrl('/api/files/download', base.concat([['path', opts.path]]));
-    var officeUrl = buildUrl('/api/files/download', base.concat([['path', opts.path], ['inline', 'true']]));
+    // Candidate workspaces, in order (deduped). Falls back to opts.inst or ''.
+    var insts = [];
+    (function () {
+      var list = (opts.insts && opts.insts.length) ? opts.insts : [opts.inst];
+      for (var i = 0; i < list.length; i++) {
+        var v = list[i];
+        if (v === undefined || v === null) continue;
+        if (insts.indexOf(v) < 0) insts.push(v);
+      }
+      if (!insts.length) insts.push('');
+    })();
 
-    function postRead() {
-      return fetch(readUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ path: opts.path })
-      }).then(function (r) { return r.json().catch(function () { return {}; }); });
+    function qbase(inst) { return [['inst', inst], ['launcher_token', opts.token]]; }
+    function urlFor(kind, inst) {
+      if (kind === 'read') return buildUrl('/api/files/read', qbase(inst));
+      var extra = [['path', opts.path]];
+      var pairs = qbase(inst).concat(extra);
+      if (kind === 'inline') pairs.push(['inline', 'true']);
+      return buildUrl('/api/files/download', pairs);
+    }
+    // Probe each candidate workspace; resolve with the first response that is ok.
+    function tryGet(kind) {
+      var i = 0;
+      return new Promise(function (resolve) {
+        (function next() {
+          if (i >= insts.length) return resolve(null);
+          var u = urlFor(kind, insts[i++]);
+          fetch(u, { credentials: 'same-origin' })
+            .then(function (r) { if (r.ok) resolve(r); else next(); })
+            .catch(function () { next(); });
+        })();
+      });
+    }
+    function tryRead() {
+      var i = 0;
+      return new Promise(function (resolve) {
+        (function next() {
+          if (i >= insts.length) return resolve(null);
+          var iid = insts[i++];
+          fetch(urlFor('read', iid), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({ path: opts.path })
+          }).then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (d) { if (d && d.ok) resolve(d); else next(); })
+            .catch(function () { next(); });
+        })();
+      });
     }
     function promptDownload() {
       var ask = opts.askText || "This file type can't be previewed. Download it?";
-      if (window.confirm(ask + ' ' + name + '?')) window.open(dlUrl, '_blank');
+      if (window.confirm(ask + ' ' + name + '?')) window.open(urlFor('download', insts[0]), '_blank');
       m.style.display = 'none';
     }
     function fail(e) {
       body.innerHTML = '<div style="padding:20px;color:#b91c1c;">' + esc((opts.errorText || 'Preview failed') + ': ' + ((e && e.message) || e)) + '</div>';
     }
 
+    if (ext === 'pdf') {
+      tryGet('inline').then(function (r) {
+        if (!r) { promptDownload(); return; }
+        return r.blob().then(function (blob) {
+          var u = URL.createObjectURL(blob);
+          body.innerHTML = '';
+          var ifr = document.createElement('iframe');
+          ifr.src = u;   // browser's built-in PDF viewer
+          ifr.style.cssText = 'width:100%;height:70vh;border:0;background:#fff;';
+          body.appendChild(ifr);
+        });
+      }).catch(fail);
+      return;
+    }
+
     var kind = officeKind(ext);
     if (kind) {
-      fetch(officeUrl, { credentials: 'same-origin' })
-        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
-        .then(function (buf) {
-          if (kind === 'word') {
-            if (!window.docx) throw new Error('docx-preview not loaded');
+      tryGet('inline').then(function (r) {
+        if (!r) throw new Error('HTTP');
+        return r.arrayBuffer();
+      }).then(function (buf) {
+        if (kind === 'word') {
+          if (!window.docx) throw new Error('docx-preview not loaded');
+          body.innerHTML = '';
+          return window.docx.renderAsync(buf, body, null, { inWrapper: true, className: 'docx-preview', breakPages: true });
+        }
+        if (kind === 'excel') {
+          if (!window.ExcelJS) throw new Error('exceljs not loaded');
+          var wb = new window.ExcelJS.Workbook();
+          return wb.xlsx.load(buf).then(function () { body.innerHTML = xlsxTable(wb); });
+        }
+        if (kind === 'ppt') {
+          return waitGlobal(function () { return !!window.TTPptx; }, 10000).then(function (ok) {
+            if (!ok) throw new Error('pptx renderer not loaded');
             body.innerHTML = '';
-            return window.docx.renderAsync(buf, body, null, { inWrapper: true, className: 'docx-preview', breakPages: true });
-          }
-          if (kind === 'excel') {
-            if (!window.ExcelJS) throw new Error('exceljs not loaded');
-            var wb = new window.ExcelJS.Workbook();
-            return wb.xlsx.load(buf).then(function () { body.innerHTML = xlsxTable(wb); });
-          }
-          if (kind === 'ppt') {
-            return waitGlobal(function () { return !!window.TTPptx; }, 10000).then(function (ok) {
-              if (!ok) throw new Error('pptx renderer not loaded');
-              body.innerHTML = '';
-              return window.TTPptx.open(buf, body);
-            });
-          }
-        })
-        .catch(fail);
+            return window.TTPptx.open(buf, body);
+          });
+        }
+      }).catch(fail);
       return;
     }
     if (IMG.indexOf(ext) >= 0) {
-      postRead().then(function (d) {
-        if (d && d.ok && d.type === 'image' && d.dataUri) {
+      tryRead().then(function (d) {
+        if (d && d.type === 'image' && d.dataUri) {
           body.style.background = '#fbfbfc';
           body.innerHTML = '<div style="display:flex;justify-content:center;padding:6px;"><img style="max-width:100%;max-height:74vh;" src="' + d.dataUri + '" /></div>';
         } else { promptDownload(); }
@@ -165,8 +218,8 @@
       return;
     }
     if (TXT.indexOf(ext) >= 0) {
-      postRead().then(function (d) {
-        if (!(d && d.ok)) { promptDownload(); return; }
+      tryRead().then(function (d) {
+        if (!d) { promptDownload(); return; }
         if (ext === 'md' || ext === 'markdown') {
           body.innerHTML = '<div id="ttPreviewMd" style="line-height:1.6;font-size:14px;"></div>';
           var el = body.querySelector('#ttPreviewMd');

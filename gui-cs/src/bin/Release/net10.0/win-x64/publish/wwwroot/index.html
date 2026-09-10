@@ -225,12 +225,6 @@
   <!-- File manager: every logged-in user manages their own workspace -->
   <div class="card" id="fileManagerCard">
     <h2 data-i18n="fileTitle">文件管理</h2>
-    <div class="row-nowrap" style="margin-bottom:6px;">
-      <button id="fmUploadBtn" class="secondary" data-i18n="fileUpload">上传文件</button>
-      <button id="fmRefreshBtn" class="secondary" data-i18n="fileRefresh">刷新</button>
-      <button id="fmNewFolderBtn" class="secondary" data-i18n="fileNewFolder">新建文件夹</button>
-      <span id="fmPwd" class="muted" style="word-break:break-all;">/</span>
-    </div>
     <input type="file" id="fmFileInput" multiple style="display:none;" />
     <div id="fmList" style="border:1px solid #e0e2e6;border-radius:8px;overflow:auto;min-height:200px;max-height:50vh;padding:6px 8px;"></div>
     <div class="muted" style="margin-top:6px;min-height:18px;" id="fmMsg"></div>
@@ -390,7 +384,7 @@ const I18N = {
     fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败",
     fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录",
     fileLoading: "加载中…", filePreviewFailed: "预览失败",
-    fileRenameConflict: "名称已存在，请换一个名字：", fileUnzipConflict: "同名文件/文件夹已存在，请输入新的解压文件夹名：", fileMoveConflict: "目标文件夹已有同名文件，请输入新名称："
+    fileRenameConflict: "名称已存在，请换一个名字：", fileUnzipConflict: "同名文件/文件夹已存在，请输入新的解压文件夹名：", fileMoveConflict: "目标文件夹已有同名文件，请输入新名称：", fileUploadConflict: "目标已有同名文件，请输入新名称："
   },
   en: {
     title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
@@ -424,7 +418,7 @@ const I18N = {
     fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed",
     fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root",
     fileLoading: "Loading…", filePreviewFailed: "Preview failed",
-    fileRenameConflict: "Name already exists, enter another:", fileUnzipConflict: "A file/folder with this name exists; enter a new folder name:", fileMoveConflict: "A file with this name exists in the target folder; enter a new name:"
+    fileRenameConflict: "Name already exists, enter another:", fileUnzipConflict: "A file/folder with this name exists; enter a new folder name:", fileMoveConflict: "A file with this name exists in the target folder; enter a new name:", fileUploadConflict: "A file with this name already exists; enter a new name:"
   }
 };
 
@@ -863,6 +857,7 @@ function myInstOpen() {
 let fmRoot = '';
 let fmPath = '';
 let fmDragSource = null;  // { path, name } being dragged for drag-to-folder move
+let fmUploadTarget = '';  // workspace-relative dir that the next upload targets
 let fmExpanded = new Set();  // directories expanded inline (tree) by path
 let fmExpandCache = new Map();  // path -> entries[] for expanded dirs (avoids refetch)
 
@@ -945,7 +940,7 @@ async function loadMyTasks(container) {
           + '<td>' + filesHtml + '</td>';
         body.appendChild(tr);
         tr.querySelectorAll('a.fm-task-file').forEach(function(a){
-          a.onclick = function(){ TTPreview.open({ inst: inst, path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
+          a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
         });
       });
       tbl.appendChild(body);
@@ -1040,11 +1035,11 @@ function showTaskView(task, en) {
 // Preview an image attachment full-screen, or prompt to download otherwise.
 function openTaskFile2(rel) {
   var name = String(rel).split('/').pop();
-  TTPreview.open({ inst: currentUser || 'admin', path: 'TaskData/Doc/' + name, name: name });
+  TTPreview.open({ insts: [currentUser, 'admin'], path: 'TaskData/Doc/' + name, name: name });
 }
 
 function openFbFile(fn) {
-  TTPreview.open({ inst: fbInst, path: 'TaskData/Feedback/' + fbSeq + '/' + fn, name: fn });
+  TTPreview.open({ insts: [fbInst, currentUser, 'admin'], path: 'TaskData/Feedback/' + fbSeq + '/' + fn, name: fn });
 }
 
 // ---- Task feedback (one per user per day; same-day is editable) ----
@@ -1211,31 +1206,40 @@ async function saveFeedback() {
 }
 
 async function initFileManager() {
-  $('#fmUploadBtn').onclick = () => $('#fmFileInput').click();
+  // Upload target is chosen from the right-click menu (Upload here).
   $('#fmFileInput').onchange = async () => {
     const files = $('#fmFileInput').files;
     if (!files.length) return;
-    const fd = new FormData();
-    fd.append('path', fmPath);
-    for (const f of files) fd.append('file', f);
-    const res = await fmRequest('POST', '/api/files/upload', { body: fd });
-    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(true); }
-    else fmNote(res.data.error || t('fileError'), true);
+    await fmUploadFiles(Array.from(files));
     $('#fmFileInput').value = '';
-  };
-  $('#fmRefreshBtn').onclick = async () => {
-    const btn = $('#fmRefreshBtn');
-    btn.disabled = true;
-    try { await fmLoad(true); fmNote(t('fileRefreshed') || 'Refreshed'); }
-    finally { btn.disabled = false; }
-  };
-  $('#fmNewFolderBtn').onclick = () => {
-    const name = prompt(t('fileNewFolder') + ':');
-    if (!name) return;
-    fmRename('', name, true);
   };
   $('#viewerCloseBtn').onclick = () => fmViewerClose();
   await fmLoad();
+}
+
+// Upload files into the chosen folder. If a file name already exists there, ask
+// the user for a new name (rename map keyed by original name) and retry.
+async function fmUploadFiles(files) {
+  const renames = {};
+  while (true) {
+    const fd = new FormData();
+    fd.append('path', fmUploadTarget || '');
+    if (Object.keys(renames).length) fd.append('renames', JSON.stringify(renames));
+    files.forEach(function (f) { try { fd.append('file', f, f.name); } catch (e) { fd.append('file', f); } });
+    const res = await fmRequest('POST', '/api/files/upload', { body: fd });
+    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(true); return; }
+    const d = res.data || {};
+    if (d.conflict && Array.isArray(d.conflicts)) {
+      for (const c of d.conflicts) {
+        const input = prompt(t('fileUploadConflict'), c.suggestion || c.name);
+        if (input === null || !input.trim()) return;
+        renames[c.name] = input.trim();
+      }
+      continue;
+    }
+    fmNote(d.error || t('fileError'), true);
+    return;
+  }
 }
 
 // ---- File viewer ----
@@ -1254,6 +1258,8 @@ function fmGuessLang(ext) {
 async function fmOpenFile(path, name) {
   const extRaw = (name.split('.').pop() || '').toLowerCase();
   const ext = extRaw ? '.' + extRaw : '';
+  // PDF: use the browser's built-in PDF viewer (no third-party library).
+  if (extRaw === 'pdf') { fmOpenPdf(path, name); return; }
   // Office documents: render with the bundled, permissively-licensed viewers.
   const officeKind = fmOfficeKind(extRaw);
   if (officeKind) { fmOpenOffice(path, name, officeKind); return; }
@@ -1357,6 +1363,18 @@ function fmRenderXlsx(wb) {
   return html || '<div class="muted" style="padding:20px;">(empty)</div>';
 }
 
+// Render a PDF inline using the browser's native PDF viewer (via an iframe on
+// the inline download URL). No PDF library is loaded, so no extra license.
+function fmOpenPdf(path, name) {
+  $('#viewerTitle').textContent = name;
+  const body = $('#viewerBody');
+  body.style.background = '#525659';
+  const inst = new URLSearchParams(location.search).get('inst') || '';
+  const url = '/api/files/download?inline=true&path=' + encodeURIComponent(path) + (inst ? '&inst=' + encodeURIComponent(inst) : '');
+  body.innerHTML = '<iframe src="' + escp(url) + '" style="width:100%;height:74vh;border:0;border-radius:6px;background:#fff;"></iframe>';
+  fmViewerOpen();
+}
+
 // Which extensions the built-in viewer can render inline.
 function fmCanPreview(ext) {
   if (!ext) return false;
@@ -1437,7 +1455,6 @@ async function fmLoad(force) {
   const rootRes = await fmRequest('GET', '/api/files/list?path=');
   if (!rootRes.ok) { fmNote(rootRes.data.error || t('fileError'), true); return; }
   fmRoot = rootRes.data.root;
-  $('#fmPwd').textContent = '/' + (fmPath || '');
   // A synthetic "workspace root" row at the top: a drop target so files can be
   // moved back up to the workspace root (there is no parent folder row for it).
   const rootRow = '<div class="fm-row fm-dir fm-root-row" data-root="1" data-path="" data-type="dir" title="' + escp(t('fmDropRootTip') || '') + '">'
@@ -1482,7 +1499,7 @@ function fmRenderRow(e, fpath, parentPrefix) {
 function bindDirBehavior(box) {
   // Right-click a file/folder row to open the action menu (Open/Download/Zip/...).
   box.querySelectorAll('.fm-row').forEach(row => {
-    if (row.dataset.root === '1' || !row.dataset.type) return;
+    if (!row.dataset.type) return;   // skip empty placeholder rows
     row.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); fmOpenRowMenu(ev, row); };
   });
   // Clicking the +/- glyph toggles expansion WITHOUT selecting the dir.
@@ -1505,7 +1522,6 @@ function bindDirBehavior(box) {
       const path = row.dataset.path || '';
       // Explorer-style: clicking a dir selects it (becomes the upload/current dir).
       fmPath = path;
-      $('#fmPwd').textContent = '/' + (fmPath || '');
     };
     // Drag a file/folder row onto this directory row to move it here.
     row.addEventListener('dragover', (ev) => fmDragOver(ev, row));
@@ -1522,18 +1538,35 @@ function fmCloseRowMenu() {
 function fmRowMenuItems(row) {
   const type = row.dataset.type;
   const name = row.dataset.name || '';
+  const isRoot = row.dataset.root === '1';
   const items = [];
+  if (isRoot) {
+    items.push({ act: 'upload', label: t('fileUpload') });     // upload into workspace root
+    items.push({ act: 'mkdir', label: t('fileNewFolder') });
+    items.push({ sep: true });
+    items.push({ act: 'refresh', label: t('fileRefresh') });
+    return items;
+  }
   if (type === 'file') {
     items.push({ act: 'open', label: t('fmOpen') });
     items.push({ act: 'download', label: t('fmDownload') });   // every file is downloadable
     items.push({ act: 'zip', label: t('fmZip') });
     if (/\.zip$/i.test(name)) items.push({ act: 'unzip', label: t('fmUnzip') });
+    items.push({ sep: true });
+    items.push({ act: 'rename', label: t('fmRename') });
+    items.push({ act: 'delete', label: t('fmDelete'), danger: true });
+    items.push({ sep: true });
+    items.push({ act: 'refresh', label: t('fileRefresh') });
   } else {
+    items.push({ act: 'upload', label: t('fileUpload') });     // upload into this folder
+    items.push({ act: 'mkdir', label: t('fileNewFolder') });   // new subfolder inside this folder
     items.push({ act: 'zip', label: t('fmZip') });
+    items.push({ sep: true });
+    items.push({ act: 'rename', label: t('fmRename') });
+    items.push({ act: 'delete', label: t('fmDelete'), danger: true });
+    items.push({ sep: true });
+    items.push({ act: 'refresh', label: t('fileRefresh') });
   }
-  items.push({ sep: true });
-  items.push({ act: 'rename', label: t('fmRename') });
-  items.push({ act: 'delete', label: t('fmDelete'), danger: true });
   return items;
 }
 function fmOpenRowMenu(ev, row) {
@@ -1676,6 +1709,27 @@ function fmDownload(path, name) {
   fmNote(t('fileDownloaded'));
 }
 
+// Create a new folder under `baseDir` (workspace-relative; '' = workspace root).
+// On a name conflict, ask the user for another name and retry.
+async function fmNewFolder(baseDir) {
+  let n = prompt(t('fileNewFolder') + ':');
+  if (!n || !n.trim()) return;
+  n = n.trim();
+  while (true) {
+    const target = baseDir ? baseDir + '/' + n : n;
+    const res = await fmRequest('POST', '/api/files/mkdir', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) });
+    if (res.ok) {
+      if (baseDir) fmExpanded.add(baseDir);   // reveal the parent so the new folder is visible
+      fmNote(t('fileCreated'));
+      await fmLoad(true);
+      return;
+    }
+    if (res.status === 409) { const again = prompt(t('fileRenameConflict'), n); if (!again) return; n = again.trim(); continue; }
+    fmNote(res.data.error || t('fileError'), true);
+    return;
+  }
+}
+
 async function fmAction(act, row) {
   const path = row.dataset.path;
   const name = row.dataset.name;
@@ -1686,6 +1740,16 @@ async function fmAction(act, row) {
     else fmExpanded.add(path);
     fmLoad(true); return;
   }
+  if (act === 'upload') {
+    // Upload into this folder (or, for a file, into its parent folder).
+    fmUploadTarget = (type === 'file')
+      ? (path && path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '')
+      : (path || '');
+    $('#fmFileInput').click();
+    return;
+  }
+  if (act === 'refresh') { fmLoad(true).then(function () { fmNote(t('fileRefreshed') || 'Refreshed'); }); return; }
+  if (act === 'mkdir') { fmNewFolder(path || ''); return; }
   if (act === 'download') { fmDownload(path, name); return; }
   if (act === 'delete') {
     if (!confirm(t('fileDeleteConfirm') + ' ' + name + '?')) return;

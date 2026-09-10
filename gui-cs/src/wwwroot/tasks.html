@@ -522,7 +522,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
       .then(function(r){ return r.json().catch(function(){ return {}; }); });
   }
   function openFbFile(fn) {
-    TTPreview.open({ inst: fb2Inst, path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: fn, token: launcherToken });
+    TTPreview.open({ insts: [fb2Inst, curMember, 'admin'], path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: fn, token: launcherToken });
   }
   function fileUrl(f, member, creator, inline) {
     var name = String(f).split('/').pop();
@@ -531,8 +531,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
   function openTaskFile(f, member, creator) {
     var name = String(f).split('/').pop();
-    var inst = member || creator || curMember || '';
-    TTPreview.open({ inst: inst, path: 'TaskData/Doc/' + name, name: name, token: launcherToken });
+    TTPreview.open({ insts: [member, creator, curMember, 'admin'], path: 'TaskData/Doc/' + name, name: name, token: launcherToken });
   }
   function renderChips(){
     $('#fileChips').innerHTML = pendingFiles.map(function(f, i){

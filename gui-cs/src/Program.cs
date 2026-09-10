@@ -515,15 +515,45 @@ app.MapPost("/api/files/upload", (HttpContext ctx) =>
         var targetRel = ctx.Request.Form["path"].ToString() ?? "";
         var targetDir = SafeResolve(ws, targetRel);
         if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
-        var saved = new List<string>();
+        // Optional per-file rename map (original name -> new name) chosen by the
+        // user when a same-name file already exists in the target folder.
+        var renames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var renamesRaw = ctx.Request.Form["renames"].ToString();
+        if (!string.IsNullOrWhiteSpace(renamesRaw))
+        {
+            try
+            {
+                var parsed = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(renamesRaw);
+                if (parsed != null) foreach (var kv in parsed) if (kv.Value != null) renames[kv.Key] = kv.Value;
+            }
+            catch { }
+        }
+        // Detect conflicts first; nothing is written until every name is resolved.
+        var conflicts = new List<object>();
+        var plan = new List<(IFormFile file, string dest)>();
         foreach (var f in ctx.Request.Form.Files)
         {
-            var fileName = Path.GetFileName(f.FileName);
-            if (string.IsNullOrWhiteSpace(fileName)) continue;
-            var dest = Path.Combine(targetDir, fileName);
-            using var stream = System.IO.File.Create(dest);
-            f.CopyTo(stream);
-            saved.Add(fileName);
+            var origName = Path.GetFileName(f.FileName);
+            if (string.IsNullOrWhiteSpace(origName)) continue;
+            var destName = (renames.TryGetValue(origName, out var nn) && !string.IsNullOrWhiteSpace(nn)) ? nn.Trim() : origName;
+            if (destName.IndexOfAny(new[] { '/', '\\' }) >= 0 || destName is "." or "..")
+                return Results.Json(new { ok = false, error = "名称非法: " + destName }, statusCode: 400);
+            var dest = Path.Combine(targetDir, destName);
+            if (File.Exists(dest) || Directory.Exists(dest))
+            {
+                conflicts.Add(new { name = origName, target = destName, suggestion = SuggestName(targetDir, destName) });
+                continue;
+            }
+            plan.Add((f, dest));
+        }
+        if (conflicts.Count > 0)
+            return Results.Json(new { ok = false, conflict = true, conflicts }, statusCode: 409);
+        var saved = new List<string>();
+        foreach (var p in plan)
+        {
+            using var stream = System.IO.File.Create(p.dest);
+            p.file.CopyTo(stream);
+            saved.Add(Path.GetFileName(p.dest));
         }
         return Results.Ok(new { ok = true, saved });
     }
@@ -605,7 +635,8 @@ app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
 });
 
-// Create a directory (recursive).
+// Create a directory (recursive). If the name is already taken, return a
+// conflict + a suggested free name so the UI can ask the user to rename.
 app.MapPost("/api/files/mkdir", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
@@ -613,6 +644,12 @@ app.MapPost("/api/files/mkdir", (FileOpRequest req, HttpContext ctx) =>
     try
     {
         var abs = SafeResolve(ws, req.Path);
+        if (File.Exists(abs) || Directory.Exists(abs))
+        {
+            var parent = Path.GetDirectoryName(abs)!;
+            var nm = Path.GetFileName(abs);
+            return Results.Json(new { ok = false, conflict = true, target = nm, suggestion = SuggestName(parent, nm) }, statusCode: 409);
+        }
         Directory.CreateDirectory(abs);
         return Results.Ok(new { ok = true });
     }
