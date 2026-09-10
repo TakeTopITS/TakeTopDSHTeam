@@ -122,6 +122,17 @@ public static class DshPatcher
     {
         if (!File.Exists(file)) return "[fs-sandbox] not found";
         var src = File.ReadAllText(file);
+        // v2: out-of-workspace `stat` probes must return "not found" (not throw), so
+        // benign lookups like git walking up to a parent .git don't fail the turn.
+        // Actual reads (readText/streamText) still throw for out-of-workspace paths.
+        var newStat = "async stat(target, signal) { try { await this.enforceContained(target); } catch (e) { if (e?.code === \"FS_SANDBOX_DENIED\") return undefined; throw e; } return super.stat(target, signal); }";
+        var oldStat = "async stat(target, signal) { await this.enforceContained(target); return super.stat(target, signal); }";
+        if (src.IndexOf(newStat, StringComparison.Ordinal) >= 0) return "[fs-sandbox] already patched";
+        if (src.IndexOf(oldStat, StringComparison.Ordinal) >= 0)
+        {
+            File.WriteAllText(file, src.Replace(oldStat, newStat));
+            return "[fs-sandbox] upgraded (outside stat probes return not-found)";
+        }
         if (src.IndexOf("async enforceContained(target)", StringComparison.Ordinal) >= 0)
             return "[fs-sandbox] already patched";
         var marker = "\tget sandboxMode() {\n\t\treturn this.defaultMode;\n\t}";
@@ -129,7 +140,7 @@ public static class DshPatcher
             return "[fs-sandbox] source changed (SKIPPED) — sandboxMode marker not found";
         var inject = $$"""
 				// --- READ CONTAINMENT PATCH ---
-				async stat(target, signal) { await this.enforceContained(target); return super.stat(target, signal); }
+				{{newStat}}
 				async readText(target, signal) { await this.enforceContained(target); return super.readText(target, signal); }
 				streamText(target, signal) { const sup = super.streamText(target, signal); return this.enforceContained(target).then(() => sup); }
 				async enforceContained(target) {
