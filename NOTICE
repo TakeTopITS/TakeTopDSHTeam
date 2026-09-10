@@ -8,8 +8,14 @@ EMail: service@taketopits.com
 License
 -------
 
-This software and its source code are licensed under the MIT License.
-See the LICENSE / COPYING file for the full text.
+This software is licensed under the GNU Affero General Public License v3.0
+or later (AGPL-3.0-or-later). See the LICENSE / COPYING file for the full text.
+
+  - All use must comply with the AGPL; in particular, if you run a modified
+    version as a network service you must offer its users the Corresponding
+    Source. Closed-source commercial use is not permitted.
+  - Use is free for up to 20 users; above 20 users a paid license is required
+    (see LICENSE-COMMERCIAL.md).
 
 Intellectual property / 知识产权
 --------------------------------
@@ -18,23 +24,27 @@ This software and all of its source code, design, documentation and related
 materials are the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
 
-The MIT license grants permission to use, copy, modify, merge, publish,
-distribute, sublicense and/or sell copies of the software, subject to the
-conditions in the LICENSE file. This does not transfer ownership of the
-intellectual property, which remains vested in the copyright holder.
+The AGPL-3.0 grants permission to use, copy, modify and distribute the
+software subject to its conditions (notably Section 13's network source
+disclosure), but does not transfer ownership of the intellectual property,
+which remains vested in the copyright holder.
 
 Third-party components
 ----------------------
 
-This product bundles and relies on the following third-party software.
-They remain under their respective licenses:
+This product bundles and relies on the following third-party software, which
+remains under their respective licenses:
 
-  - DeepSeek Harness (@deepseek-ai/dsh) and its related packages
-    (node_modules/@deepseek-ai/*) - see the package licenses under
-    node/node_modules/@deepseek-ai/dsh for details.
-
+  - DeepSeek Harness (@deepseek-ai/dsh) and related packages
+    (node_modules/@deepseek-ai/*) - MIT
+  - docx-preview - Apache-2.0
+  - @aiden0z/pptx-renderer - Apache-2.0
+  - ExcelJS - MIT
+  - JSZip - MIT
   - highlight.js (https://highlightjs.org/) - MIT License
   - marked (https://marked.js.org/) - MIT License
   - Node.js runtime (bundled under node/) - its own licenses
-  - .NET / ASP.NET Core runtime (bundled in the self-contained launcher)
-    - MIT License
+  - .NET / ASP.NET Core runtime (bundled in the self-contained launcher) - MIT License
+
+Their notices are kept in gui-cs/src/wwwroot/vendor/licenses/ and must be
+retained when redistributing.

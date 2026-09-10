@@ -15,7 +15,7 @@ TakeTopDSHTeam turns [DeepSeek Harness] into a **team-ready, multi-user platform
 
 TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
 
-> **MIT License.** This software and its source code are licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)). The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
+> **AGPL-3.0.** Licensed under the **GNU AGPL-3.0-or-later** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for up to 20 users**; above 20 users a paid license is required ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). All use must comply with the AGPL; **closed-source commercial use is not permitted**. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
 
 ---
 
@@ -130,8 +130,13 @@ Full **中文 / English** toggle across the console, workbench, file manager, ta
 
 ## License
 
-This project is licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)). You may use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the software, subject to the conditions in the MIT License.
+This project is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** — see [LICENSE](LICENSE) / [COPYING](COPYING).
 
-The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The MIT license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+- You may use, copy, modify and distribute the software provided you comply with the AGPL; in particular **Section 13**: if you run a modified version as a network service, you must offer its users the Corresponding Source of your modified version. **Closed-source commercial use is not permitted.**
+- **Free for organizations with up to 20 users**; above 20 users a paid license is required (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
+
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The AGPL grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+
+Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
 Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.

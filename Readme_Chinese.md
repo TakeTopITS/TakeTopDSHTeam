@@ -15,7 +15,7 @@ TakeTopDSHTeam 把 [DeepSeek Harness] 打造成**团队级、多用户**平台,�
 
 TakeTopDSHTeam 是一个**团队级、多用户**平台：每个成员通过同一个启动器获得自己隔离的 DSH 实例，内置文件管理、任务分配与分屏工作台。把整个目录拷贝到任意机器即可运行 —— **无需安装、无需编译**。
 
-> **MIT 许可。** 本软件及源代码以 **MIT License** 授权（详见 [LICENSE](LICENSE) / [COPYING](COPYING)）。知识产权归 **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** 所有 —— EMail: service@taketopits.com。保留所有权利。
+> **AGPL-3.0。** 本软件以 **GNU AGPL-3.0-or-later** 授权（详见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**20 用户以内免费**，超过 20 用户需购买授权（见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。所有使用必须遵守 AGPL；**不允许闭源商用**。知识产权归 **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** 所有 —— EMail: service@taketopits.com。保留所有权利。
 
 ---
 
@@ -131,8 +131,13 @@ Linux   : ./start.sh
 
 ## 许可证
 
-本项目以 **MIT License** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)），可按其条款使用、复制、修改、合并、发布、分发、再授权及/或出售副本。
+本项目以 **GNU AGPL-3.0-or-later** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）。
 
-本软件的知识产权——包括源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)**（EMail: service@taketopits.com）所有。MIT 许可授予使用权，但不转移知识产权所有权，知识财产权利仍归版权持有者。
+- 可免费使用、复制、修改、分发，但须遵守 AGPL；尤其是**第 13 条**：若将修改后的版本作为网络服务运行，必须向使用者提供你修改版本的对应源码。**不允许闭源商用。**
+- **20 用户以内免费**；超过 20 用户需购买授权（联系 service@taketopits.com，见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。
+
+本软件的知识产权——包括源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)**（EMail: service@taketopits.com）所有。AGPL 授予使用权，但不转移知识产权所有权，知识财产权利仍归版权持有者。
+
+本产品捆绑的第三方组件仍受其各自许可约束（见 `gui-cs/src/wwwroot/vendor/licenses/` 与 [NOTICE](NOTICE)）。
 
 版权所有 (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)，保留所有权利。
