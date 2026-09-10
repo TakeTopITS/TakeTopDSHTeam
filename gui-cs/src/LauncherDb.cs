@@ -591,6 +591,37 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         ArchiveFile(old + "-shm");
     }
 
+    // On Unix, keep the sensitive folders of the admin workspace private (0700) so
+    // per-member OS users cannot read the central database or the admin's
+    // task/experience data at the OS level. The in-app sandbox already fences DSH
+    // tool access; this closes the OS-level gap. No-op on Windows (ACLs are used).
+    public static void HardenUnixPermissions(string root)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        try
+        {
+            var dbDir = System.IO.Path.GetDirectoryName(PathFor(root));
+            if (string.IsNullOrEmpty(dbDir)) return;
+            Directory.CreateDirectory(dbDir);
+            Chmod700(dbDir);
+            var ws = System.IO.Path.GetDirectoryName(dbDir);
+            if (!string.IsNullOrEmpty(ws))
+                foreach (var sub in new[] { "TaskData", "sharedata" })
+                {
+                    var d = System.IO.Path.Combine(ws, sub);
+                    if (Directory.Exists(d)) Chmod700(d);
+                }
+        }
+        catch (Exception ex) { Console.WriteLine("[perms] harden failed: " + ex.Message); }
+    }
+
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    private static void Chmod700(string path)
+    {
+        try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+        catch (Exception ex) { Console.WriteLine("[perms] chmod 700 " + path + ": " + ex.Message); }
+    }
+
     private static List<LauncherUserRow> ReadUsersFromFile(string dbPath)
     {
         try { using var c = OpenReadOnly(dbPath); return ReadUsers(c); }

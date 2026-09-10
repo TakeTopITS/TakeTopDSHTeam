@@ -40,6 +40,8 @@ var dsh = new DshService(root);
 // Consolidate the previous launcher DB (config/launcher.db) into the single
 // central business database before any store reads it.
 LauncherDb.MigrateUsersAndInstances(root);
+// Unix: keep the central DB / admin data folders private for other OS users.
+LauncherDb.HardenUnixPermissions(root);
 var instMgr = new InstanceManager(root, dsh.ReadInstancesStartPort());
 dsh.SetInstanceManager(instMgr);
 var auth = new AuthService(root);

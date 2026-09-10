@@ -15,3 +15,8 @@ gui-cs/src/wwwroot/** text eol=lf
 **/*.yaml text eol=lf
 **/*.html text eol=lf
 **/*.css text eol=lf
+
+# Shell scripts must stay LF on checkout (they run on Linux/macOS); Windows
+# batch files stay CRLF.
+*.sh text eol=lf
+*.bat text eol=crlf
