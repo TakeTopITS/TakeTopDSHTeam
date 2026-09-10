@@ -45,7 +45,7 @@ Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
 > Do **not** open `:46000` directly (returns 404); DSH needs the `token` that the launcher injects.
 
-See [INSTALL.md](INSTALL.md) for full setup, and [操作说明.md](操作说明.md) for usage.
+See [Guide/INSTALL_GUIDE_English.md](Guide/INSTALL_GUIDE_English.md) for full setup, and [Guide/USER_GUIDE_English.pdf](Guide/USER_GUIDE_English.pdf) for usage.
 
 ---
 
@@ -53,7 +53,7 @@ See [INSTALL.md](INSTALL.md) for full setup, and [操作说明.md](操作说明.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ TakeTopDSH Team Launcher                         admin (admin)    [语言/EN] │
+│ TakeTopDSH Team Launcher                         admin (admin)    [Lang/EN] │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ [Port 46000] [Start] [Stop] [Open DSH]      ● Running (PID 11384)          │
 │ Instance Manager:                                                            │
@@ -99,7 +99,7 @@ Each user sees tasks assigned to them:
 - Tasks stored as **XML** under `<workspace>/TaskData/tasks-<id>.xml`; files uploaded to `<workspace>/TaskData/Doc`.
 
 ### 6. Language
-Full **中文 / English** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
+Full **Chinese / English** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
 
 ---
 
@@ -135,8 +135,8 @@ This project is licensed under the **GNU Affero General Public License v3.0 or l
 - You may use, copy, modify and distribute the software provided you comply with the AGPL; in particular **Section 13**: if you run a modified version as a network service, you must offer its users the Corresponding Source of your modified version. **Closed-source commercial use is not permitted.**
 - **Free for organizations with up to 20 users**; above 20 users a paid license is required (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
 
-The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The AGPL grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The AGPL grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
 Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
-Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.

@@ -1,16 +1,18 @@
-# 贡献指南 / Contributing
+# Contributing
 
-感谢贡献！为维持本项目的 **AGPL-3.0 + 商业授权"双许可"** 模式，所有外部贡献须满足：
+Thanks for contributing! To keep this project's licensing (AGPL-3.0) with complete
+copyright ownership, all external contributions must satisfy:
 
-1. 你提交的代码为您本人原创，或您已获得相应授权；
-2. 您同意签署并遵守《贡献者许可协议 (CLA)》，将您贡献部分的版权授予
-   **泰顶拓鼎信息科技（上海）有限公司**，以便本公司可同时以 AGPL-3.0 与商业授权分发；
-3. 遵循项目现有代码风格与许可头（AGPL-3.0-or-later）。
+1. The code you submit is your own original work, or you are authorized to submit it.
+2. You agree to sign and comply with the Contributor License Agreement (CLA), assigning
+   the relevant copyright in your contribution to
+   TakeTop Information Technology (Shanghai) Co., Ltd. (泰顶拓鼎信息科技（上海）有限公司)
+3. Follow the existing code style and license header (AGPL-3.0-or-later).
 
-## 提交流程
+## Process
 
-1. Fork 仓库并新建分支；
-2. 联系 **service@taketopits.com** 获取并签署 CLA；
-3. 在 Pull Request 中说明已签署 CLA，我们会在确认后合并。
+1. Fork the repository and create a branch.
+2. Contact **service@taketopits.com** to obtain and sign the CLA.
+3. Open a Pull Request stating that the CLA is signed; we will merge after confirmation.
 
-> 未经 CLA 的贡献无法合并（否则会破坏双授权的版权完整性）。谢谢理解。
+> Contributions without a signed CLA cannot be merged. Thank you for understanding.

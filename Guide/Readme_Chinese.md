@@ -1,143 +1,142 @@
 # TakeTopDSHTeam
 
-TakeTopDSHTeam 把 [DeepSeek Harness] 打造成**团队级、多用户**平台,是一款**网页式的AI协作工作平台**，专为软件开发和办公协作设计。团队成员通过浏览器即可使用 AI 辅助编程、文档编写、任务管理等功能，**团队经验数据可积累和共享**，越用越智能。
+TakeTopDSHTeam turns [DeepSeek Harness] into a **team-ready, multi-user platform**,it is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
-**产品特点**：
-- 🌐 **网页式** —— 基于浏览器，无需安装客户端，随时随地访问。
-- 👥 **多人协作** —— 支持多用户同时在线，每人独立工作区，互不干扰。
-- 📚 **经验积累** —— 团队的对话、文件、任务数据持久化存储，知识可沉淀、可复用。
-- 🚀 **一键安装** —— 拷贝即用，无需编译、无需安装 .NET 运行时。
-- 🖱️ **完全图文界面** —— 所有操作通过鼠标点击完成，体验好，易上手。
+**Key Features**:
+- 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
+- 👥 **Multi-user collaboration** — Multiple users online simultaneously, each with an isolated workspace.
+- 📚 **Experience accumulation** — Conversations, files, and task data are persistently stored; knowledge is reusable.
+- 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
+- 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
 
-> 📌 **说明**：本文档仅包含文字内容，不包含页面图片。最好的体验方式是亲自试用这个软件！
-
----
-
-TakeTopDSHTeam 是一个**团队级、多用户**平台：每个成员通过同一个启动器获得自己隔离的 DSH 实例，内置文件管理、任务分配与分屏工作台。把整个目录拷贝到任意机器即可运行 —— **无需安装、无需编译**。
-
-> **AGPL-3.0。** 本软件以 **GNU AGPL-3.0-or-later** 授权（详见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**20 用户以内免费**，超过 20 用户需购买授权（见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。所有使用必须遵守 AGPL；**不允许闭源商用**。知识产权归 **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)** 所有 —— EMail: service@taketopits.com。保留所有权利。
+> 📌 **Note**: This document contains text only and does not include any screenshots or images. The best way to experience the software is to try it out yourself!
 
 ---
 
-## 核心亮点
+TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
 
-- 🔌 **单一入口、单一端口** —— 一个启动器（`:46001`）代理到每个成员的私有 DSH，对外只暴露一个端口。
-- 👤 **每用户隔离** —— 每位用户在自己的受限 OS 用户 + 沙箱工作区下运行 DSH，跨用户不可访问。
-- 🖥️ **分屏工作台** —— 左栏 = 文件管理 / 我的任务（两个 tab），右栏 = DSH 对话。拖动或点 >> 一键调整 30% ↔ 70%。
-- 📁 **内置文件管理** —— 上传、新建文件夹、树形浏览、压缩/解压、改名、移动、删除、内联预览、下载。
-- ✅ **任务分配** —— 管理员按成员分配任务（富文本 + 图片 + 附件）。任务以 XML 存于各工作区 `TaskData/tasks-<id>.xml`，附件上传到 `TaskData/Doc`。
-- 🌐 **中英双语** —— 按钮、表头、状态、任务表单、登录页全支持 中文 / English 切换。
-- 🧩 **无惧升级** —— 补丁系统在每次 DSH 更新后自动重新应用所有自定义行为。
-- 📦 **跨平台拷贝即用** —— Windows / macOS / Linux（x64 与 arm64），自包含、内置运行时与 Node，目标机无需编译。
-- 🚚 **路径可移植** —— 所有内部路径相对安装根计算，目录移到哪都能跑。
+> **AGPL-3.0.** Licensed under the **GNU AGPL-3.0-or-later** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for up to 20 users**; above 20 users a paid license is required ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). All use must comply with the AGPL; **closed-source commercial use is not permitted**. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
 
 ---
 
-## 快速开始
+## Highlights
+
+- 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to each member's private DSH, so you expose only one public port.
+- 👤 **Per-user isolation** — each user runs DSH under a dedicated OS user + sandboxed workspace; no cross-user access.
+- 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
+- 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
+- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks persist as XML in each workspace (`TaskData/tasks-<id>.xml`), files go to `TaskData/Doc`.
+- 🌐 **i18n** — full Chinese / English UI (buttons, table headers, statuses, task form, login page).
+- 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
+- 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
+- 🚚 **Portable paths** — all internal paths are relative to the install root, so you can move the folder anywhere.
+
+---
+
+## Quick Start
 
 ```
-Windows : 双击 start.bat
+Windows : double-click start.bat
 macOS   : ./start.sh
 Linux   : ./start.sh
 ```
 
-然后打开 `http://127.0.0.1:46001` → 登录 → 点 **打开DSH**。
+Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
-> 请**不要**直接访问 `:46000`（会返回 404）；DSH 需要启动器注入的 token。
+> Do **not** open `:46000` directly (returns 404); DSH needs the `token` that the launcher injects.
 
-完整安装见 [INSTALL.md](INSTALL.md)，使用见 [操作说明.md](操作说明.md)。
+See [Guide/INSTALL_GUIDE_English.md](Guide/INSTALL_GUIDE_English.md) for full setup, and [Guide/USER_GUIDE_English.pdf](Guide/USER_GUIDE_English.pdf) for usage.
 
 ---
 
-## 界面示意图（概念图）
+## Screenshots (conceptual layout)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ TakeTopDSH Team 启动器                           admin (admin)    [语言/EN] │
+│ TakeTopDSH Team Launcher                         admin (admin)    [Lang/EN] │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ [端口 46000] [启动] [停止] [打开DSH]      ● 运行中 (PID 11384)              │
-│ 实例管理:                                                                   │
-│   ******  46002  已停止  [启动][删除][重置密码]                          │
-│   ******    46003  运行中  [打开][停止][删除][重置密码]                    │
+│ [Port 46000] [Start] [Stop] [Open DSH]      ● Running (PID 11384)          │
+│ Instance Manager:                                                            │
+│   ******  46002  Stopped  [Start][Delete][Reset Password]                │
+│   ******    46003  Running  [Open][Stop][Delete][Reset Password]           │
 └──────────────────────────────────────────────────────────────────────────┘
 
-工作台 (/work)：
+Workbench (/work):
 ┌───────────────────────┬───────────────────────────────────────────────────┐
-│ [文件管理][我的任务]                                                       │
-│  ← 左栏（可调整宽度） │        DSH 对话（右栏）                              │
-│   文件资源管理器       │   "探索未至之境…"                                   │
+│ [File Manager][My Tasks]                                                  │
+│  ← left pane (resize) │        DSH chat (right pane)                       │
+│   file explorer       │   "Explore the unknown…"                           │
 └───────────────────────┴───────────────────────────────────────────────────┘
 ```
 
+## Feature Tour
 
-## 功能详解
+### 1. Launcher Console (admin)
+Start/stop the default DSH, edit config (appsettings URL / workspace / default language), and manage every member:
 
-### 1. 启动器控制台（管理员）
-启动/停止默认 DSH、编辑配置（appsettings URL / 工作区 / 缺省语言）、管理每个成员：
+- **Create instance** — auto workspace (`global-workspace/<username>`), dedicated OS user + sandbox.
+- **Start / Stop / Open / Delete / Reset Password** per member.
 
-- **新建实例** —— 自动工作区（`全局工作区/<用户名>`）、专属 OS 用户 + 沙箱。
-- 每个成员的 **启动 / 停止 / 打开 / 删除 / 重置密码**。
+### 2. Workbench (split screen)
+- Click **Open DSH** on a member row (or the launcher's "Open DSH") → split workbench.
+- **Left pane** tabs: **File Manager** and **My Tasks**.
+- Resize: drag the divider, or the ⤢ button toggles 30% ↔ 70%.
 
-### 2. 分屏工作台
-- 在某成员行（或启动器"打开DSH"）点 **打开** → 进入分屏工作台。
-- **左栏** tab：**文件管理** 与 **我的任务**。
-- 调整：拖动分隔条，或 ⤢ 按钮在 30% ↔ 70% 间切换。
+### 3. File Manager
+- Upload, new folder, refresh; tree view with `+`/`-` expand.
+- Per-file actions: zip / unzip / rename / move / delete.
+- Preview inline (images, text, video); non-previewable files prompt to download.
 
-### 3. 文件管理
-- 上传、新建文件夹、刷新；`+`/`-` 展开的树形视图。
-- 每个文件：压缩 / 解压 / 改名 / 移动 / 删除。
-- 内联预览（图片、文本、视频）；不可预览类型提示下载。
+### 4. My Tasks
+Each user sees tasks assigned to them:
 
-### 4. 我的任务
-每位用户查看分配给自己的任务：
+- Task-name link opens a detail popup (rich content; double-click an image for full-screen preview).
+- Related files open/download; images preview directly.
 
-- 点**任务名称**链接弹窗查看详情（富文本；双击图片可全屏预览）。
-- **相关文件**链接打开/下载；图片直接预览。
+### 5. Task Assignment (admin) — `/tasks`
+- Member list on the left; pick a member to see their tasks on the right.
+- **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
+- Tasks stored as **XML** under `<workspace>/TaskData/tasks-<id>.xml`; files uploaded to `<workspace>/TaskData/Doc`.
 
-### 5. 任务分配（管理员）—— `/tasks`
-- 左侧成员列表；选成员后在右侧看其任务。
-- **添加 / 编辑**任务：**类型**、**名称**、**内容**（富文本——加粗/列表/引用，可粘贴或插入图片）、**状态**（处理中 / 完成 / 取消）、**相关文件**（可多选上传）。
-- 任务以 **XML** 存于 `<工作区>/TaskData/tasks-<id>.xml`；附件上传到 `<工作区>/TaskData/Doc`。
-
-### 6. 语言
-控制台、工作台、文件管理、任务分配、任务表单全支持 **中文 / English** 切换；登录页默认使用配置的缺省语言。
+### 6. Language
+Full **Chinese / English** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
 
 ---
 
-## 架构
+## Architecture
 
 ```
-┌────────────┐  :46001   ┌─────────────┐   WebSocket / HTTP 代理
-│   浏览器     │─────────▶│   启动器      │──────────▶ DSH :46000（admin 默认）
-└────────────┘           │  (ASP.NET)   │──────────▶ DSH :46002（jackzhong）
-                          │   多用户      │──────────▶ DSH :46003（ericliu）
-                          └─────────────┘──────────▶ ...
+┌────────────┐  :46001   ┌─────────────┐   WebSocket / HTTP proxy
+│  Browser    │─────────▶│  Launcher    │──────────▶ DSH :46000 (admin default)
+└────────────┘           │  (ASP.NET)   │──────────▶ DSH :46002 (jackzhong)
+                         │  multi-user  │──────────▶ DSH :46003 (ericliu)
+                         └─────────────┘──────────▶ ...
 ```
 
-- 启动器（自包含，目标机无需 .NET）提供 管理页 / 工作台 / 任务分配 界面，并代理 DSH 请求、自动注入 token，用户看不到"认证要求"。
-- 每个 DSH 以**受限 OS 用户**运行，工作区沙箱 + 读取受限。
-- **补丁层**（幂等）在 DSH 升级后自动重新应用启动器自定义。
+- Launcher (self-contained, no .NET needed on target) serves the admin/workspace/tasks UI and proxies DSH requests, injecting the auth token so users never see "authentication required".
+- Each DSH runs under a **restricted OS user** with sandboxed workspace and contained read access.
+- A **patch layer** (idempotent) re-applies launcher customizations after DSH upgrades.
 
 ---
 
-## 平台支持
+## Platform support
 
-| 平台 | Node | @deepseek-ai/dsh 依赖 |
-|------|------|------------------------|
-| Windows x64 | 已内置，离线 | 已内置，离线 |
-| macOS / Linux（x64 与 arm64） | 已内置（tar，离线） | 首次需联网 `npm install` 一次，之后离线 |
+| Platform | Node | @deepseek-ai/dsh deps |
+|----------|------|------------------------|
+| Windows x64 | bundled, offline | bundled, offline |
+| macOS / Linux (x64 & arm64) | bundled (tar, offline) | first-run requires one network `npm install`, then offline |
 
 ---
 
-## 许可证
+## License
 
-本项目以 **GNU AGPL-3.0-or-later** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）。
+This project is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** — see [LICENSE](LICENSE) / [COPYING](COPYING).
 
-- 可免费使用、复制、修改、分发，但须遵守 AGPL；尤其是**第 13 条**：若将修改后的版本作为网络服务运行，必须向使用者提供你修改版本的对应源码。**不允许闭源商用。**
-- **20 用户以内免费**；超过 20 用户需购买授权（联系 service@taketopits.com，见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。
+- You may use, copy, modify and distribute the software provided you comply with the AGPL; in particular **Section 13**: if you run a modified version as a network service, you must offer its users the Corresponding Source of your modified version. **Closed-source commercial use is not permitted.**
+- **Free for organizations with up to 20 users**; above 20 users a paid license is required (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
 
-本软件的知识产权——包括源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)**（EMail: service@taketopits.com）所有。AGPL 授予使用权，但不转移知识产权所有权，知识财产权利仍归版权持有者。
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The AGPL grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
-本产品捆绑的第三方组件仍受其各自许可约束（见 `gui-cs/src/wwwroot/vendor/licenses/` 与 [NOTICE](NOTICE)）。
+Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
-版权所有 (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司(TakeTop Information Technology (Shanghai) Co., Ltd.)，保留所有权利。
+Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
