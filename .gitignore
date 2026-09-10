@@ -27,7 +27,7 @@ mono_crash.*
 /[Ww][Ii][Nn]32/
 /[Aa][Rr][Mm]/
 /[Aa][Rr][Mm]64/
-bld/
+/bld/
 /[Bb]in/
 /[Oo]bj/
 /[Ll]og/
@@ -405,7 +405,7 @@ FodyWeavers.xsd
 
 # ---- TakeTopDSH Team: secrets & per-user runtime data (do NOT publish) ----
 # Per-user DSH instance runtime data (workspaces, sessions, credentials)
-instances/
+/instances/
 # .dsh/.credentials.yaml IS published (ph- placeholder keys, safe to share) so a
 # fresh clone starts DSH with a placeholder API key + random session secret the
 # admin replaces with a real key. Only per-user session data is excluded.
@@ -416,7 +416,7 @@ instances/
 config/instances.json
 config/users.json
 # Internal development session/work logs (not project docs)
-docs/
+/docs/
 # Compiled launcher output — ignore build intermediates but KEEP the self-contained
 # publish folders so a fresh clone runs out of the box without the .NET SDK.
 # start.bat (Windows) uses gui-cs/src/bin/.../publish/; start.sh (Linux/macOS)
@@ -449,8 +449,8 @@ config/users.json
 # ("exists and is not a symlink or dsh-managed module proxy"). Keep the rest of
 # .dsh/profiles (web/ templates, etc.) trackable.
 .dsh/profiles/node_modules/
-instances/
-logs/
+/instances/
+/logs/
 *.log
 # Build output (bin/) is ignored wholesale by the standard [Bb]in/ rule above.
 # The self-contained launcher folder gui-cs/src/bin/Release/net10.0/win-x64/publish/
