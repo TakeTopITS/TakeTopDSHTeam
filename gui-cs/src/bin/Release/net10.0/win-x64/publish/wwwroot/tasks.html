@@ -412,7 +412,14 @@
     $('#fContent').innerHTML = task ? (task.content||'') : '';
     // datetime-local expects "YYYY-MM-DDTHH:mm"; normalize "YYYY-MM-DD HH:mm"
     var at = task ? (task.assignedAt||'') : '';
-    $('#fAssigned').value = at ? at.replace(' ', 'T').slice(0,16) : '';
+    if (at) {
+      $('#fAssigned').value = at.replace(' ', 'T').slice(0,16);
+    } else {
+      // New task: default the assigned time to now (today, current hour:minute).
+      var d = new Date();
+      var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+      $('#fAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
     $('#fStatus').value = task ? (task.status||'processing') : 'processing';
     pendingFiles = (task && task.files) ? task.files.slice() : [];
     $('#fFilesLabel').textContent = '';
