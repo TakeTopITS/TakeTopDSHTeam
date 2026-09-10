@@ -246,6 +246,7 @@
     <h2 data-i18n="updateTitle">更新</h2>
     <div class="row">
       <button id="checkUpdateBtn" class="secondary" data-i18n="checkUpdate">Check Update</button>
+      <button id="applyUpdateBtn" style="display:none;" data-i18n="applyUpdate">升级</button>
       <span id="verInfo" class="muted" style="display:inline-flex;align-items:center;gap:6px;"></span>
     </div>
   </div>
@@ -358,6 +359,7 @@ const I18N = {
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
     browse: "浏览", save: "保存", updateTitle: "更新", checkUpdate: "Check Update", checking: "检查中...", checkFail: "检查失败: ",
+    applyUpdate: "升级", upgrading: "升级中（会重启 DSH）...", upgradeOk: "已升级: ", upgradeFail: "升级失败", applyUpdateConfirm: "将停止并重启所有 DSH 实例，并升级到最新版本。确定继续？",
     logTitle: "日志", clear: "清空", dshRoot: "DSH Root: ",
     configHint: "工作区是 AI 读写文件、执行命令的根目录（服务器上的目录）。点\"浏览\"从服务器目录里选，或手动输入。留空则用 dsh 默认（安装目录）。更改后需重新启动 DSH Web 生效。外部访问地址填反向代理对外的地址（供 dsh 信任代理 Host），留空表示仅本机使用。",
     browseTitle: "选择服务器目录（工作区）", browsePathPh: "当前目录", upDir: "上一级", selectDir: "选定此目录", selfDirDeny: "不能选择 TakeTopDSH 自身的目录", selfDirDenyMsg: "不能以此为工作区（会修改 TakeTopDSH 自身）",
@@ -392,6 +394,7 @@ const I18N = {
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
     browse: "Browse", save: "Save", updateTitle: "Update", checkUpdate: "Check Update", checking: "Checking...", checkFail: "Check failed: ",
+    applyUpdate: "Upgrade", upgrading: "Upgrading (DSH will restart)...", upgradeOk: "Upgraded: ", upgradeFail: "Upgrade failed", applyUpdateConfirm: "This stops and restarts all DSH instances and upgrades to the latest version. Continue?",
     logTitle: "Logs", clear: "Clear", dshRoot: "DSH Root: ",
     configHint: "Workspace is the server directory where AI reads/writes files and runs commands. Click Browse to pick a server folder, or type it. Leave empty to use the dsh default (install dir). Restart DSH Web after changing. External URL is the reverse-proxy public address (lets dsh trust the proxy Host); empty = local only.",
     browseTitle: "Choose a server directory (workspace)", browsePathPh: "Current directory", upDir: "Up", selectDir: "Select this directory", selfDirDeny: "Cannot choose TakeTopDSH's own directory", selfDirDenyMsg: "Cannot use this as workspace (would modify TakeTopDSH itself)",
@@ -654,12 +657,36 @@ async function init() {
   $('#checkUpdateBtn').onclick = async () => {
     const btn = $('#checkUpdateBtn');
     const info = $('#verInfo');
+    const applyBtn = $('#applyUpdateBtn');
     btn.disabled = true;
+    applyBtn.style.display = 'none';
     info.innerHTML = '<span class="spinner"></span> ' + t('checking');  // show spinner + text
     try {
       const res = await fetch('/api/update', { method: 'GET' });
       const u = await res.json();
-      info.textContent = u.latest ? (t('verCur') + u.current + t('verLatest') + u.latest) : (t('verCur') + u.current + t('verNo'));
+      if (u.latest) {
+        info.textContent = t('verCur') + u.current + t('verLatest') + u.latest;
+        if (u.latest !== u.current) applyBtn.style.display = '';   // offer upgrade
+      } else {
+        info.textContent = t('verCur') + u.current + t('verNo');
+      }
+    } catch (e) {
+      info.textContent = t('checkFail') + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  $('#applyUpdateBtn').onclick = async () => {
+    if (!confirm(t('applyUpdateConfirm'))) return;
+    const btn = $('#applyUpdateBtn');
+    const info = $('#verInfo');
+    btn.disabled = true;
+    info.innerHTML = '<span class="spinner"></span> ' + t('upgrading');
+    try {
+      const res = await fetch('/api/update/apply', { method: 'POST' });
+      const u = await res.json();
+      if (u.ok) { info.textContent = t('upgradeOk') + (u.from || '') + ' -> ' + (u.to || ''); btn.style.display = 'none'; }
+      else { info.textContent = (t('upgradeFail') || 'Upgrade failed') + ': ' + (u.error || ''); }
     } catch (e) {
       info.textContent = t('checkFail') + e.message;
     } finally {

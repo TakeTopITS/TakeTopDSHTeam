@@ -57,17 +57,34 @@ public static class DshPatcher
             return report;
         }
 
-        Say(PatchWorkspaceAddRemoval(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-client-ui-workspace", "lib", "client.js")));
-        Say(PatchFsSandbox(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-fs-sandbox", "lib", "index.js")));
-        Say(PatchBashEscalation(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-tool-bash", "lib", "index.js")));
-        Say(PatchPwshEscalation(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-tool-pwsh", "lib", "index.js")));
-        Say(PatchSearchContainment(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-tool-fs-search", "lib", "index.js")));
+        Say(PatchWorkspaceAddRemoval(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-workspace"), "lib", "client.js")));
+        Say(PatchFsSandbox(Path.Combine(ResolvePluginDir(dshPkg, "dsh-fs-sandbox"), "lib", "index.js")));
+        Say(PatchBashEscalation(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-bash"), "lib", "index.js")));
+        Say(PatchPwshEscalation(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-pwsh"), "lib", "index.js")));
+        Say(PatchSearchContainment(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-fs-search"), "lib", "index.js")));
         // PatchSettingsVisibility's second param is `visible` (show=1/hide=0),
         // which is the INVERSE of `hideSettings`. So negate it to keep admins'
         // settings visible when hideSettings=false by default.
-        Say(PatchSettingsVisibility(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-client-ui-settings-general", "lib", "client.js"), !hideSettings));
-        Say(PatchHeroPreview(Path.Combine(dshPkg, "node_modules", "@deepseek-ai", "dsh-client-ui-conversation", "lib", "client.js")));
+        Say(PatchSettingsVisibility(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-settings-general"), "lib", "client.js"), !hideSettings));
+        Say(PatchHeroPreview(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-conversation"), "lib", "client.js")));
         return report;
+    }
+
+    // Resolve a plugin package dir. Depending on the npm version/install, plugins
+    // are either nested under the dsh package OR hoisted next to it at the
+    // top-level node_modules. Check both.
+    private static string ResolvePluginDir(string dshPkg, string pkg)
+    {
+        var nested = Path.Combine(dshPkg, "node_modules", "@deepseek-ai", pkg);
+        if (Directory.Exists(nested)) return nested;
+        var aa = Path.GetDirectoryName(dshPkg);                    // .../node_modules/@deepseek-ai
+        var nm = aa == null ? null : Path.GetDirectoryName(aa);    // .../node_modules
+        if (nm != null)
+        {
+            var hoisted = Path.Combine(nm, "@deepseek-ai", pkg);
+            if (Directory.Exists(hoisted)) return hoisted;
+        }
+        return nested;
     }
 
     // ====== 1) Remove the "添加工作区" affordance from the workspace picker ======
@@ -235,13 +252,20 @@ public static class DshPatcher
     {
         if (!File.Exists(file)) return "[hero-preview] not found";
         var src = File.ReadAllText(file);
-        var old = "\t\t\t\t\t\t\t(0, react_jsx_runtime.jsx)(\"span\", {\n\t\t\t\t\t\t\t\tclassName: HeroShell_module_css_default.previewBadge,\n\t\t\t\t\t\t\t\tchildren: t(\"hero.preview\")\n\t\t\t\t\t\t\t})";
-        var idx = src.IndexOf(old, StringComparison.Ordinal);
-        if (idx < 0)
-            return src.IndexOf("t(\"hero.preview\")", StringComparison.Ordinal) >= 0
-                ? "[hero-preview] source changed (SKIPPED)"
-                : "[hero-preview] already patched";
-        var patched = src.Substring(0, idx) + "null" + src.Substring(idx + old.Length);
+        // Locate the badge expression by its children call, then blank the whole
+        // enclosing span JSX. Indentation-agnostic so upgrades that only change
+        // whitespace still match.
+        var ph = src.IndexOf("children: t(\"hero.preview\")", StringComparison.Ordinal);
+        if (ph < 0)
+            return src.IndexOf("hero.preview", StringComparison.Ordinal) >= 0
+                ? "[hero-preview] already patched"
+                : "[hero-preview] source changed (SKIPPED)";
+        var openMark = "(0, react_jsx_runtime.jsx)(\"span\", {";
+        var open = src.LastIndexOf(openMark, ph, StringComparison.Ordinal);
+        if (open < 0) return "[hero-preview] source changed (SKIPPED) — span open not found";
+        var close = src.IndexOf("})", ph, StringComparison.Ordinal);
+        if (close < 0) return "[hero-preview] source changed (SKIPPED) — span close not found";
+        var patched = src.Substring(0, open) + "null" + src.Substring(close + 2);
         File.WriteAllText(file, patched);
         return "[hero-preview] badge removed";
     }

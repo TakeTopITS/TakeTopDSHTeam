@@ -682,6 +682,68 @@ public class DshService
         catch { return ""; }
     }
 
+    // Install/upgrade @deepseek-ai/dsh to the given version (or "latest") into the
+    // bundled node/ folder. Returns (ok, combined npm output). Callers must stop
+    // the running DSH first so files aren't locked on Windows.
+    //
+    // `npm install` prunes packages that aren't dependencies (which would delete
+    // the bundled npm itself), so we run npm from a temp copy and restore npm
+    // afterwards. Lifecycle scripts are skipped: the bundled npm can't resolve
+    // node-gyp, and DSH is pure JS.
+    public (bool Ok, string Output) InstallLatest(string version)
+    {
+        var node = NodeExe();
+        var nodeDir = Path.Combine(_root, "node");
+        var nmDir = Path.Combine(nodeDir, "node_modules");
+        var npmDir = Path.Combine(nmDir, "npm");
+        var work = Path.Combine(Path.GetTempPath(), "tt-npm-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var npmRun = Path.Combine(work, "npm");
+            CopyDir(npmDir, npmRun);
+            var psi = new ProcessStartInfo
+            {
+                FileName = node,
+                WorkingDirectory = nodeDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add(Path.Combine(npmRun, "bin", "npm-cli.js"));
+            psi.ArgumentList.Add("install");
+            psi.ArgumentList.Add("@deepseek-ai/dsh@" + version);
+            psi.ArgumentList.Add("--no-save");
+            psi.ArgumentList.Add("--no-audit");
+            psi.ArgumentList.Add("--no-fund");
+            psi.ArgumentList.Add("--ignore-scripts");
+            psi.ArgumentList.Add("--loglevel=error");
+            using var p = Process.Start(psi);
+            if (p == null) return (false, "failed to start npm");
+            var outp = p.StandardOutput.ReadToEnd();
+            var err = p.StandardError.ReadToEnd();
+            p.WaitForExit(900000);   // up to 15 minutes
+            var ok = p.HasExited && p.ExitCode == 0;
+            var text = (outp + "\n" + err).Trim();
+            if (!p.HasExited) text = (text + "\nnpm install timed out").Trim();
+            // Restore the bundled npm if the install pruned it.
+            try { if (!Directory.Exists(npmDir) && Directory.Exists(npmRun)) CopyDir(npmRun, npmDir); } catch { }
+            return (ok, text);
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+        finally { try { if (Directory.Exists(work)) Directory.Delete(work, true); } catch { } }
+    }
+
+    private static void CopyDir(string src, string dst)
+    {
+        if (!Directory.Exists(src)) return;
+        Directory.CreateDirectory(dst);
+        foreach (var dir in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(dst, Path.GetRelativePath(src, dir)));
+        foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+            File.Copy(file, Path.Combine(dst, Path.GetRelativePath(src, file)), true);
+    }
+
     private string NodeNpmCli()
     {
         if (OperatingSystem.IsWindows())

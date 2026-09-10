@@ -230,6 +230,43 @@ app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
 });
 app.MapGet("/api/update", () => new { current = dsh.CurrentVersion(), latest = dsh.NpmLatest() });
 
+// Upgrade the bundled DSH to the latest npm version. Admin-only and disruptive:
+// stops the default DSH + all running instances, npm-installs the new version,
+// re-applies our DSH patches, then restarts whatever was running.
+app.MapPost("/api/update/apply", async (HttpContext ctx) =>
+{
+    if (ctx.Items["isAdmin"] as bool? != true)
+        return Results.Json(new { ok = false, error = "需要管理员权限" }, statusCode: 403);
+    var from = dsh.CurrentVersion();
+    var latest = dsh.NpmLatest();
+    if (string.IsNullOrWhiteSpace(latest))
+        return Results.Json(new { ok = false, error = "无法获取最新版本（请检查网络）" }, statusCode: 502);
+    if (latest == from)
+        return Results.Json(new { ok = true, from, to = from, message = "已是最新版本" });
+    var wasRunning = dsh.IsRunning;
+    var restart = new List<string>();
+    try { if (dsh.IsRunning) dsh.Stop(); } catch { }
+    foreach (var inst in instMgr.List())
+        if (inst.Running) { try { instMgr.Stop(inst); restart.Add(inst.Id); } catch { } }
+    dsh.AddLog($"[update] upgrading @deepseek-ai/dsh {from} -> {latest} ...");
+    var (ok, output) = dsh.InstallLatest(latest);
+    foreach (var line in (output ?? "").Split('\n'))
+        if (!string.IsNullOrWhiteSpace(line)) dsh.AddLog("[update] " + line.Trim());
+    if (ok)
+    {
+        try { DshPatcher.ApplyAll(root, hideSettings: false, m => dsh.AddLog("[patch] " + m)); }
+        catch (Exception ex) { dsh.AddLog("[patch] error: " + ex.Message); }
+    }
+    else dsh.AddLog("[update] upgrade FAILED");
+    var to = dsh.CurrentVersion();
+    // Always bring DSH + the previously-running instances back up, even if the
+    // install failed (otherwise we'd leave the platform down).
+    dsh.AddLog($"[update] now at {to}; restarting DSH ...");
+    if (wasRunning) { try { dsh.Start(dsh.DefaultPort()); } catch (Exception ex) { dsh.AddLog("[update] restart error: " + ex.Message); } }
+    foreach (var id in restart) { try { var t = instMgr.Get(id); if (t != null) instMgr.Start(t); } catch { } }
+    return Results.Json(new { ok, from, to, error = ok ? null : "升级失败", log = output }, statusCode: ok ? 200 : 500);
+});
+
 // ---- Instance manager API (multi-user, each instance = user) ----
 app.MapGet("/api/instances", (HttpContext ctx) =>
 {
