@@ -383,7 +383,8 @@ const I18N = {
     fmOpen: "打开", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
     fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败",
     fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录",
-    fileLoading: "加载中…", filePreviewFailed: "预览失败"
+    fileLoading: "加载中…", filePreviewFailed: "预览失败",
+    fileRenameConflict: "名称已存在，请换一个名字：", fileUnzipConflict: "同名文件/文件夹已存在，请输入新的解压文件夹名：", fileMoveConflict: "目标文件夹已有同名文件，请输入新名称："
   },
   en: {
     title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
@@ -416,7 +417,8 @@ const I18N = {
     fmOpen: "Open", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
     fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed",
     fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root",
-    fileLoading: "Loading…", filePreviewFailed: "Preview failed"
+    fileLoading: "Loading…", filePreviewFailed: "Preview failed",
+    fileRenameConflict: "Name already exists, enter another:", fileUnzipConflict: "A file/folder with this name exists; enter a new folder name:", fileMoveConflict: "A file with this name exists in the target folder; enter a new name:"
   }
 };
 
@@ -1549,14 +1551,32 @@ async function fmDrop(ev, row) {
   if (!src || !src.path) return;
   const srcParent = src.path.includes('/') ? src.path.substring(0, src.path.lastIndexOf('/')) : '';
   if (srcParent === target) return;   // already in that folder
-  const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: src.path, toPath: target }) });
-  if (res.ok) {
-    if (target) fmExpanded.add(target);   // reveal the destination so the moved item is visible
-    fmNote(t('fileMoved'));
-  } else {
+  await fmMoveWithConflict(src.path, target);
+}
+
+// Move a file/folder into `toPath`. If a same-name item already exists there,
+// ask the user for a new name and retry (server returns conflict + suggestion).
+async function fmMoveWithConflict(srcPath, toPath) {
+  let newName = '';
+  while (true) {
+    const body = { path: srcPath, toPath: toPath };
+    if (newName) body.newName = newName;
+    const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) {
+      if (toPath) fmExpanded.add(toPath);   // reveal the destination so the moved item is visible
+      fmNote(t('fileMoved'));
+      await fmLoad(true);
+      return;
+    }
+    if (res.data && res.data.conflict) {
+      const input = prompt(t('fileMoveConflict'), res.data.suggestion || '');
+      if (!input || !input.trim()) return;
+      newName = input.trim();
+      continue;
+    }
     fmNote(res.data.error || t('fileError'), true);
+    return;
   }
-  await fmLoad(true);
 }
 // Allow dragging a task name from the "My Tasks" list into the DSH composer.
 function fmTaskDragStart(ev) {
@@ -1598,18 +1618,51 @@ async function fmAction(act, row) {
     const res = await fmRequest('POST', '/api/files/delete', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
     if (res.ok) { fmNote(t('fileDeleted')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'rename') {
-    const n = prompt(t('fileRenameTo'), name);
+    let n = prompt(t('fileRenameTo'), name);
     if (!n || n === name) return;
     const lastSlash = path.lastIndexOf('/');
     const parent = lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '';
-    const res = await fmRequest('POST', '/api/files/rename', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, newPath: parent + n }) });
-    if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
+    while (true) {
+      const res = await fmRequest('POST', '/api/files/rename', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, newPath: parent + n }) });
+      if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(true); return; }
+      if (res.status === 409) { const again = prompt(t('fileRenameConflict'), n); if (!again) return; n = again; continue; }
+      fmNote(res.data.error || t('fileError'), true);
+      return;
+    }
   } else if (act === 'zip') {
     const res = await fmRequest('POST', '/api/files/zip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
     if (res.ok) { fmNote(t('fileZipped')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'unzip') {
-    const res = await fmRequest('POST', '/api/files/unzip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileUnzipped')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
+    await fmUnzip(path);
+  }
+}
+
+// Unzip with conflict resolution: if the target folder name is already taken,
+// ask the user for a new name until it succeeds (or the user cancels).
+async function fmUnzip(path) {
+  let targetName = '';
+  while (true) {
+    const body = targetName ? { path: path, targetName: targetName } : { path: path };
+    const res = await fmRequest('POST', '/api/files/unzip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) {
+      // Reveal the freshly created folder (which sits next to the .zip) and show
+      // its path so the user can see exactly where it went.
+      const slash = path.lastIndexOf('/');
+      const parentRel = slash >= 0 ? path.substring(0, slash) : '';
+      const folderRel = parentRel ? parentRel + '/' + res.data.name : res.data.name;
+      if (folderRel) fmExpanded.add(folderRel);
+      fmNote(t('fileUnzipped') + ': /' + folderRel);
+      await fmLoad(true);
+      return;
+    }
+    if (res.data && res.data.conflict) {
+      const input = prompt(t('fileUnzipConflict'), res.data.suggestion || '');
+      if (!input || !input.trim()) return;
+      targetName = input.trim();
+      continue;
+    }
+    fmNote(res.data.error || t('fileError'), true);
+    return;
   }
 }
 

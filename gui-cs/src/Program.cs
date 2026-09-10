@@ -446,6 +446,22 @@ string SafeResolve(string root, string? rel)
     return abs;
 }
 
+// Find a free sibling name like "name (1).ext" — used when unzip's target
+// folder name is already taken by an existing file or directory.
+static string SuggestName(string parentDir, string name)
+{
+    var ext = Path.GetExtension(name);
+    var stem = Path.GetFileNameWithoutExtension(name);
+    if (string.IsNullOrEmpty(stem)) stem = name;
+    for (var i = 1; i < 100000; i++)
+    {
+        var cand = stem + " (" + i + ")" + ext;
+        if (!File.Exists(Path.Combine(parentDir, cand)) && !Directory.Exists(Path.Combine(parentDir, cand)))
+            return cand;
+    }
+    return stem + " (" + Guid.NewGuid().ToString("N")[..6] + ")" + ext;
+}
+
 // Return top-level entries (dirs first, then files, both sorted) for a listing.
 static IReadOnlyList<object> BuildFileEntries(string absDir)
 {
@@ -552,7 +568,9 @@ app.MapPost("/api/files/rename", (FileRenameRequest req, HttpContext ctx) =>
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
 });
 
-// Move a file/directory to a target (destination may be a directory).
+// Move a file/directory into a target directory. If the destination name is
+// already taken, return a conflict + a suggested free name so the UI can ask the
+// user to rename (NewName overrides the destination base name).
 app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
@@ -562,23 +580,25 @@ app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
         var src = SafeResolve(ws, req.Path);
         var dst = SafeResolve(ws, req.ToPath);
         if (!File.Exists(src) && !Directory.Exists(src)) return Results.Json(new { ok = false, error = "源不存在" }, statusCode: 404);
-        // If dst is an existing directory, move INTO it keeping the name.
-        if (Directory.Exists(dst))
-        {
-            var name = Path.GetFileName(src);
-            dst = Path.Combine(dst, name);
-        }
+        // ToPath may itself be a directory (drop onto a folder); otherwise it is a
+        // full destination path and we use its directory.
+        var targetDir = Directory.Exists(dst) ? dst : Path.GetDirectoryName(dst)!;
+        var newName = string.IsNullOrWhiteSpace(req.NewName) ? Path.GetFileName(src) : req.NewName!.Trim();
+        if (newName.IndexOfAny(new[] { '/', '\\' }) >= 0 || newName is "." or "..")
+            return Results.Json(new { ok = false, error = "名称非法" }, statusCode: 400);
+        var finalDst = Path.Combine(targetDir, newName);
         // Moving onto itself (same folder it already lives in) is a no-op, not a conflict.
-        if (string.Equals(dst.TrimEnd(Path.DirectorySeparatorChar), src.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(finalDst.TrimEnd(Path.DirectorySeparatorChar), src.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
             return Results.Json(new { ok = false, error = "源和目标相同" }, statusCode: 400);
         // Refuse to move a directory into its own subtree.
         if (Directory.Exists(src) &&
-            dst.StartsWith(src.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            finalDst.StartsWith(src.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             return Results.Json(new { ok = false, error = "不能移动到自身子目录" }, statusCode: 400);
-        if (File.Exists(dst) || Directory.Exists(dst)) return Results.Json(new { ok = false, error = "目标已存在" }, statusCode: 409);
-        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
-        if (File.Exists(src)) File.Move(src, dst);
-        else Directory.Move(src, dst);
+        if (File.Exists(finalDst) || Directory.Exists(finalDst))
+            return Results.Json(new { ok = false, conflict = true, target = newName, suggestion = SuggestName(targetDir, newName) }, statusCode: 409);
+        System.IO.Directory.CreateDirectory(targetDir);
+        if (File.Exists(src)) File.Move(src, finalDst);
+        else Directory.Move(src, finalDst);
         return Results.Ok(new { ok = true });
     }
     catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
@@ -626,7 +646,10 @@ app.MapPost("/api/files/zip", (FileOpRequest req, HttpContext ctx) =>
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
 });
 
-// Extract a zip archive into a sibling folder named after the archive.
+// Extract a zip archive into a SAME-NAME folder placed NEXT TO the archive
+// (i.e. the new folder is created in the same directory as the .zip). If that
+// folder name is already taken (by a file OR a folder), return a conflict plus a
+// suggested free name so the UI can ask the user to rename the target folder.
 app.MapPost("/api/files/unzip", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
@@ -636,11 +659,17 @@ app.MapPost("/api/files/unzip", (FileOpRequest req, HttpContext ctx) =>
         var abs = SafeResolve(ws, req.Path);
         if (!File.Exists(abs) || !abs.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             return Results.Json(new { ok = false, error = "不是 zip 文件" }, statusCode: 400);
-        var target = Path.Combine(Path.GetDirectoryName(abs)!, Path.GetFileNameWithoutExtension(abs));
-        if (Directory.Exists(target)) return Results.Json(new { ok = false, error = "解压目录已存在" }, statusCode: 409);
+        var parent = Path.GetDirectoryName(abs)!;                 // same directory as the .zip
+        var baseName = Path.GetFileNameWithoutExtension(abs);
+        var targetName = string.IsNullOrWhiteSpace(req.TargetName) ? baseName : req.TargetName!.Trim();
+        if (targetName.IndexOfAny(new[] { '/', '\\' }) >= 0 || targetName is "." or "..")
+            return Results.Json(new { ok = false, error = "名称非法" }, statusCode: 400);
+        var target = Path.Combine(parent, targetName);
+        if (File.Exists(target) || Directory.Exists(target))
+            return Results.Json(new { ok = false, conflict = true, target = targetName, suggestion = SuggestName(parent, targetName) }, statusCode: 409);
         Directory.CreateDirectory(target);
         System.IO.Compression.ZipFile.ExtractToDirectory(abs, target);
-        return Results.Ok(new { ok = true, name = Path.GetFileName(target) });
+        return Results.Ok(new { ok = true, name = targetName });
     }
     catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
     catch (System.IO.InvalidDataException ex) { return Results.Json(new { ok = false, error = "解压失败: " + ex.Message }, statusCode: 400); }
@@ -2135,9 +2164,9 @@ record LoginRequest(string? Username, string? Password);
 record CreateInstanceRequest(string? Id, string? Name, string? Workspace, string? Password);
 record ChangePasswordRequest(string? OldPassword, string? NewPassword);
 record ResetPasswordRequest(string? Username, string? NewPassword);
-record FileOpRequest(string? Path = null);
+record FileOpRequest(string? Path = null, string? TargetName = null);
 record FileRenameRequest(string? Path = null, string? NewPath = null);
-record FileMoveRequest(string? Path = null, string? ToPath = null);
+record FileMoveRequest(string? Path = null, string? ToPath = null, string? NewName = null);
 record FileEntryInfo(string Name, string Type, long Size, DateTime Mtime);
 // A configured UI language: display label + the code actually applied.
 public record LanguageItem(string Label, string Code);
