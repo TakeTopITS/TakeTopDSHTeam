@@ -383,7 +383,7 @@ const I18N = {
     myInstTitle: "我的实例", myInstStarting: "启动中...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
     fmHint: "右键文件/文件夹可操作；也可以拖动文件到另一位置或把文件名拖到右边的 AI 对话框中",
-    fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动",
+    fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动", fileRefreshed: "已刷新",
     fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
     fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
     fmOpen: "打开", fmDownload: "下载", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
@@ -417,7 +417,7 @@ const I18N = {
     myInstTitle: "My Instance", myInstStarting: "Starting...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
     fmHint: "right-click a file/folder for actions; you can also drag a file to another location or drag its name into the ai dialog on the right",
-    fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved",
+    fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved", fileRefreshed: "Refreshed",
     fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
     fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
     fmOpen: "Open", fmDownload: "Download", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
@@ -1223,7 +1223,12 @@ async function initFileManager() {
     else fmNote(res.data.error || t('fileError'), true);
     $('#fmFileInput').value = '';
   };
-  $('#fmRefreshBtn').onclick = () => fmLoad(true);
+  $('#fmRefreshBtn').onclick = async () => {
+    const btn = $('#fmRefreshBtn');
+    btn.disabled = true;
+    try { await fmLoad(true); fmNote(t('fileRefreshed') || 'Refreshed'); }
+    finally { btn.disabled = false; }
+  };
   $('#fmNewFolderBtn').onclick = () => {
     const name = prompt(t('fileNewFolder') + ':');
     if (!name) return;
