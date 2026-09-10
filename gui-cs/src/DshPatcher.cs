@@ -67,6 +67,7 @@ public static class DshPatcher
         // settings visible when hideSettings=false by default.
         Say(PatchSettingsVisibility(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-settings-general"), "lib", "client.js"), !hideSettings));
         Say(PatchHeroPreview(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-conversation"), "lib", "client.js")));
+        Say(PatchSandboxModeLock(Path.Combine(ResolvePluginDir(dshPkg, "dsh-sandbox-policy"), "lib", "index.js")));
         return report;
     }
 
@@ -117,47 +118,47 @@ public static class DshPatcher
         return "[workspace] applied (add-workspace removed)";
     }
 
-    // ====== 2) fs-sandbox read containment ======
+    // ====== 2) fs-sandbox read/list containment ======
     private static string PatchFsSandbox(string file)
     {
         if (!File.Exists(file)) return "[fs-sandbox] not found";
         var src = File.ReadAllText(file);
-        // v2: out-of-workspace `stat` probes must return "not found" (not throw), so
-        // benign lookups like git walking up to a parent .git don't fail the turn.
-        // Actual reads (readText/streamText) still throw for out-of-workspace paths.
-        var newStat = "async stat(target, signal) { try { await this.enforceContained(target); } catch (e) { if (e?.code === \"FS_SANDBOX_DENIED\") return undefined; throw e; } return super.stat(target, signal); }";
-        var oldStat = "async stat(target, signal) { await this.enforceContained(target); return super.stat(target, signal); }";
-        if (src.IndexOf(newStat, StringComparison.Ordinal) >= 0) return "[fs-sandbox] already patched";
-        if (src.IndexOf(oldStat, StringComparison.Ordinal) >= 0)
+        // v3: guard stat + readText + streamText + listDir against out-of-workspace
+        // paths. `stat` returns "not found" for outside probes (so git walking up to a
+        // parent .git doesn't fail the turn); reads and directory listing still throw.
+        // Replaces any older v1/v2 injected block.
+        var block = "// --- READ CONTAINMENT PATCH v3 ---\n" +
+            "\t\t\t\tasync stat(target, signal) { try { await this.enforceContained(target); } catch (e) { if (e?.code === \"FS_SANDBOX_DENIED\") return undefined; throw e; } return super.stat(target, signal); }\n" +
+            "\t\t\t\tasync readText(target, signal) { await this.enforceContained(target); return super.readText(target, signal); }\n" +
+            "\t\t\t\tstreamText(target, signal) { const sup = super.streamText(target, signal); return this.enforceContained(target).then(() => sup); }\n" +
+            "\t\t\t\tasync listDir(target, signal) { await this.enforceContained(target); return super.listDir(target, signal); }\n" +
+            "\t\t\t\tasync enforceContained(target) {\n" +
+            "\t\t\t\t\ttry {\n" +
+            "\t\t\t\t\t\tconst policy = this.ctx.sandboxPolicy?.resolve?.();\n" +
+            "\t\t\t\t\t\tconst root = policy?.workspaceRoot;\n" +
+            "\t\t\t\t\t\tif (root && !(await isPathUnder(target.targetKey, root))) {\n" +
+            "\t\t\t\t\t\t\tthrow new FsError(`cannot access ${JSON.stringify(target.displayPath)}: outside the sandboxed workspace`, \"FS_SANDBOX_DENIED\");\n" +
+            "\t\t\t\t\t\t}\n" +
+            "\t\t\t\t\t} catch (e) { if (e?.code === \"FS_SANDBOX_DENIED\") throw e; }\n" +
+            "\t\t\t\t}\n";
+        if (src.IndexOf("READ CONTAINMENT PATCH v3", StringComparison.Ordinal) >= 0) return "[fs-sandbox] already patched";
+        var startMarker = "// --- READ CONTAINMENT PATCH";
+        if (src.IndexOf(startMarker, StringComparison.Ordinal) >= 0)
         {
-            File.WriteAllText(file, src.Replace(oldStat, newStat));
-            return "[fs-sandbox] upgraded (outside stat probes return not-found)";
+            var a = src.IndexOf(startMarker, StringComparison.Ordinal);
+            var b = src.IndexOf("\n\t/**", a, StringComparison.Ordinal);
+            if (b < 0) return "[fs-sandbox] source changed (SKIPPED) — end marker not found";
+            File.WriteAllText(file, src.Substring(0, a) + block + src.Substring(b + 1));
+            return "[fs-sandbox] upgraded (v3: guard stat/readText/listDir)";
         }
-        if (src.IndexOf("async enforceContained(target)", StringComparison.Ordinal) >= 0)
-            return "[fs-sandbox] already patched";
         var marker = "\tget sandboxMode() {\n\t\treturn this.defaultMode;\n\t}";
         if (src.IndexOf(marker, StringComparison.Ordinal) < 0)
             return "[fs-sandbox] source changed (SKIPPED) — sandboxMode marker not found";
-        var inject = $$"""
-				// --- READ CONTAINMENT PATCH ---
-				{{newStat}}
-				async readText(target, signal) { await this.enforceContained(target); return super.readText(target, signal); }
-				streamText(target, signal) { const sup = super.streamText(target, signal); return this.enforceContained(target).then(() => sup); }
-				async enforceContained(target) {
-					try {
-						const policy = this.ctx.sandboxPolicy?.resolve?.();
-						const root = policy?.workspaceRoot;
-						if (root && !(await isPathUnder(target.targetKey, root))) {
-							throw new FsError(`cannot access ${JSON.stringify(target.displayPath)}: outside the sandboxed workspace`, "FS_SANDBOX_DENIED");
-						}
-					} catch (e) { if (e?.code === "FS_SANDBOX_DENIED") throw e; }
-				}
-				""";
-        var patched = src.Replace(marker, marker + inject);
+        var patched = src.Replace(marker, marker + "\n" + block);
         if (string.Equals(patched, src, StringComparison.Ordinal))
             return "[fs-sandbox] source changed (SKIPPED)";
         File.WriteAllText(file, patched);
-        return "[fs-sandbox] applied (read containment)";
+        return "[fs-sandbox] applied (v3: read/list containment)";
     }
 
     // ====== 3) bash sandbox escalation disabled ======
@@ -279,5 +280,22 @@ public static class DshPatcher
         var patched = src.Substring(0, open) + "null" + src.Substring(close + 2);
         File.WriteAllText(file, patched);
         return "[hero-preview] badge removed";
+    }
+
+    // ====== 8) Lock the sandbox mode to workspace-write ======
+    // The UI's "Full access" (danger-full-access) override would disable the sandbox
+    // and let the model read/write outside the workspace (e.g. list C:\). Force the
+    // resolved mode to workspace-write so the boundary always holds.
+    private static string PatchSandboxModeLock(string file)
+    {
+        if (!File.Exists(file)) return "[sandbox-mode] not found";
+        var src = File.ReadAllText(file);
+        var newLine = "\t\t\tmode: \"workspace-write\", // PATCH: sandbox mode locked (no full-access)";
+        if (src.IndexOf(newLine, StringComparison.Ordinal) >= 0) return "[sandbox-mode] already patched";
+        var oldLine = "\t\t\tmode: request.mode ?? (session === void 0 ? void 0 : this.overrideOf(session)) ?? this.defaultMode,";
+        if (src.IndexOf(oldLine, StringComparison.Ordinal) < 0)
+            return "[sandbox-mode] source changed (SKIPPED) — mode line not found";
+        File.WriteAllText(file, src.Replace(oldLine, newLine));
+        return "[sandbox-mode] applied (locked to workspace-write)";
     }
 }

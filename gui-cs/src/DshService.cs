@@ -283,6 +283,22 @@ public class DshService
             sb.AppendLine($"    cwd: {normalized}");
             sb.AppendLine("    mode: workspace-write");
             sb.AppendLine();
+            // Disable every shell/terminal tool: arbitrary commands can read any host
+            // file, and there is no reliable OS-level sandbox on Windows here, so the
+            // only enforcement that holds is to keep the agent on the (sandboxed) fs
+            // tools. Applies to the admin default too.
+            sb.AppendLine("- id: tool-bash");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
+            sb.AppendLine("- id: tool-pwsh");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
+            sb.AppendLine("- id: tool-bash-persistent");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
+            sb.AppendLine("- id: tool-pwsh-persistent");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
 
             // System prompt persona: restrict file access for non-admin users.
             sb.AppendLine("- id: system-prompt");

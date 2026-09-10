@@ -11,6 +11,18 @@
     cwd: E:/WorkBuddy/WorkSpace
     mode: workspace-write
 
+- id: tool-bash
+  disabled: true
+
+- id: tool-pwsh
+  disabled: true
+
+- id: tool-bash-persistent
+  disabled: true
+
+- id: tool-pwsh-persistent
+  disabled: true
+
 - id: system-prompt
   config:
     persona: >-

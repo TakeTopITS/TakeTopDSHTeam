@@ -345,10 +345,12 @@ app.MapPost("/api/instances/{id}/start", (string id, HttpContext ctx) =>
     // launching dsh under a fresh user profile) to a background task so the HTTP
     // request returns immediately instead of blocking ~60s on a first boot. The
     // UI polls instance state and shows "启动中" until running becomes true.
+    inst.Starting = true;
     _ = Task.Run(() =>
     {
         try { instMgr.Start(inst); }
         catch (Exception ex) { inst.Logs.Enqueue("[start] " + ex.Message); }
+        finally { inst.Starting = false; }
     });
     return Results.Ok(new { ok = true, accepted = true, dshPort = inst.DshPort });
 });
@@ -834,6 +836,37 @@ static string MimeOf(string ext)
         ".mp4" => "video/mp4", ".mp3" => "audio/mpeg", ".wav" => "audio/wav", ".exe" or ".dll" => "application/octet-stream",
         _ => "application/octet-stream"
     };
+}
+
+// Serve the "DSH is starting up" spinner page (auto-refreshes every 3s). Used when a
+// proxied DSH (the default one or a per-user instance) isn't ready yet, so users see
+// a friendly wait page instead of a raw "connection refused" proxy error.
+static async Task WriteDshStarting(HttpContext ctx)
+{
+    ctx.Response.StatusCode = 200;
+    ctx.Response.ContentType = "text/html; charset=utf-8";
+    var lang = "en";
+    if (ctx.Request.Cookies.TryGetValue("tt_lang", out var lv) && !string.IsNullOrEmpty(lv)) lang = lv;
+    var isZh = lang.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+    var msg = isZh ? "DSH 正在启动中，请稍候..." : "DSH is starting up, please wait...";
+    var sub = isZh
+        ? "首次打开 DSH 需要稍等片刻，加载完成后，下次即可即时打开。"
+        : "The first time you open DSH it may take a moment to start; after that it opens instantly.";
+    var hint = isZh ? "页面每 3 秒自动刷新。" : "Page will auto-refresh every 3 seconds.";
+    var html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+        "<style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui,sans-serif;background:#f8f9fa}" +
+        ".box{text-align:center;color:#555}" +
+        ".spinner{width:48px;height:48px;border:5px solid #e0e0e0;border-top-color:#4a90d9;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}" +
+        "@keyframes spin{to{transform:rotate(360deg)}}" +
+        "p{margin:8px 0;font-size:15px}.hint{font-size:13px;color:#999;margin-top:12px}" +
+        "</style></head><body>" +
+        "<div class=\"box\"><div class=\"spinner\"></div>" +
+        "<p>" + msg + "</p>" +
+        "<p class=\"hint\">" + sub + "</p>" +
+        "<p class=\"hint\">" + hint + "</p>" +
+        "</div><script>setTimeout(function(){location.reload()},3000)</script>" +
+        "</body></html>";
+    await ctx.Response.WriteAsync(html);
 }
 
 // ================= Tasks (任务分配) =================
@@ -1486,7 +1519,7 @@ app.Use(async (ctx, next) =>
         if (!string.IsNullOrEmpty(reqInstance))
         {
             var inst2 = instMgr.Get(reqInstance);
-            if (inst2 == null || !inst2.Running)
+            if (inst2 == null || (!inst2.Running && !inst2.Starting))
             {
                 ctx.Response.StatusCode = 503;
                 ctx.Response.ContentType = "text/plain; charset=utf-8";
@@ -1494,6 +1527,9 @@ app.Use(async (ctx, next) =>
                 return;
             }
             proxyPort = inst2.DshPort;
+            // The instance's DSH may still be starting up. Show the "starting" spinner
+            // (auto-refresh) instead of a raw proxy/connection error.
+            if (!DshService.IsDshReady(proxyPort)) { await WriteDshStarting(ctx); return; }
             workspaceId = ReadWorkspaceId(inst2.DshHome);
             var t2 = inst2.TokenUrl;
             if (!string.IsNullOrEmpty(t2) && t2.IndexOf("token=", StringComparison.Ordinal) >= 0)
@@ -2116,6 +2152,12 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
     {
         if (!ctx.Response.HasStarted)
         {
+            // Connection failures (target DSH down/still starting) → friendly spinner.
+            if (ex is System.Net.Http.HttpRequestException || ex.InnerException is System.Net.Sockets.SocketException)
+            {
+                await WriteDshStarting(ctx);
+                return;
+            }
             ctx.Response.StatusCode = 502;
             ctx.Response.ContentType = "text/plain; charset=utf-8";
             await ctx.Response.WriteAsync($"proxied request failed: {ex.Message}");

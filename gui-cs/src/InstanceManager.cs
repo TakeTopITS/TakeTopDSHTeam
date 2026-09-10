@@ -32,6 +32,10 @@ public class InstanceManager
         public int LauncherMarker { get; set; } = 0;  // not used; dsh uses --port
         public bool Running { get; set; }
 
+        // True while a start (OS user + process launch) is in progress. Not persisted;
+        // used by the proxy to show a "starting" page instead of a "not running" error.
+        [JsonIgnore] public bool Starting { get; set; }
+
         [JsonIgnore] public Process? Proc { get; set; }
         [JsonIgnore] public ConcurrentQueue<string> Logs { get; } = new();
         public string TokenUrl { get; set; } = "";
@@ -766,12 +770,20 @@ public class InstanceManager
             sb.AppendLine($"    cwd: {norm}");
             sb.AppendLine("    mode: workspace-write");
             sb.AppendLine();
-            // Disable the bash tool for non-admin/per-user instances: arbitrary
-            // shell commands can read any host file, and no reliable OS-level
-            // sandbox is available on Windows here (OS-user isolation was
-            // abandoned). Confining the agent to the fs tools keeps reads and
-            // writes inside the workspace.
+            // Disable every shell/terminal tool for per-user instances: arbitrary
+            // shell commands can read any host file, and no reliable OS-level sandbox
+            // is available on Windows here. Confining the agent to the fs tools keeps
+            // reads and writes inside the workspace.
             sb.AppendLine("- id: tool-bash");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
+            sb.AppendLine("- id: tool-pwsh");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
+            sb.AppendLine("- id: tool-bash-persistent");
+            sb.AppendLine("  disabled: true");
+            sb.AppendLine();
+            sb.AppendLine("- id: tool-pwsh-persistent");
             sb.AppendLine("  disabled: true");
             sb.AppendLine();
             // Auto-select user's workspace so they don't need to pick it manually.
