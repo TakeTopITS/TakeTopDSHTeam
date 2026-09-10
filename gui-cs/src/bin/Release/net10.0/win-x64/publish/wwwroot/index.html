@@ -92,6 +92,12 @@
   .fm-act:hover { background:#dbe2ea; }
   .fm-act:disabled { opacity:.4; cursor:not-allowed; background:#f1f3f6; color:#9aa4b2; }
   .fm-act.fm-danger { background:#fee2e2; color:#b91c1c; }
+  .fm-ctx { position:fixed; z-index:10060; background:#fff; border:1px solid #d5d9df; border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.18); padding:4px; min-width:150px; }
+  .fm-ctx button { display:block; width:100%; text-align:left; padding:7px 12px; border:0; background:transparent; color:#1c1e21; cursor:pointer; border-radius:5px; font-size:13px; font-family:inherit; }
+  .fm-ctx button:hover { background:#eef4ff; }
+  .fm-ctx button.danger { color:#b91c1c; }
+  .fm-ctx button.danger:hover { background:#fee2e2; }
+  .fm-ctx .sep { height:1px; background:#eef0f3; margin:4px 2px; }
   .fm-act.fm-danger:hover { background:#fecaca; }
   .fm-md { line-height:1.6; color:#1f2937; }
   .fm-md pre, .fm-md code { background:#f3f4f6; border-radius:4px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
@@ -376,11 +382,11 @@ const I18N = {
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
     myInstTitle: "我的实例", myInstStarting: "启动中...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
-    fmHint: "可以把文件名拖到右边的 AI 对话框中",
+    fmHint: "右键文件/文件夹可操作；也可以拖动文件到另一位置或把文件名拖到右边的 AI 对话框中",
     fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动",
     fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
     fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
-    fmOpen: "打开", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
+    fmOpen: "打开", fmDownload: "下载", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
     fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败",
     fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录",
     fileLoading: "加载中…", filePreviewFailed: "预览失败",
@@ -410,11 +416,11 @@ const I18N = {
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
     myInstTitle: "My Instance", myInstStarting: "Starting...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
-    fmHint: "you can drag a file name into the ai dialog on the right",
+    fmHint: "right-click a file/folder for actions; you can also drag a file to another location or drag its name into the ai dialog on the right",
     fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved",
     fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
     fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
-    fmOpen: "Open", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
+    fmOpen: "Open", fmDownload: "Download", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
     fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed",
     fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root",
     fileLoading: "Loading…", filePreviewFailed: "Preview failed",
@@ -1468,22 +1474,17 @@ function fmRenderRow(e, fpath, parentPrefix) {
   const size = isDir ? '' : ' <span class="muted">' + fmtSize(e.size) + '</span>';
   const isExpanded = isDir && fmExpanded.has(fpath);
   const glyph = isDir ? (isExpanded ? '-' : '+') : '';   // +/- collapse toggle
-  const openAct = isDir
-    ? '<button class="fm-act" data-act="open" disabled title="' + t('fmOpen') + '">' + t('fmOpen') + '</button>'
-    : '<button class="fm-act" data-act="open" title="' + t('fmOpen') + '">' + t('fmOpen') + '</button>';
   const rowDepth = parentPrefix === '' ? 0 : parentPrefix.split('/').length;
   const pad = rowDepth > 0 ? 'padding-left:' + (rowDepth * 22) + 'px;' : '';
-  return rowHtml(icon, e.name, fpath, e.type, size,
-    { style: pad, glyph: glyph, actions: openAct
-      + '<button class="fm-act" data-act="zip" title="' + t('fmZip') + '">' + t('fmZip') + '</button>'
-      + (isDir ? '' : (/\.zip$/i.test(e.name) ? '<button class="fm-act" data-act="unzip" title="' + t('fmUnzip') + '">' + t('fmUnzip') + '</button>' : ''))
-      + '<button class="fm-act" data-act="rename" title="' + t('fmRename') + '">' + t('fmRename') + '</button>'
-      + '<button class="fm-act fm-danger" data-act="delete" title="' + t('fmDelete') + '">' + t('fmDelete') + '</button>' });
+  // No inline action buttons: actions live in the right-click context menu.
+  return rowHtml(icon, e.name, fpath, e.type, size, { style: pad, glyph: glyph });
 }
 
 function bindDirBehavior(box) {
-  box.querySelectorAll('.fm-row .fm-act').forEach(btn => {
-    btn.onclick = (ev) => { ev.stopPropagation(); fmAction(btn.dataset.act, btn.closest('.fm-row')); };
+  // Right-click a file/folder row to open the action menu (Open/Download/Zip/...).
+  box.querySelectorAll('.fm-row').forEach(row => {
+    if (row.dataset.root === '1' || !row.dataset.type) return;
+    row.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); fmOpenRowMenu(ev, row); };
   });
   // Clicking the +/- glyph toggles expansion WITHOUT selecting the dir.
   box.querySelectorAll('.fm-row .fm-glyph').forEach(g => {
@@ -1506,12 +1507,63 @@ function bindDirBehavior(box) {
   });
 }
 
+// ---- Right-click context menu for file / folder rows ----
+var fmCtxMenu = null;
+function fmCloseRowMenu() {
+  if (fmCtxMenu) { try { fmCtxMenu.remove(); } catch (e) { } fmCtxMenu = null; }
+}
+function fmRowMenuItems(row) {
+  const type = row.dataset.type;
+  const name = row.dataset.name || '';
+  const items = [];
+  if (type === 'file') {
+    items.push({ act: 'open', label: t('fmOpen') });
+    items.push({ act: 'download', label: t('fmDownload') });   // every file is downloadable
+    items.push({ act: 'zip', label: t('fmZip') });
+    if (/\.zip$/i.test(name)) items.push({ act: 'unzip', label: t('fmUnzip') });
+  } else {
+    items.push({ act: 'zip', label: t('fmZip') });
+  }
+  items.push({ sep: true });
+  items.push({ act: 'rename', label: t('fmRename') });
+  items.push({ act: 'delete', label: t('fmDelete'), danger: true });
+  return items;
+}
+function fmOpenRowMenu(ev, row) {
+  fmCloseRowMenu();
+  const menu = document.createElement('div');
+  menu.className = 'fm-ctx';
+  fmRowMenuItems(row).forEach(function (it) {
+    if (it.sep) { const s = document.createElement('div'); s.className = 'sep'; menu.appendChild(s); return; }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
+    if (it.danger) b.className = 'danger';
+    b.onclick = function (e) { e.stopPropagation(); fmCloseRowMenu(); fmAction(it.act, row); };
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const r = menu.getBoundingClientRect();
+  let x = ev.clientX, y = ev.clientY;
+  if (x + r.width > vw - 4) x = vw - r.width - 4;
+  if (y + r.height > vh - 4) y = vh - r.height - 4;
+  menu.style.left = Math.max(4, x) + 'px';
+  menu.style.top = Math.max(4, y) + 'px';
+  fmCtxMenu = menu;
+}
+document.addEventListener('click', function () { fmCloseRowMenu(); });
+document.addEventListener('contextmenu', function (ev) { if (!ev.target.closest || !ev.target.closest('.fm-row')) fmCloseRowMenu(); });
+document.addEventListener('scroll', function () { fmCloseRowMenu(); }, true);
+document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fmCloseRowMenu(); });
+
 function rowHtml(icon, name, fpath, type, size, extra) {
   const glyph = extra && extra.glyph;
+  const acts = (extra && extra.actions) || '';
   return '<div class="fm-row fm-' + type + '" data-path="' + escp(fpath) + '" data-type="' + type + '" data-name="' + escp(name) + '"'
        + ' draggable="true" ondragstart="fmDragStart(event)" ondragend="fmDragEnd()" style="' + (extra && extra.style || '') + '">'
        + '<span class="fm-name"><span class="fm-glyph" data-glyph="1">' + (glyph || '\u00a0') + '</span>' + icon + ' ' + escp(name) + '</span>' + (size || '')
-       + '<span class="fm-actions">' + (extra && extra.actions || '') + '</span></div>';
+       + (acts ? '<span class="fm-actions">' + acts + '</span>' : '') + '</div>';
 }
 // Allow dragging a file row from the file-manager pane into the DSH composer,
 // transferring the file's path/name so the DSH prompt can reference it.
@@ -1603,6 +1655,20 @@ async function fmPrefetchNested(dirPath) {
   }
 }
 
+// Download a file straight to the browser (raw bytes from /api/files/download),
+// carrying the ?inst= param so a cross-instance view downloads the right file.
+function fmDownload(path, name) {
+  var inst = new URLSearchParams(location.search).get('inst') || '';
+  var url = '/api/files/download?path=' + encodeURIComponent(path) + (inst ? '&inst=' + encodeURIComponent(inst) : '');
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = name || '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  fmNote(t('fileDownloaded'));
+}
+
 async function fmAction(act, row) {
   const path = row.dataset.path;
   const name = row.dataset.name;
@@ -1613,6 +1679,7 @@ async function fmAction(act, row) {
     else fmExpanded.add(path);
     fmLoad(true); return;
   }
+  if (act === 'download') { fmDownload(path, name); return; }
   if (act === 'delete') {
     if (!confirm(t('fileDeleteConfirm') + ' ' + name + '?')) return;
     const res = await fmRequest('POST', '/api/files/delete', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
