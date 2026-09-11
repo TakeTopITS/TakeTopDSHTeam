@@ -49,22 +49,12 @@ Setup and usage: [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf).
 
 ---
 
-## Screenshots
-
-Launcher console (admin) — start/stop the default DSH, set the workspace path, and manage members:
-
-![Launcher console](assets/launcher.png)
-
-Split-screen workbench — File Manager + My Tasks (left) and the DSH chat (right):
-
-![Workbench](assets/workbench.png)
-
----
-
 ## Feature Tour
 
 ### 1. Launcher Console (admin)
 Start/stop the default DSH, edit config (appsettings URL / workspace / default language), and manage every member:
+
+![Launcher console — start/stop the default DSH, set the workspace, and create/manage members](assets/launcher.png)
 
 - **Create instance** — auto workspace (`<global-workspace>/<username>`), dedicated OS user + sandbox.
 - **Start / Stop / Open / Delete / Reset Password** per member.
@@ -74,21 +64,35 @@ Start/stop the default DSH, edit config (appsettings URL / workspace / default l
 - **Left pane** tabs: **File Manager** and **My Tasks**.
 - Resize: drag the divider, or the ⤢ button toggles 30% ↔ 70%.
 
+![Split-screen workbench — File Manager / My Tasks on the left, DSH chat on the right](assets/workbench.png)
+
 ### 3. File Manager
 - Upload, new folder, refresh; tree view with `+`/`-` expand.
-- Per-file actions: zip / unzip / rename / move / delete.
+- Per-file actions (right-click): zip / unzip / rename / move / delete.
 - Preview inline (images, text, video); non-previewable files prompt to download.
+- **Drag a file into the AI dialog** to hand it straight to the agent.
+
+![File Manager — right-click a file or folder for actions](assets/FileManage.png)
+
+![Drag a file onto the AI dialog to pass it to the agent](assets/DocumentHandle.png)
 
 ### 4. My Tasks
 Each user sees tasks assigned to them:
 
 - Task-name link opens a detail popup (rich content; double-click an image for full-screen preview).
 - Related files open/download; images preview directly.
+- **Drag a task name into the AI dialog** to start working on it.
+
+![My Tasks — drag a task name into the AI dialog to start on it](assets/TaskHandleForCoding.png)
 
 ### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
 - **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
 - Tasks are stored in the launcher's shared **SQLite** database (`<workspace>/database/taketopDSHTeam.db`; legacy per-member XML/DB is auto-imported on first use); attachments go to `<workspace>/TaskData/Doc`.
+
+![Task assignment — pick a member, then add/edit their tasks](assets/TaskAssignment.png)
+
+![Task feedback — each task keeps its rich-text feedback and attachments](assets/TaskFeedback.png)
 
 ### 6. Language
 Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
