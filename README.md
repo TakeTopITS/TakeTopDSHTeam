@@ -78,8 +78,6 @@ Each member also gets a simple **My Instance** page — start/stop their own DSH
 
 ![File Manager — right-click a file or folder for actions](assets/FileManage.png)
 
-![Drag a file onto the AI dialog to pass it to the agent](assets/DocumentHandle.png)
-
 ### 4. My Tasks
 Each user sees tasks assigned to them:
 
@@ -88,6 +86,7 @@ Each user sees tasks assigned to them:
 - **Drag a task name into the AI dialog** to start working on it.
 
 ![My Tasks — drag a task name into the AI dialog to start on it](assets/TaskHandleForCoding.png)
+![My Tasks — each task keeps its rich-text feedback and attachments](assets/TaskFeedback.png)
 
 ### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
@@ -95,8 +94,7 @@ Each user sees tasks assigned to them:
 - Tasks are stored in the launcher's shared **SQLite** database (`<workspace>/database/taketopDSHTeam.db`; legacy per-member XML/DB is auto-imported on first use); attachments go to `<workspace>/TaskData/Doc`.
 
 ![Task assignment — pick a member, then add/edit their tasks](assets/TaskAssignment.png)
-
-![Task feedback — each task keeps its rich-text feedback and attachments](assets/TaskFeedback.png)
+![Task assignment — pick a member, then add/edit their tasks](assets/AddTask.png)
 
 ### 6. Language
 Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
