@@ -57,6 +57,8 @@ Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
 See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
 
+> 📦 **Why is the download package so large (700+ MB)?** On purpose — for your convenience. The release package **bundles every file needed to install on all three operating systems — Windows, macOS and Linux** (the self-contained launcher for each platform, the Node.js runtime, and the offline `@deepseek-ai/dsh` packages). So one download gives you a **fully offline, one-click install** on any of them — no further downloads and no compilation on the target machine.
+
 ---
 
 ## Screenshots (conceptual layout)

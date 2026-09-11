@@ -55,6 +55,8 @@ Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
 See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
 
+> 📦 **安装包为什么有 700 多 MB？** 这是为了方便用户一键安装：发行包**打包了在三大操作系统（Windows、macOS、Linux）上安装所需的全部安装文件**——各平台自包含的启动器、Node.js 运行时，以及离线的 `@deepseek-ai/dsh` 依赖包。下载一次，即可在任一系统上**离线一键安装**，无需再下载、无需在目标机器上编译。
+
 ---
 
 ## Screenshots (conceptual layout)
