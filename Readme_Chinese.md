@@ -99,7 +99,7 @@ Each user sees tasks assigned to them:
 - Task-name link opens a detail popup (rich content; double-click an image for full-screen preview).
 - Related files open/download; images preview directly.
 
-### 5. Task Assignment (admin) — `/tasks`
+### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
 - **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
 - Tasks stored as **XML** under `<workspace>/TaskData/tasks-<id>.xml`; files uploaded to `<workspace>/TaskData/Doc`.
