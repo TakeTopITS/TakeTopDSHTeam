@@ -1,7 +1,12 @@
-' TakeTop DSH Web - silent launcher (no console window)
-' Double-click this to start TakeTop DSH Web without any black cmd window.
+' TakeTop DSH Team - silent launcher (no console window from this script).
+' Double-click THIS file for the cleanest start: it elevates to Administrator
+' (one UAC prompt) and runs start.bat in a single visible window, so there is
+' no black window that flashes open and closes.
+'
+' Tip: you can right-click this file -> Send to -> Desktop (create shortcut)
+'      and rename the shortcut, e.g. "TakeTopDSH".
 Set fso = CreateObject("Scripting.FileSystemObject")
-Set shell = CreateObject("WScript.Shell")
-
-' Run start.bat hidden (window style 0 = hidden), don't wait.
-shell.Run """" & fso.GetParentFolderName(WScript.ScriptFullName) & "\start.bat" & """", 0, False
+Set sh  = CreateObject("Shell.Application")
+base = fso.GetParentFolderName(WScript.ScriptFullName)
+' ShellExecute(file, args, workingdir, verb, show)   show: 0=hidden, 1=normal
+sh.ShellExecute "cmd.exe", "/c """ & base & "\start.bat""", base, "runas", 1

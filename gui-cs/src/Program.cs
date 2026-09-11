@@ -1642,8 +1642,11 @@ _ = Task.Run(async () =>
         }
     // Background: periodically mirror dsh sessions into docs/ (shared experience).
     dsh.StartSessionBackup();
-    await Task.Delay(1200);
-    OpenBrowser($"http://127.0.0.1:{launcherPort}");
+    if (Environment.GetEnvironmentVariable("DSH_OPEN_BROWSER") != "0")
+    {
+        await Task.Delay(1200);
+        OpenBrowser($"http://127.0.0.1:{launcherPort}");
+    }
 });
 
 app.Run();

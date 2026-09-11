@@ -20,6 +20,8 @@ gui-cs/src/wwwroot/** text eol=lf
 # batch files stay CRLF.
 *.sh text eol=lf
 *.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf
 
 # Binary assets MUST NOT be EOL-normalized. The `node/** text eol=lf` rule above
 # also matches the bundled Node/DSH archives under node/platforms/ and would

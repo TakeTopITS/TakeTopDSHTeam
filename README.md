@@ -42,12 +42,14 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 ## Quick Start
 
 ```
-Windows : double-click start.bat
+Windows : double-click start.bat   (UAC prompt; the window shows live startup progress)
 macOS   : bash start.sh
 Linux   : bash start.sh
 ```
 
 > On a fresh `git clone`, run the script as `bash start.sh` — the executable bit is not guaranteed to survive a Windows checkout (you may also `chmod +x start.sh` once).
+>
+> **First start takes about 10–30 seconds** while the launcher warms up. On Windows the elapsed time is shown live in the window title bar, and the browser opens automatically once it is ready — no need to refresh.
 
 Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 

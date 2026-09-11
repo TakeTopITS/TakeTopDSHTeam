@@ -206,7 +206,8 @@
       save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
       saveOk:"保存成功", saveFail:"保存失败", saveDone:"正在保存...",
       st:{processing:"处理中", done:"完成", cancelled:"取消", pending:"待处理"},
-      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败"
+      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败",
+      pickMember:"请先在左侧选择一个成员（不要选“全部”）再添加任务"
     },
     en: {
       back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
@@ -216,7 +217,8 @@
       save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
       saveOk:"Saved successfully", saveFail:"Save failed", saveDone:"Saving...",
       st:{processing:"Processing", done:"Done", cancelled:"Cancelled", pending:"Pending"},
-      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed"
+      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed",
+      pickMember:"Please select a member on the left first (not \"All\") before adding a task"
     }
   };
   var lang = 'zh';
@@ -560,6 +562,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
 
   async function saveTask() {
+    if (!editing && !curMember) { alert(t('pickMember')); return; }
     var payload = {
       inst: editing ? editingMember : curMember, seq: editing,
       name: $('#fName').value.trim(),
@@ -676,7 +679,10 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     }
   });
 
-  $('#addTaskBtn').onclick = function(){ openModal(null); };
+  $('#addTaskBtn').onclick = function(){
+    if (!curMember) { alert(t('pickMember')); return; }
+    openModal(null);
+  };
   $('#modalCancel').onclick = closeModal;
   $('#viewClose').onclick = closeView;
   $('#imgPreviewClose').onclick = closeImgPreview;

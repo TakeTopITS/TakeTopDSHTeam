@@ -3,18 +3,19 @@
   Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
   EMail: service@taketopits.com
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+  This software is licensed under the Business Source License 1.1 (BSL 1.1).
+  You may copy, modify, redistribute, and make non-production use; production
+  use is free for an organization with up to 10 users. Use by more than 10
+  users requires a commercial license. See LICENSE for the full terms and
+  LICENSE-COMMERCIAL.md for commercial licensing.
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  GNU General Public License for more details.
+  On the Change Date (2030-09-11) this version automatically converts to the
+  Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+  WARRANTY OF ANY KIND.
 
-  You should have received a copy of the GNU General Public License
-  along with this program. If not, see <https://www.gnu.org/licenses/>.
+  This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
+  (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+  A commercial license is also available; see LICENSE-COMMERCIAL.md.
 -->
 
 <!DOCTYPE html>
@@ -187,6 +188,13 @@
     </div>
   </div>
 
+<!-- Office preview libs + shared attachment preview (see /vendor/licenses) -->
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/docx-preview.min.js"></script>
+<script src="/vendor/exceljs.min.js"></script>
+<script type="module" src="/vendor/pptx-loader.js"></script>
+<script src="/vendor/preview.js"></script>
+
 <script>
 (function () {
   var I18N = {
@@ -198,7 +206,8 @@
       save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
       saveOk:"保存成功", saveFail:"保存失败", saveDone:"正在保存...",
       st:{processing:"处理中", done:"完成", cancelled:"取消", pending:"待处理"},
-      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败"
+      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败",
+      pickMember:"请先在左侧选择一个成员（不要选“全部”）再添加任务"
     },
     en: {
       back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
@@ -208,7 +217,8 @@
       save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
       saveOk:"Saved successfully", saveFail:"Save failed", saveDone:"Saving...",
       st:{processing:"Processing", done:"Done", cancelled:"Cancelled", pending:"Pending"},
-      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed"
+      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed",
+      pickMember:"Please select a member on the left first (not \"All\") before adding a task"
     }
   };
   var lang = 'zh';
@@ -297,11 +307,10 @@
 
   async function loadMembers() {
     try {
-      var d = await req('GET', '/api/instances');
-      members = (d.instances || []).map(function(x){ return { id:x.id, name:x.name, ws:x.workspace, running:x.running }; });
-      // Admin can also assign tasks to itself.
-      members.unshift({ id:'admin', name:'Admin', ws:'', running:false });
-      members.unshift({ id:'', name: lang==='en'?'All':'全部', ws:'', running:false });
+      var d = await req('GET', '/api/members');
+      members = (d.members || []).map(function(x){ return { id:x.id, name:x.name, admin:x.admin }; });
+      // "All" overview for collaboration: show tasks created by every member.
+      members.unshift({ id:'', name: lang==='en'?'All':'全部', admin:false });
       var box = $('#memberList'); box.innerHTML = '';
       members.forEach(function(m){
         var el = document.createElement('div');
@@ -406,7 +415,14 @@
     $('#fContent').innerHTML = task ? (task.content||'') : '';
     // datetime-local expects "YYYY-MM-DDTHH:mm"; normalize "YYYY-MM-DD HH:mm"
     var at = task ? (task.assignedAt||'') : '';
-    $('#fAssigned').value = at ? at.replace(' ', 'T').slice(0,16) : '';
+    if (at) {
+      $('#fAssigned').value = at.replace(' ', 'T').slice(0,16);
+    } else {
+      // New task: default the assigned time to now (today, current hour:minute).
+      var d = new Date();
+      var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+      $('#fAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
     $('#fStatus').value = task ? (task.status||'processing') : 'processing';
     pendingFiles = (task && task.files) ? task.files.slice() : [];
     $('#fFilesLabel').textContent = '';
@@ -508,26 +524,8 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path: path }) })
       .then(function(r){ return r.json().catch(function(){ return {}; }); });
   }
-  function fbPreviewOpen(fn, inst, path) {
-    readFileForPreview(inst, path).then(function(d){
-      if (d && d.ok && d.type === 'image' && d.dataUri) {
-        $('#imgPreviewImg').src = d.dataUri;
-        $('#imgPreview').classList.add('show');
-      } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + fn + '?')) {
-        window.open(fbFileUrl(fn, false), '_blank');
-      }
-    });
-  }
-  function fbFileUrl(fn, inline) {
-    return withToken('/api/files/download?inst=' + encodeURIComponent(fb2Inst) + '&path=' + encodeURIComponent('TaskData/Feedback/' + fb2Seq + '/' + fn) + (inline ? '&inline=1' : ''));
-  }
   function openFbFile(fn) {
-    var ext = (fn.split('.').pop() || '').toLowerCase();
-    if (PREVIEW_IMG.indexOf(ext) >= 0) {
-      fbPreviewOpen(fn, fb2Inst, 'TaskData/Feedback/' + fb2Seq + '/' + fn);
-    } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + fn + '?')) {
-      window.open(fbFileUrl(fn, false), '_blank');
-    }
+    TTPreview.open({ insts: [fb2Inst, curMember, 'admin'], path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: fn, token: launcherToken });
   }
   function fileUrl(f, member, creator, inline) {
     var name = String(f).split('/').pop();
@@ -536,26 +534,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
   function openTaskFile(f, member, creator) {
     var name = String(f).split('/').pop();
-    var primary = member || creator || curMember || '';
-    var ext = (name.split('.').pop() || '').toLowerCase();
-    if (PREVIEW_IMG.indexOf(ext) >= 0) {
-      // Try the task's member workspace first; fall back to the creator's workspace.
-      readFileForPreview(primary, 'TaskData/Doc/' + name).then(function(d){
-        if (!(d && d.ok && d.type === 'image' && d.dataUri) && creator && creator !== primary) {
-          return readFileForPreview(creator, 'TaskData/Doc/' + name);
-        }
-        return d;
-      }).then(function(d){
-        if (d && d.ok && d.type === 'image' && d.dataUri) {
-          $('#imgPreviewImg').src = d.dataUri;
-          $('#imgPreview').classList.add('show');
-        } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + name + '?')) {
-          window.open(fileUrl(f, primary, creator, false), '_blank');
-        }
-      });
-    } else if (confirm((t('fileAskDownload') || '该类型文件无法预览，是否下载') + ': ' + name + '?')) {
-      window.open(fileUrl(f, primary, creator, false), '_blank');
-    }
+    TTPreview.open({ insts: [member, creator, curMember, 'admin'], path: 'TaskData/Doc/' + name, name: name, token: launcherToken });
   }
   function renderChips(){
     $('#fileChips').innerHTML = pendingFiles.map(function(f, i){
@@ -583,6 +562,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
 
   async function saveTask() {
+    if (!editing && !curMember) { alert(t('pickMember')); return; }
     var payload = {
       inst: editing ? editingMember : curMember, seq: editing,
       name: $('#fName').value.trim(),
@@ -699,7 +679,10 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     }
   });
 
-  $('#addTaskBtn').onclick = function(){ openModal(null); };
+  $('#addTaskBtn').onclick = function(){
+    if (!curMember) { alert(t('pickMember')); return; }
+    openModal(null);
+  };
   $('#modalCancel').onclick = closeModal;
   $('#viewClose').onclick = closeView;
   $('#imgPreviewClose').onclick = closeImgPreview;
