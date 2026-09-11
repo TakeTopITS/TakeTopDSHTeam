@@ -2,61 +2,48 @@
 
 ![TakeTopDSH Team — split-screen workbench: File Manager (left) + DSH chat (right)](assets/workbench.png)
 
-TakeTopDSHTeam turns DeepSeek Harness into a **team-ready, multi-user platform**. It is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
+**TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-ready, multi-user platform** — a self-hosted web workspace for software development and office teamwork. Every member gets their own isolated DSH behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Conversations, files and tasks are saved and **shared across the team**, so knowledge accumulates instead of disappearing.
 
-**Key Features**:
-- 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
-- 👥 **Multi-user collaboration** — Multiple users online simultaneously, each with an isolated workspace.
-- 📚 **Experience accumulation** — Conversations, files, and task data are persistently stored; knowledge is reusable.
-- 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
-- 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
+> 👥 **Who it's for:** teams that use (or want to use) DSH but need **multiple users, per-user isolation, and full control of their data** — without running one DSH per person and without handing data to a cloud service.
 
+## Highlights
 
----
-
-TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
-
-> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (tiered: **USD 10 per year for each additional block of 10 users**) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). Earlier MIT-licensed releases remain under MIT. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
-
----
+- 🧠 **Shared team experience** — one member's conversations, findings and files become reusable knowledge for the whole team.
+- 👤 **Per-user isolation** — each user runs DSH under a dedicated OS account with a sandboxed workspace; no cross-user access.
+- 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks; right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
+- 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to every member's private DSH, so you expose only one public port.
+- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files), in a shared SQLite store.
+- 📁 **Built-in file manager** — upload, folders, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
+- 🌐 **Bilingual UI** — full English / Chinese (buttons, tables, statuses, task form, login page).
+- 🚀 **One-click, offline install** — copy the folder and run; no compilation, no .NET SDK, no extra downloads.
+- 🧩 **Survives upgrades** — a patch layer re-applies every customization after each DSH update.
+- 📦 **Cross-platform** — Windows / macOS / Linux, x64 & arm64, self-contained (bundles the runtime and Node).
 
 > 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDSH Team ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
 
 > 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
 
----
-
-## Highlights
-
-- 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to each member's private DSH, so you expose only one public port.
-- 👤 **Per-user isolation** — each user runs DSH under a dedicated OS user + sandboxed workspace; no cross-user access.
-- 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
-- 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
-- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks are stored per member in **SQLite** (`TaskData/tasks-<id>.db`; legacy XML is auto-imported on first use), files go to `TaskData/Doc`.
-- 🌐 **i18n** — full English / Chinese UI (buttons, table headers, statuses, task form, login page).
-- 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
-- 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
-- 🚚 **Portable paths** — all internal paths are relative to the install root, so you can move the folder anywhere.
+> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (tiered: **USD 10 per year for each additional block of 10 users**) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). Earlier MIT-licensed releases remain under MIT. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — Email: service@taketopits.com. All rights reserved.
 
 ---
 
 ## Quick Start
 
 ```
-Windows : double-click start.bat   (UAC prompt; the window shows live startup progress)
+Windows : double-click start.bat   (UAC administrator prompt — required for per-user OS isolation)
 macOS   : bash start.sh
 Linux   : bash start.sh
 ```
 
-> On a fresh `git clone`, run the script as `bash start.sh` — the executable bit is not guaranteed to survive a Windows checkout (you may also `chmod +x start.sh` once).
+> On a fresh `git clone`, run `bash start.sh` — the executable bit may not survive a Windows checkout (`chmod +x start.sh` once if needed).
 >
-> **First start takes about 10–30 seconds** while the launcher warms up. On Windows the elapsed time is shown live in the window title bar, and the browser opens automatically once it is ready — no need to refresh.
+> **First start takes ~10–30 seconds.** On Windows the elapsed time is shown live in the window title bar, and the browser opens automatically once it is ready — no need to refresh.
 
-Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
+Open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
 > Do **not** open `:46000` directly (it answers `401 Unauthorized`); DSH needs the `token` that the launcher injects.
 
-See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
+Setup and usage: [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf).
 
 > 📦 **Why is the download package so large (700+ MB)?** On purpose — for your convenience. The release package **bundles every file needed to install on all three operating systems — Windows, macOS and Linux** (the self-contained launcher for each platform, the Node.js runtime, and the offline `@deepseek-ai/dsh` packages). So one download gives you a **fully offline, one-click install** on any of them — no further downloads and no compilation on the target machine.
 
@@ -64,19 +51,22 @@ See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
 
 ## Screenshots
 
-Launcher console (admin) - start/stop the default DSH, set the workspace path, and manage members:
+Launcher console (admin) — start/stop the default DSH, set the workspace path, and manage members:
 
 ![Launcher console](assets/launcher.png)
 
-Split-screen workbench - File Manager + My Tasks (left) and the DSH chat (right):
+Split-screen workbench — File Manager + My Tasks (left) and the DSH chat (right):
 
 ![Workbench](assets/workbench.png)
+
+---
+
 ## Feature Tour
 
 ### 1. Launcher Console (admin)
 Start/stop the default DSH, edit config (appsettings URL / workspace / default language), and manage every member:
 
-- **Create instance** — auto workspace (`global-workspace/<username>`), dedicated OS user + sandbox.
+- **Create instance** — auto workspace (`<global-workspace>/<username>`), dedicated OS user + sandbox.
 - **Start / Stop / Open / Delete / Reset Password** per member.
 
 ### 2. Workbench (split screen)
@@ -98,7 +88,7 @@ Each user sees tasks assigned to them:
 ### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
 - **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
-- Tasks stored per member in **SQLite** at `<workspace>/TaskData/tasks-<id>.db` (legacy XML auto-imported on first use); files uploaded to `<workspace>/TaskData/Doc`.
+- Tasks are stored in the launcher's shared **SQLite** database (`<workspace>/database/taketopDSHTeam.db`; legacy per-member XML/DB is auto-imported on first use); attachments go to `<workspace>/TaskData/Doc`.
 
 ### 6. Language
 Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
@@ -130,6 +120,16 @@ Full **English / Chinese** toggle across the console, workbench, file manager, t
 
 ---
 
+## Get started
+
+- **Download** — grab the latest release from the **Releases** page (or clone this repository). One package covers Windows / macOS / Linux and installs offline.
+- **Questions, feedback, bugs** — open an **Issue** on GitHub.
+- **Commercial licensing (more than 10 users) & other enquiries** — service@taketopits.com
+
+Topics: `deepseek-harness` · `multi-user` · `self-hosted` · `ai-agent` · `llm` · `team-collaboration` · `sqlite`
+
+---
+
 ## License
 
 This project is licensed under the **Business Source License 1.1 (BSL 1.1)** — see [LICENSE](LICENSE) / [COPYING](COPYING). BSL 1.1 is a **source-available** license (it is not OSI open source).
@@ -139,7 +139,7 @@ This project is licensed under the **Business Source License 1.1 (BSL 1.1)** —
 - **Automatic conversion:** on the Change Date (**2030-09-11**) — or the fourth anniversary of a version's first public release, whichever is earlier — that version converts to the **Apache License, Version 2.0** (fully open source). The license applies per version.
 - Earlier releases published under the **MIT License remain available under MIT** permanently.
 
-The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (Email: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
 Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
