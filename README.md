@@ -56,6 +56,10 @@ Start/stop the default DSH, edit config (appsettings URL / workspace / default l
 
 ![Launcher console — start/stop the default DSH, set the workspace, and create/manage members](assets/launcher.png)
 
+Each member also gets a simple **My Instance** page — start/stop their own DSH, open it, and see that instance's logs:
+
+![Member view — My Instance and per-instance logs](assets/MemberLauncher.png)
+
 - **Create instance** — auto workspace (`<global-workspace>/<username>`), dedicated OS user + sandbox.
 - **Start / Stop / Open / Delete / Reset Password** per member.
 
