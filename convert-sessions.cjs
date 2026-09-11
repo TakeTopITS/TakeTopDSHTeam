@@ -12,9 +12,29 @@ const path = require("path");
 const zlib = require("zlib");
 
 const ROOT = path.resolve(__dirname);
-const ADMIN_WS = "E:\\WorkBuddy\\WorkSpace\\adminroot";
-const BACKUP_DIR = path.join(ADMIN_WS, "sharedata", "data", "sessions-backup");
-const OUT_DIR = path.join(ADMIN_WS, "sharedata", "data", "sessions-md");
+
+// Resolve the admin workspace the same way the launcher does: prefer the
+// configured DshWeb.WorkspacePath in appsettings.json; fall back to the portable
+// default <root>/WorkSpace. Never hard-code a machine-specific path here.
+function resolveWorkspace() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "appsettings.json"), "utf8"));
+    const ws = cfg && cfg.DshWeb && cfg.DshWeb.WorkspacePath;
+    if (typeof ws === "string" && ws.trim()) return ws.trim();
+  } catch (e) { /* fall through to default */ }
+  return path.join(ROOT, "WorkSpace");
+}
+
+const WS = resolveWorkspace();
+// Raw session backups are written by the launcher under
+// <ws>/sharedata/data/sessions-backup; some layouts used an "adminroot" prefix.
+// Accept whichever exists so the export keeps working either way.
+const BACKUP_DIR = [
+  path.join(WS, "adminroot", "sharedata", "data", "sessions-backup"),
+  path.join(WS, "sharedata", "data", "sessions-backup"),
+].find((d) => fs.existsSync(d)) || path.join(WS, "sharedata", "data", "sessions-backup");
+// Per-day Markdown goes into the shared docs dir the AI is instructed to read.
+const OUT_DIR = path.join(WS, "adminroot", "sharedata", "data", "sessions-md");
 
 // Decompress a .zstd JSONL session file -> array of parsed event objects.
 function decompressSession(file) {

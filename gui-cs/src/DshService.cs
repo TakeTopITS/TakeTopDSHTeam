@@ -93,10 +93,18 @@ public class DshService
     public object Status()
     {
         if (_proc is { HasExited: false })
-            return new { state = "running", pid = _proc.Id };
-        // If our process is gone but the port is still serving, an external or
+        {
+            // A live process is NOT enough: DSH may still be loading, or stuck in an
+            // uninterruptible-I/O hang so it never binds the port. Only report
+            // "running" once the HTTP service actually answers, otherwise report
+            // "starting" so the control page never shows a false "Running".
+            return IsDshReady(_currentPort)
+                ? new { state = "running", pid = _proc.Id }
+                : new { state = "starting", pid = _proc.Id };
+        }
+        // If our process is gone but the port still serves HTTP, an external or
         // pre-existing dsh web instance is running — treat it as running.
-        if (IsPortInUse(_currentPort))
+        if (IsPortInUse(_currentPort) && IsDshReady(_currentPort))
             return new { state = "running", pid = (int?)null, external = true };
         if (_proc is { HasExited: true })
             return new { state = "stopped", exitCode = _proc.ExitCode };
@@ -156,6 +164,18 @@ public class DshService
         lock (_gate)
         {
             _currentPort = port;
+            // A previous DSH crash can leave a stale writer lock behind; on the next
+            // boot atomic-write then times out and DSH never starts. Remove it first.
+            try
+            {
+                var staleLock = Path.Combine(_dshHome, "profiles", "node_modules.lock");
+                if (File.Exists(staleLock))
+                {
+                    File.Delete(staleLock);
+                    AddLog("[dsh] removed stale profiles/node_modules.lock");
+                }
+            }
+            catch { /* best effort */ }
             if (_proc is { HasExited: false }) return;
 
             // If the target port is already serving, it is likely a stale (orphaned)

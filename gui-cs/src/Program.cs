@@ -1509,6 +1509,11 @@ app.Use(async (ctx, next) =>
         else if (isAdmin)
         {
             proxyPort = dsh.DefaultPort();
+            // The admin's default DSH also needs its workspace id embedded into the
+            // injected auto-open script, otherwise the DSH UI stays on "选择工作区"
+            // (the instance branches below already do this). Read it from the
+            // launcher's own .dsh/storages/workspace.json.
+            workspaceId = ReadWorkspaceId(Path.Combine(root, ".dsh"));
             // Check for token URL (may have been captured from a previous DSH
             // process or from a prior request in this session).
             var tu = dsh.TokenUrl();
@@ -1612,15 +1617,22 @@ _ = Task.Run(async () =>
     var cfgPort = dsh.DefaultPort();
     for (var attempt = 1; attempt <= 3; attempt++)
     {
-        if (dsh.IsRunning) break;
+        // "Running" must mean the HTTP service actually answers — a live process can
+        // still be loading or stuck without ever binding the port.
+        if (dsh.IsRunning && DshService.IsDshReady(cfgPort)) break;
         Console.WriteLine($"[auto-start] Attempt {attempt}/3 to start DSH on port {cfgPort}...");
         try { dsh.Start(cfgPort); } catch (Exception ex) { Console.WriteLine($"[auto-start] DSH start failed (attempt {attempt}): {ex.Message}"); }
-        if (!dsh.IsRunning && attempt < 3) await Task.Delay(3000);
+        // Give DSH time to bind the port and answer HTTP before declaring success.
+        for (var w = 0; w < 15; w++)
+        {
+            await Task.Delay(1000);
+            if (dsh.IsRunning && DshService.IsDshReady(cfgPort)) break;
+        }
     }
-    if (dsh.IsRunning)
+    if (dsh.IsRunning && DshService.IsDshReady(cfgPort))
         Console.WriteLine($"[auto-start] DSH is running on port {cfgPort}");
     else
-        Console.WriteLine($"[auto-start] DSH failed to start after 3 attempts on port {cfgPort}");
+        Console.WriteLine($"[auto-start] DSH failed to become ready after 3 attempts on port {cfgPort}");
     // Auto-restore any instance persisted as running so its dsh is actually up
     // (otherwise the card shows "运行中" but the port is dead and "打开" fails).
     foreach (var inst in instMgr.List())
