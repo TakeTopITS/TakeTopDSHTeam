@@ -46,10 +46,25 @@ fi
 # node has no bin/npm symlink on some packs; invoke npm-cli.js through node.
 npm_cmd() { "$NODE_BIN" "$NODE_ROOT/lib/node_modules/npm/bin/npm-cli.js" "$@"; }
 
-# --- install dsh if missing ------------------------------------------------
+# --- install dsh if missing (prefer the bundled offline tarball) ------------
 DSH_PKG="$NODE_ROOT/lib/node_modules/@deepseek-ai/dsh"
 if [ ! -d "$DSH_PKG" ]; then
-  echo "[*] Installing @deepseek-ai/dsh (first run, needs network) ..."
+  DSH_TAR=""
+  for cand in "$NODE_DIR/platforms/dsh-$PLATFORM.tar.xz" "$NODE_DIR/platforms/dsh-$PLATFORM.tar.gz"; do
+    if [ -f "$cand" ]; then DSH_TAR="$cand"; break; fi
+  done
+  if [ -n "$DSH_TAR" ]; then
+    echo "[*] Unpacking bundled @deepseek-ai/dsh (offline) ..."
+    mkdir -p "$NODE_ROOT/lib"
+    case "$DSH_TAR" in
+      *.tar.gz) tar -xzf "$DSH_TAR" -C "$NODE_ROOT/lib" ;;
+      *.tar.xz) tar -xJf "$DSH_TAR" -C "$NODE_ROOT/lib" ;;
+      *)        tar -xf  "$DSH_TAR" -C "$NODE_ROOT/lib" ;;
+    esac
+  fi
+fi
+if [ ! -d "$DSH_PKG" ]; then
+  echo "[*] Installing @deepseek-ai/dsh (no offline bundle; first run needs network) ..."
   npm_cmd install -g @deepseek-ai/dsh >/dev/null 2>&1 || {
     echo "[!] npm install failed. Check network and retry."; exit 1;
   }

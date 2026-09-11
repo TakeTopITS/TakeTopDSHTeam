@@ -130,7 +130,7 @@ Full **Chinese / English** toggle across the console, workbench, file manager, t
 | Platform | Node | @deepseek-ai/dsh deps |
 |----------|------|------------------------|
 | Windows x64 | bundled, offline | bundled, offline |
-| macOS / Linux (x64 & arm64) | bundled (tar, offline) | first-run requires one network `npm install`, then offline |
+| macOS / Linux (x64 & arm64) | bundled (tar, offline) | bundled (offline tarball); falls back to `npm install` only if the bundle is missing |
 
 ---
 
