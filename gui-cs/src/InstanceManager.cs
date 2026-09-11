@@ -799,7 +799,7 @@ public class InstanceManager
         try
         {
             var patchFile = Path.Combine(inst.DshHome, "profiles", "web", "cordis.patch.yml");
-            if (!File.Exists(patchFile)) return;
+            try { Directory.CreateDirectory(Path.GetDirectoryName(patchFile)!); } catch { }
 
             // Remove the "添加工作区" (add workspace) UI affordance from the
             // shared DSH client bundle. Idempotent; survives DSH re-bundles only

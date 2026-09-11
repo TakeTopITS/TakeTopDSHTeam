@@ -302,7 +302,7 @@ public class DshService
         try
         {
             var patchFile = Path.Combine(_dshHome, "profiles", "web", "cordis.patch.yml");
-            if (!File.Exists(patchFile)) return;
+            try { Directory.CreateDirectory(Path.GetDirectoryName(patchFile)!); } catch { }
 
             var normalized = workspace.Replace('\\', '/');
             var docsDir = Path.Combine(ReadWorkspacePath(), "adminroot", "sharedata").Replace('\\', '/');
@@ -808,61 +808,24 @@ public class DshService
 
     public string ReadCfgUrl()
     {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            return doc.RootElement.GetProperty("DshWeb").GetProperty("Url").GetString() ?? "http://127.0.0.1:46000";
-        }
-        catch { return "http://127.0.0.1:46000"; }
+        var d = ReadDshWeb();
+        return d.TryGetValue("Url", out var v) && v is string s ? s : "http://127.0.0.1:46000";
     }
 
-    public void SaveCfgUrl(string url)
-    {
-        var cfg = ReadDshWeb();
-        cfg["Url"] = url;
-        WriteDshWeb(cfg);
-    }
+    public void SaveCfgUrl(string url) => WriteDshWeb(new() { ["Url"] = url });
 
     // Save the external reverse-proxy URL (configured on the control page).
-    public void SaveExternalUrl(string? externalUrl)
-    {
-        var cfg = ReadDshWeb();
-        if (string.IsNullOrWhiteSpace(externalUrl))
-            cfg.Remove("ExternalUrl");
-        else
-            cfg["ExternalUrl"] = externalUrl.Trim();
-        WriteDshWeb(cfg);
-    }
+    public void SaveExternalUrl(string? externalUrl) =>
+        WriteDshWeb(new() { ["ExternalUrl"] = string.IsNullOrWhiteSpace(externalUrl) ? null : externalUrl.Trim() });
 
-    public void SaveDefaultLanguage(string? defaultLanguage)
-    {
-        var cfg = ReadDshWeb();
-        if (string.IsNullOrWhiteSpace(defaultLanguage))
-            cfg.Remove("DefaultLanguage");
-        else
-            cfg["DefaultLanguage"] = defaultLanguage.Trim();
-        WriteDshWeb(cfg);
-    }
+    public void SaveDefaultLanguage(string? defaultLanguage) =>
+        WriteDshWeb(new() { ["DefaultLanguage"] = string.IsNullOrWhiteSpace(defaultLanguage) ? null : defaultLanguage.Trim() });
 
     // Workspace path the admin sets on the control page. This is the directory
     // dsh's sandbox/cwd points at (where AI works). Empty = dsh's own default.
     public string ReadWorkspacePath()
     {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.TryGetProperty("WorkspacePath", out var ws) &&
-                ws.ValueKind == JsonValueKind.String)
-            {
-                var v = ws.GetString();
-                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
-            }
-        }
-        catch { }
-        return DefaultWorkspacePath(_root);
+        return OptStr(ReadDshWeb(), "WorkspacePath") ?? DefaultWorkspacePath(_root);
     }
 
     // Portable default used when the admin has not configured a workspace: a
@@ -879,100 +842,68 @@ public class DshService
     // True when the admin has not set a workspace (the portable default is in use).
     // The admin page warns strongly in this case: a default path may be shared by
     // several clones or overwritten on upgrade, risking data loss.
-    public bool IsWorkspaceDefault()
-    {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            if (!File.Exists(path)) return true;
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.TryGetProperty("WorkspacePath", out var ws) &&
-                ws.ValueKind == JsonValueKind.String)
-                return string.IsNullOrWhiteSpace(ws.GetString());
-        }
-        catch { }
-        return true;
-    }
+    public bool IsWorkspaceDefault() => OptStr(ReadDshWeb(), "WorkspacePath") == null;
 
     // Address the launcher + instances bind to (127.0.0.1 loopback, or the
     // public/network interface when exposing over LAN/internet).
-    public string ReadBindHost()
-    {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.TryGetProperty("BindHost", out var bh) &&
-                bh.ValueKind == JsonValueKind.String)
-                return bh.GetString() ?? "127.0.0.1";
-        }
-        catch { }
-        return "127.0.0.1";
-    }
+    public string ReadBindHost() => OptStr(ReadDshWeb(), "BindHost") ?? "127.0.0.1";
 
     // First port the launcher uses when auto-assigning instance ports.
     public int ReadInstancesStartPort()
     {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.TryGetProperty("InstancesStartPort", out var p) &&
-                p.ValueKind == JsonValueKind.Number)
-                return p.GetInt32();
-        }
-        catch { }
-        return 46000;
+        var d = ReadDshWeb();
+        return d.TryGetValue("InstancesStartPort", out var v) && v is long n ? (int)n : 46000;
     }
 
-    public void SaveWorkspacePath(string? workspacePath)
-    {
-        var cfg = ReadDshWeb();
-        if (string.IsNullOrWhiteSpace(workspacePath))
-            cfg.Remove("WorkspacePath");
-        else
-            cfg["WorkspacePath"] = workspacePath.Trim();
-        WriteDshWeb(cfg);
-    }
+    public void SaveWorkspacePath(string? workspacePath) =>
+        WriteDshWeb(new() { ["WorkspacePath"] = string.IsNullOrWhiteSpace(workspacePath) ? null : workspacePath.Trim() });
 
-    // Read the whole DshWeb config block as a mutable dictionary.
+    // Runtime-mutable settings are stored in a gitignored local file so the
+    // committed appsettings.json stays a portable, machine-independent template.
+    // Reads merge the local override OVER the appsettings.json defaults.
+    private string LocalSettingsPath => Path.Combine(_root, "config", "launcher.local.json");
+
     private Dictionary<string, object?> ReadDshWeb()
     {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.ValueKind == JsonValueKind.Object)
-            {
-                var dict = new Dictionary<string, object?>();
-                foreach (var prop in web.EnumerateObject())
-                {
-                    switch (prop.Value.ValueKind)
-                    {
-                        case JsonValueKind.String: dict[prop.Name] = prop.Value.GetString(); break;
-                        case JsonValueKind.Number: dict[prop.Name] = prop.Value.GetInt64(); break;
-                        case JsonValueKind.True: dict[prop.Name] = true; break;
-                        case JsonValueKind.False: dict[prop.Name] = false; break;
-                        default: dict[prop.Name] = prop.Value.Clone(); break;
-                    }
-                }
-                return dict;
-            }
-        }
-        catch { }
-        return new Dictionary<string, object?>();
+        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in ParseDshWeb(Path.Combine(_root, "appsettings.json"))) dict[kv.Key] = kv.Value;
+        foreach (var kv in ParseDshWeb(LocalSettingsPath)) dict[kv.Key] = kv.Value;
+        return dict;
     }
 
-    // Merge the given cfg keys into appsettings.json's DshWeb block WITHOUT
-    // dropping any other existing fields (Url, WorkspacePath, EncryptionKey, any
-    // future key). A value of null removes that key.
+    private static Dictionary<string, object?> ParseDshWeb(string path)
+    {
+        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (!File.Exists(path)) return dict;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("DshWeb", out var web) && web.ValueKind == JsonValueKind.Object)
+                foreach (var prop in web.EnumerateObject())
+                    dict[prop.Name] = prop.Value.ValueKind switch
+                    {
+                        JsonValueKind.String => prop.Value.GetString(),
+                        JsonValueKind.Number => prop.Value.GetInt64(),
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        _ => null,
+                    };
+        }
+        catch { }
+        return dict;
+    }
+
+    // Non-empty string override, else null.
+    private static string? OptStr(Dictionary<string, object?> d, string key)
+        => d.TryGetValue(key, out var v) && v is string s && !string.IsNullOrWhiteSpace(s) ? s.Trim() : null;
+
+    // Persist runtime settings into the gitignored local override file (merged
+    // over appsettings.json on read). A value of null removes that key. Writes
+    // NEVER touch the committed appsettings.json, so a clone stays clean.
     private void WriteDshWeb(Dictionary<string, object?> cfg)
     {
-        var path = Path.Combine(_root, "appsettings.json");
+        var path = LocalSettingsPath;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(path)!); } catch { }
         JsonNode root;
         if (File.Exists(path))
         {
@@ -1008,16 +939,8 @@ public class DshService
     // "en,zh-cn". Defaults to "en,zh-cn" when unset. Empty when explicitly "".
     public string ReadDefaultLanguage()
     {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.TryGetProperty("DefaultLanguage", out var dl) && dl.ValueKind == JsonValueKind.String)
-                return dl.GetString() ?? "en,zh-cn";
-        }
-        catch { }
-        return "en,zh-cn";
+        var d = ReadDshWeb();
+        return d.TryGetValue("DefaultLanguage", out var v) && v is string s ? s : "en,zh-cn";
     }
 
     public int DefaultPort()
@@ -1031,17 +954,8 @@ public class DshService
     // use (e.g. https://192.168.2.28 or http://my.host:9090). Empty if not set.
     public string ExternalUrl()
     {
-        try
-        {
-            var path = Path.Combine(_root, "appsettings.json");
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                web.TryGetProperty("ExternalUrl", out var ext) &&
-                ext.ValueKind == JsonValueKind.String)
-                return ext.GetString() ?? "";
-        }
-        catch { }
-        return "";
+        var d = ReadDshWeb();
+        return d.TryGetValue("ExternalUrl", out var v) && v is string s ? s : "";
     }
 
     // Authority (host[:port]) that dsh should trust when behind a proxy. Falls
