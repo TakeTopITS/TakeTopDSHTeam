@@ -20,3 +20,36 @@ gui-cs/src/wwwroot/** text eol=lf
 # batch files stay CRLF.
 *.sh text eol=lf
 *.bat text eol=crlf
+
+# Binary assets MUST NOT be EOL-normalized. The `node/** text eol=lf` rule above
+# also matches the bundled Node/DSH archives under node/platforms/ and would
+# corrupt them on commit (they are gzip/xz). These `binary` (= -text -diff) rules
+# come AFTER, so they win.
+node/platforms/** binary
+**/*.node binary
+**/*.exe binary
+**/*.dll binary
+**/*.so binary
+**/*.dylib binary
+**/*.wasm binary
+**/*.tar binary
+**/*.tar.xz binary
+**/*.tar.gz binary
+**/*.tgz binary
+**/*.xz binary
+**/*.gz binary
+**/*.zip binary
+**/*.7z binary
+**/*.png binary
+**/*.jpg binary
+**/*.jpeg binary
+**/*.gif binary
+**/*.ico binary
+**/*.webp binary
+**/*.pdf binary
+**/*.woff binary
+**/*.woff2 binary
+**/*.ttf binary
+**/*.otf binary
+**/*.db binary
+**/*.sqlite binary

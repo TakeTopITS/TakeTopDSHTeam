@@ -35,11 +35,15 @@ if [ ! -f "$NODE_BIN" ]; then
   echo "[*] Unpacking Node for $PLATFORM ..."
   mkdir -p "$NODE_ROOT"
   tar -xf "$TAR" -C "$NODE_ROOT"
-  SRC="$NODE_ROOT"/node-v24.15.0-*
-  if [ -d "$SRC" ]; then
-    mv "$SRC"/* "$NODE_ROOT"/ 2>/dev/null || true
-    rmdir "$SRC" 2>/dev/null || true
-  fi
+  # The Node tarball ships a single top-level folder (e.g. node-v24.x-linux-x64).
+  # Move its contents up so $NODE_ROOT/bin/node exists. NOTE: a bare
+  # `SRC="$NODE_ROOT"/node-v*` assignment does NOT expand the glob, so iterate.
+  for d in "$NODE_ROOT"/node-v*; do
+    if [ -d "$d" ]; then
+      mv "$d"/* "$NODE_ROOT"/ 2>/dev/null || true
+      rmdir "$d" 2>/dev/null || true
+    fi
+  done
 fi
 [ -f "$NODE_BIN" ] || { echo "[!] Node not found: $NODE_BIN"; exit 1; }
 
@@ -116,5 +120,12 @@ if [ "$(id -u)" -ne 0 ]; then
   exec sudo "$0" "$@"
 fi
 
-nohup "$BIN" >/dev/null 2>&1 &
+# Detach into a NEW session so the launcher AND its DSH child survive the
+# terminal/session closing. Plain `nohup ... &` only protects the launcher:
+# when the launching shell exits, the DSH child still receives SIGHUP and dies.
+if command -v setsid >/dev/null 2>&1; then
+  setsid "$BIN" >/dev/null 2>&1 < /dev/null &
+else
+  nohup "$BIN" >/dev/null 2>&1 &
+fi
 echo "[*] Started (PID $!). Open http://127.0.0.1:46001 in your browser."
