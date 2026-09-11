@@ -78,8 +78,6 @@ Linux   : bash start.sh
 
 ![文件管理器 —— 右键文件/文件夹进行操作](assets/FileManage.png)
 
-![把文件拖到 AI 对话框，直接交给 AI](assets/DocumentHandle.png)
-
 ### 4. 我的任务
 每位用户看到分配给自己的任务：
 
@@ -89,6 +87,8 @@ Linux   : bash start.sh
 
 ![我的任务 —— 把任务名拖进 AI 对话框开始处理](assets/TaskHandleForCoding.png)
 
+![任务反馈 —— 每个任务保留富文本反馈与附件](assets/TaskFeedback.png)
+
 ### 5. 任务分配 —— `/tasks`
 - 左侧是成员列表；选中某位成员即可在右侧查看其任务。
 - **添加 / 编辑** 任务：**任务类型**、**任务名称**、**内容**（富文本——加粗/列表/引用，可粘贴或插入图片）、**状态**（处理中 / 完成 / 取消）、**相关文件**（可多选上传）。
@@ -96,7 +96,7 @@ Linux   : bash start.sh
 
 ![任务分配 —— 选择成员后添加/编辑其任务](assets/TaskAssignment.png)
 
-![任务反馈 —— 每个任务保留富文本反馈与附件](assets/TaskFeedback.png)
+![添加任务 —— 填写类型 / 名称 / 内容 / 状态 / 相关文件](assets/AddTask.png)
 
 ### 6. 语言
 控制台、工作台、文件管理器、任务分配和任务表单都支持完整的**英文 / 中文**切换。登录页优先使用配置的默认语言。
