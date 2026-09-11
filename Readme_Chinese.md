@@ -1,65 +1,65 @@
 # TakeTopDSHTeam
 
-TakeTopDSHTeam turns DeepSeek Harness into a **team-ready, multi-user platform**. It is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
+TakeTopDSHTeam 把 DeepSeek Harness 变成**面向团队的多用户平台**。它是一个**基于网页的 AI 协作平台**，面向软件开发与办公协作。团队成员直接在浏览器里使用 AI 辅助编码、文档编辑与任务管理——**团队的经验数据会沉淀并在团队内共享**，越用越聪明。
 
-**Key Features**:
-- 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
-- 👥 **Multi-user collaboration** — Multiple users online simultaneously, each with an isolated workspace.
-- 📚 **Experience accumulation** — Conversations, files, and task data are persistently stored; knowledge is reusable.
-- 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
-- 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
+**主要特性**：
+- 🌐 **基于网页** —— 直接运行在浏览器中，无需安装客户端，随处可用。
+- 👥 **多用户协作** —— 支持多用户同时在线，各自拥有相互隔离的工作区。
+- 📚 **经验沉淀** —— 对话、文件与任务数据持久保存，知识可复用。
+- 🚀 **一键安装** —— 复制即运行，无需编译、无需 .NET 运行时。
+- 🖱️ **全图形界面** —— 所有操作鼠标点击即可完成，直观易上手。
 
-> 📌 **Note**: This document contains text only and does not include any screenshots or images. The best way to experience the software is to try it out yourself!
-
----
-
-TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
-
-> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (tiered: **USD 10 per year for each additional block of 10 users**) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). Earlier MIT-licensed releases remain under MIT. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
+> 📌 **说明**：本文档只有文字，不含任何截图或图片。体验软件最好的方式就是亲自试一试！
 
 ---
 
-> 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDSH Team ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
+TakeTopDSHTeam 是一个**面向团队的多用户平台**：每位成员在同一个启动器后面拥有各自隔离的 DSH 实例，内置文件管理器、任务分配与分屏工作台。把整个文件夹复制到任意机器即可运行——**免安装、免编译**。
 
-> 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
-
----
-
-## Highlights
-
-- 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to each member's private DSH, so you expose only one public port.
-- 👤 **Per-user isolation** — each user runs DSH under a dedicated OS user + sandboxed workspace; no cross-user access.
-- 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
-- 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
-- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks are stored per member in **SQLite** (`TaskData/tasks-<id>.db`; legacy XML is auto-imported on first use), files go to `TaskData/Doc`.
-- 🌐 **i18n** — full English / Chinese UI (buttons, table headers, statuses, task form, login page).
-- 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
-- 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
-- 🚚 **Portable paths** — all internal paths are relative to the install root, so you can move the folder anywhere.
+> **BSL 1.1（源码可见）。** 本项目以 **Business Source License 1.1** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**10 个用户以内的组织免费**；超过 10 个用户需购买商业许可（分档：**每增加 10 个用户，USD 10/年**）（[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。它是**源码可见，而非 OSI 认证的开源**，并会在变更日（2030-09-11）**自动转为 Apache-2.0**。此前以 MIT 发布的版本继续适用 MIT。知识产权归 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) 所有 —— 邮箱：service@taketopits.com。保留所有权利。
 
 ---
 
-## Quick Start
+> 🔓 **源码完全可见——没有任何加密组件。** TakeTopDSH Team 的完整源码都在本仓库中：多用户启动器（C#/.NET）、网页界面（HTML/JS/CSS）、DSH 集成与品牌补丁，以及全部启动/构建脚本。**没有任何组件被加密、混淆或以黑盒形式提供**——你可以在运行前逐行阅读与审计。唯一的预编译部分是第三方运行时（Node.js 与 .NET 运行时），它们本身就是开源项目。请放心使用。
+
+> 🔒 **自托管设计——不是云服务。** 我们**不**提供任何云端托管或租赁服务。你下载发行版并在自己的电脑或服务器上本地安装；账号、会话、文件与 API Key 都保存在你自己的磁盘上，我们从不接收或保存你的数据——数据完全由你掌控。（唯一的对外连接是你自己配置的大模型服务商。）
+
+---
+
+## 亮点
+
+- 🔌 **单一入口、单一端口** —— 一个启动器（`:46001`）反向代理到每位成员的私有 DSH，因此对外只需暴露一个端口。
+- 👤 **按用户隔离** —— 每个用户都以专用的系统账户 + 沙箱工作区运行独立的 DSH，用户之间无法互访。
+- 🖥️ **分屏工作台** —— 左侧 = 文件管理器 / 我的任务（两个标签页），右侧 = DSH 对话。可拖动分隔条，或点按 ⤢ 在 30% ↔ 70% 之间切换。
+- 📁 **内置文件管理器** —— 上传、新建文件夹、树形浏览、压缩/解压、重命名、移动、删除、在线预览、下载。
+- ✅ **任务分配** —— 管理员按成员分配任务（富文本 + 图片 + 附件）。任务按成员存储在 **SQLite** 中（`TaskData/tasks-<id>.db`；旧版 XML 首次使用时自动导入），文件存放在 `TaskData/Doc`。
+- 🌐 **多语言** —— 完整的英文 / 中文界面（按钮、表头、状态、任务表单、登录页）。
+- 🧩 **升级不失效** —— 补丁机制会在每次 DSH 升级后重新应用全部定制行为。
+- 📦 **跨平台复制即用** —— Windows / macOS / Linux 的 x64 与 arm64，自包含，内置运行时与 Node。目标机器上无需编译。
+- 🚚 **路径可移植** —— 所有内部路径都相对于安装根目录，文件夹可随意移动。
+
+---
+
+## 快速开始
 
 ```
-Windows : double-click start.bat
+Windows : 双击 start.bat
 macOS   : bash start.sh
 Linux   : bash start.sh
 ```
 
-> On a fresh `git clone`, run the script as `bash start.sh` — the executable bit is not guaranteed to survive a Windows checkout (you may also `chmod +x start.sh` once).
+> 如果是全新 `git clone` 出来的，请用 `bash start.sh` 运行脚本——可执行位不一定能在 Windows 检出后保留（也可以先执行一次 `chmod +x start.sh`）。
 
-Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
+然后打开 `http://127.0.0.1:46001` → 登录 → 点击 **Open DSH**。
 
-> Do **not** open `:46000` directly (it answers `401 Unauthorized`); DSH needs the `token` that the launcher injects.
+> **不要**直接打开 `:46000`（它会返回 `401 Unauthorized`）；DSH 需要启动器注入的 `token`。
 
-See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
+安装与使用说明见 [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf)。
 
 > 📦 **安装包为什么有 700 多 MB？** 这是为了方便用户一键安装：发行包**打包了在三大操作系统（Windows、macOS、Linux）上安装所需的全部安装文件**——各平台自包含的启动器、Node.js 运行时，以及离线的 `@deepseek-ai/dsh` 依赖包。下载一次，即可在任一系统上**离线一键安装**，无需再下载、无需在目标机器上编译。
 
 ---
 
-## Screenshots (conceptual layout)
+## 界面示意（概念布局）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -79,41 +79,43 @@ Workbench (/work):
 └───────────────────────┴───────────────────────────────────────────────────┘
 ```
 
-## Feature Tour
+> 上图为示意，实际界面文字会随语言（中文/英文）切换。
 
-### 1. Launcher Console (admin)
-Start/stop the default DSH, edit config (appsettings URL / workspace / default language), and manage every member:
+## 功能导览
 
-- **Create instance** — auto workspace (`global-workspace/<username>`), dedicated OS user + sandbox.
-- **Start / Stop / Open / Delete / Reset Password** per member.
+### 1. 启动器控制台（管理员）
+启动/停止默认 DSH，修改配置（appsettings URL / 工作区 / 默认语言），并管理每一位成员：
 
-### 2. Workbench (split screen)
-- Click **Open DSH** on a member row (or the launcher's "Open DSH") → split workbench.
-- **Left pane** tabs: **File Manager** and **My Tasks**.
-- Resize: drag the divider, or the ⤢ button toggles 30% ↔ 70%.
+- **新建实例** —— 自动分配工作区（`global-workspace/<用户名>`）、专用系统账户 + 沙箱。
+- 对每个成员可 **启动 / 停止 / 打开 / 删除 / 重置密码**。
 
-### 3. File Manager
-- Upload, new folder, refresh; tree view with `+`/`-` expand.
-- Per-file actions: zip / unzip / rename / move / delete.
-- Preview inline (images, text, video); non-previewable files prompt to download.
+### 2. 工作台（分屏）
+- 在成员行上点 **Open DSH**（或启动器里的 "Open DSH"）→ 进入分屏工作台。
+- **左侧**标签页：**文件管理器** 和 **我的任务**。
+- 调整大小：拖动分隔条，或点 ⤢ 按钮在 30% ↔ 70% 间切换。
 
-### 4. My Tasks
-Each user sees tasks assigned to them:
+### 3. 文件管理器
+- 上传、新建文件夹、刷新；树形视图可用 `+`/`-` 展开。
+- 单文件操作：压缩 / 解压 / 重命名 / 移动 / 删除。
+- 在线预览（图片、文本、视频）；无法预览的文件会提示下载。
 
-- Task-name link opens a detail popup (rich content; double-click an image for full-screen preview).
-- Related files open/download; images preview directly.
+### 4. 我的任务
+每位用户看到分配给自己的任务：
 
-### 5. Task Assignment — `/tasks`
-- Member list on the left; pick a member to see their tasks on the right.
-- **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
-- Tasks stored per member in **SQLite** at `<workspace>/TaskData/tasks-<id>.db` (legacy XML auto-imported on first use); files uploaded to `<workspace>/TaskData/Doc`.
+- 点击任务名链接打开详情弹窗（富文本内容；双击图片可全屏预览）。
+- 相关文件可打开/下载；图片直接预览。
 
-### 6. Language
-Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
+### 5. 任务分配 —— `/tasks`
+- 左侧是成员列表；选中某位成员即可在右侧查看其任务。
+- **添加 / 编辑** 任务：**任务类型**、**任务名称**、**内容**（富文本——加粗/列表/引用，可粘贴或插入图片）、**状态**（处理中 / 完成 / 取消）、**相关文件**（可多选上传）。
+- 任务按成员存储在 **SQLite**：`<工作区>/TaskData/tasks-<id>.db`（旧版 XML 首次使用时自动导入）；文件上传到 `<工作区>/TaskData/Doc`。
+
+### 6. 语言
+控制台、工作台、文件管理器、任务分配和任务表单都支持完整的**英文 / 中文**切换。登录页优先使用配置的默认语言。
 
 ---
 
-## Architecture
+## 架构
 
 ```
 ┌────────────┐  :46001   ┌─────────────┐   WebSocket / HTTP proxy
@@ -123,32 +125,32 @@ Full **English / Chinese** toggle across the console, workbench, file manager, t
                          └─────────────┘──────────▶ ...
 ```
 
-- Launcher (self-contained, no .NET needed on target) serves the admin/workspace/tasks UI and proxies DSH requests, injecting the auth token so users never see "authentication required".
-- Each DSH runs under a **restricted OS user** with sandboxed workspace and contained read access.
-- A **patch layer** (idempotent) re-applies launcher customizations after DSH upgrades.
+- 启动器（自包含，目标机器无需 .NET）提供管理员/工作区/任务界面，并代理 DSH 请求、注入鉴权 token，用户永远不会看到 "authentication required"。
+- 每个 DSH 都以**受限的系统账户**运行，工作区被沙箱隔离、读取范围受限。
+- **补丁层**（幂等）会在 DSH 升级后重新应用启动器的定制。
 
 ---
 
-## Platform support
+## 平台支持
 
-| Platform | Node | @deepseek-ai/dsh deps |
+| 平台 | Node | @deepseek-ai/dsh 依赖 |
 |----------|------|------------------------|
-| Windows x64 | bundled, offline | bundled, offline |
-| macOS / Linux (x64 & arm64) | bundled (tar, offline) | bundled (offline tarball); falls back to `npm install` only if the bundle is missing |
+| Windows x64 | 内置，离线 | 内置，离线 |
+| macOS / Linux（x64 与 arm64） | 内置（tar，离线） | 内置（离线 tar 包）；仅在包缺失时才回退到 `npm install` |
 
 ---
 
-## License
+## 许可
 
-This project is licensed under the **Business Source License 1.1 (BSL 1.1)** — see [LICENSE](LICENSE) / [COPYING](COPYING). BSL 1.1 is a **source-available** license (it is not OSI open source).
+本项目以 **Business Source License 1.1 (BSL 1.1)** 授权——见 [LICENSE](LICENSE) / [COPYING](COPYING)。BSL 1.1 是**源码可见**许可（并非 OSI 认证的开源）。
 
-- You may copy, modify, create derivative works, redistribute, and make **non-production** use of the software.
-- **Additional Use Grant:** production use is **free for an organization with up to 10 users**; above 10 users a **commercial license** is required, priced in **blocks of 10 users at USD 10 per additional block per year** (e.g. 11–20 users = USD 10/year; 21–30 users = USD 20/year) (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
-- **Automatic conversion:** on the Change Date (**2030-09-11**) — or the fourth anniversary of a version's first public release, whichever is earlier — that version converts to the **Apache License, Version 2.0** (fully open source). The license applies per version.
-- Earlier releases published under the **MIT License remain available under MIT** permanently.
+- 你可以复制、修改、创作衍生作品、再分发，并对本软件进行**非生产**用途。
+- **附加使用授权（Additional Use Grant）：** 生产用途对**不超过 10 个用户的组织免费**；超过 10 个用户需要**商业许可**，按**每 10 个用户一档、每档每年 USD 10** 计价（例如 11–20 用户 = USD 10/年；21–30 用户 = USD 20/年）（联系 service@taketopits.com；见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。
+- **自动转换：** 在变更日（**2030-09-11**）——或某个版本首次公开发布满四周年之日，以较早者为准——该版本自动转为 **Apache License, Version 2.0**（完全开源）。许可按版本适用。
+- 此前以 **MIT License** 发布的版本永久继续适用 MIT。
 
-The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (EMail: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+本软件的知识产权——包括其源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** 所有（邮箱：service@taketopits.com）。许可授予使用权，但不转移知识产权所有权，所有权仍归版权持有人。
 
-Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
+本产品内置的第三方组件仍适用其各自的许可（见 `gui-cs/src/wwwroot/vendor/licenses/` 和 [NOTICE](NOTICE)）。
 
-Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+版权所有 (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)。保留所有权利。
