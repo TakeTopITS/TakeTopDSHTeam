@@ -62,26 +62,15 @@ See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
 
 ---
 
-## Screenshots (conceptual layout)
+## Screenshots
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ TakeTopDSH Team Launcher                         admin (admin)    [Lang/EN] │
-├──────────────────────────────────────────────────────────────────────────┤
-│ [Port 46000] [Start] [Stop] [Open DSH]      ● Running (PID 11384)          │
-│ Instance Manager:                                                            │
-│   ******  46002  Stopped  [Start][Delete][Reset Password]                │
-│   ******    46003  Running  [Open][Stop][Delete][Reset Password]           │
-└──────────────────────────────────────────────────────────────────────────┘
+Launcher console (admin) - start/stop the default DSH, set the workspace path, and manage members:
 
-Workbench (/work):
-┌───────────────────────┬───────────────────────────────────────────────────┐
-│ [File Manager][My Tasks]                                                  │
-│  ← left pane (resize) │        DSH chat (right pane)                       │
-│   file explorer       │   "Explore the unknown…"                           │
-└───────────────────────┴───────────────────────────────────────────────────┘
-```
+![Launcher console](assets/launcher.png)
 
+Split-screen workbench - File Manager + My Tasks (left) and the DSH chat (right):
+
+![Workbench](assets/workbench.png)
 ## Feature Tour
 
 ### 1. Launcher Console (admin)
