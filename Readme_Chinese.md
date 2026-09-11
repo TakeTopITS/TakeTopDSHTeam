@@ -32,7 +32,7 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 - 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
 - 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
 - ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks persist as XML in each workspace (`TaskData/tasks-<id>.xml`), files go to `TaskData/Doc`.
-- 🌐 **i18n** — full Chinese / English UI (buttons, table headers, statuses, task form, login page).
+- 🌐 **i18n** — full English / Chinese UI (buttons, table headers, statuses, task form, login page).
 - 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
 - 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
 - 🚚 **Portable paths** — all internal paths are relative to the install root, so you can move the folder anywhere.
@@ -105,7 +105,7 @@ Each user sees tasks assigned to them:
 - Tasks stored as **XML** under `<workspace>/TaskData/tasks-<id>.xml`; files uploaded to `<workspace>/TaskData/Doc`.
 
 ### 6. Language
-Full **Chinese / English** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
+Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
 
 ---
 

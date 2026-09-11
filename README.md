@@ -32,7 +32,7 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 - 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
 - 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
 - ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks are stored per member in **SQLite** (`TaskData/tasks-<id>.db`; legacy XML is auto-imported on first use), files go to `TaskData/Doc`.
-- 🌐 **i18n** — full Chinese / English UI (buttons, table headers, statuses, task form, login page).
+- 🌐 **i18n** — full English / Chinese UI (buttons, table headers, statuses, task form, login page).
 - 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
 - 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
 - 🚚 **Portable paths** — all internal paths are relative to the install root, so you can move the folder anywhere.
@@ -43,9 +43,11 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 
 ```
 Windows : double-click start.bat
-macOS   : ./start.sh
-Linux   : ./start.sh
+macOS   : bash start.sh
+Linux   : bash start.sh
 ```
+
+> On a fresh `git clone`, run the script as `bash start.sh` — the executable bit is not guaranteed to survive a Windows checkout (you may also `chmod +x start.sh` once).
 
 Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
@@ -105,7 +107,7 @@ Each user sees tasks assigned to them:
 - Tasks stored per member in **SQLite** at `<workspace>/TaskData/tasks-<id>.db` (legacy XML auto-imported on first use); files uploaded to `<workspace>/TaskData/Doc`.
 
 ### 6. Language
-Full **Chinese / English** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
+Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
 
 ---
 

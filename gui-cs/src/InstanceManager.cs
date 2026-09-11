@@ -80,18 +80,31 @@ public class InstanceManager
         try
         {
             var tpl = Path.Combine(_dshTemplate, ".credentials.yaml");
-            if (File.Exists(tpl)) return;
-            var y = new System.Text.StringBuilder();
-            y.AppendLine("version: 1");
-            y.AppendLine("refs:");
-            y.AppendLine("  DEEPSEEK_API_KEY: \"ph-demo-placeholder-key-change-me\"");
-            System.IO.Directory.CreateDirectory(_dshTemplate);
-            File.WriteAllText(tpl, y.ToString());
+            if (!File.Exists(tpl))
+            {
+                var y = new System.Text.StringBuilder();
+                y.AppendLine("version: 1");
+                y.AppendLine("refs:");
+                y.AppendLine("  DEEPSEEK_API_KEY: \"ph-demo-placeholder-key-change-me\"");
+                System.IO.Directory.CreateDirectory(_dshTemplate);
+                File.WriteAllText(tpl, y.ToString());
+            }
+            // DSH refuses to start when .credentials.yaml is readable beyond its owner
+            // (mode 600 required on Unix). Apply it for fresh AND pre-existing files.
+            Chmod600IfUnix(tpl);
         }
         catch (Exception ex)
         {
             Trace.WriteLine($"[instance] admin credential template seed failed: {ex.Message}");
         }
+    }
+
+    // Restrict a credential file to its owner (0600) on Unix/macOS. No-op on Windows.
+    private static void Chmod600IfUnix(string path)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
+        catch { /* best effort */ }
     }
 
     public IReadOnlyList<Instance> List() => _instances.ToList();
@@ -474,6 +487,7 @@ public class InstanceManager
                 y.AppendLine("version: 1");
                 foreach (var kv in srcRefs) y.AppendLine($"{kv.Key}: \"{kv.Value}\"");
                 File.WriteAllText(destCred, y.ToString());
+                Chmod600IfUnix(destCred);
                 return;
             }
 
@@ -530,6 +544,7 @@ public class InstanceManager
                 foreach (var kv in srcRefs) newLines.Add($"  {kv.Key}: \"{kv.Value}\"");
             }
             File.WriteAllLines(destCred, newLines);
+            Chmod600IfUnix(destCred);
         }
         catch (Exception ex)
         {
