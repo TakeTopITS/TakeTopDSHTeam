@@ -1488,6 +1488,18 @@ app.Use(async (ctx, next) =>
         }
         if (!string.IsNullOrEmpty(reqInstance))
         {
+            if (!isAdmin)
+            {
+                var bound = auth.Find(user)?.InstanceId ?? "";
+                if (!string.Equals(bound, reqInstance, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(user, reqInstance, StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Response.StatusCode = 403;
+                    ctx.Response.ContentType = "text/plain; charset=utf-8";
+                    await ctx.Response.WriteAsync("无权访问该实例。");
+                    return;
+                }
+            }
             var inst2 = instMgr.Get(reqInstance);
             if (inst2 == null || (!inst2.Running && !inst2.Starting))
             {

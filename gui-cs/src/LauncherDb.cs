@@ -67,25 +67,32 @@ public static class LauncherDb
         return System.IO.Path.Combine(baseDir, "database", DbFileName);
     }
 
-    private static string ReadWorkspacePath(string root)
+    private     static string ReadWorkspacePath(string root)
+    {
+        return WorkspaceFrom(System.IO.Path.Combine(root, "config", "launcher.local.json"))
+            ?? WorkspaceFrom(System.IO.Path.Combine(root, "appsettings.json"))
+            ?? DshService.DefaultWorkspacePath(root);
+    }
+
+    // Read a non-empty DshWeb.WorkspacePath from a config file, else null. The
+    // gitignored launcher.local.json takes precedence over appsettings.json, so the
+    // DB path follows the workspace the admin set in the UI.
+    static string? WorkspaceFrom(string path)
     {
         try
         {
-            var path = System.IO.Path.Combine(root, "appsettings.json");
-            if (File.Exists(path))
+            if (!File.Exists(path)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
+                web.TryGetProperty("WorkspacePath", out var ws) &&
+                ws.ValueKind == JsonValueKind.String)
             {
-                using var doc = JsonDocument.Parse(File.ReadAllText(path));
-                if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
-                    web.TryGetProperty("WorkspacePath", out var ws) &&
-                    ws.ValueKind == JsonValueKind.String)
-                {
-                    var v = ws.GetString();
-                    if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
-                }
+                var v = ws.GetString();
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
             }
         }
         catch { }
-        return DshService.DefaultWorkspacePath(root);
+        return null;
     }
 
     private static string ConnString(string dbPath, bool readOnly) => new SqliteConnectionStringBuilder
