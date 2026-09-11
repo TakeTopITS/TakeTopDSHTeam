@@ -23,6 +23,7 @@ using TakeTopDshLauncher;
 
 // Compute the project root: walk up from the app base dir looking for the root.
 var root = FindRoot(AppContext.BaseDirectory);
+MigrateDataHomes(root);
 
 // Standalone patch mode: run `TakeTopDshLauncher --apply-patch` after a DSH
 // upgrade to re-apply every launcher patch (removed "添加工作区", sandbox read
@@ -182,8 +183,23 @@ app.MapGet("/api/version", () => new
         .FirstOrDefault()?.InformationalVersion ?? "1.0.0",
     product = "TakeTopDSH Team",
 });
-app.MapGet("/api/logs", (int? from) => new { logs = dsh.Logs(from ?? 0), total = dsh.TotalLogCount, from = from ?? 0 });
-app.MapGet("/api/token", () => new { url = dsh.TokenUrl() });
+app.MapGet("/api/logs", (int? from, HttpContext ctx) =>
+{
+    var f = from ?? 0;
+    if ((bool)ctx.Items["isAdmin"]!)
+        return Results.Ok(new { logs = dsh.Logs(f), total = dsh.TotalLogCount, from = f });
+    var uname = (string)ctx.Items["username"]!;
+    var bound = auth.Find(uname)?.InstanceId ?? uname;
+    var inst = instMgr.Get(bound);
+    if (inst == null) return Results.Ok(new { logs = Array.Empty<string>(), total = 0, from = f });
+    var all = inst.Logs.ToArray();
+    var slice = f < all.Length ? all.Skip(f).ToArray() : Array.Empty<string>();
+    return Results.Ok(new { logs = slice, total = all.Length, from = f });
+});
+app.MapGet("/api/token", (HttpContext ctx) =>
+    (bool)ctx.Items["isAdmin"]!
+        ? Results.Ok(new { url = dsh.TokenUrl() })
+        : Results.Json(new { ok = false, error = "仅管理员可获取" }, statusCode: 403));
 // Public: language list for the login page (available before authentication).
 app.MapGet("/api/languages", () =>
 {
@@ -241,13 +257,19 @@ app.MapGet("/api/browse", ([Microsoft.AspNetCore.Mvc.FromQuery] string? path, [M
     var r = dsh.BrowseDirectory(path);
     return (object)new { path = r.Path, parent = r.Parent, home = r.Home, entries = r.Entries };
 });
-app.MapPost("/api/start", (StartRequest req) =>
+app.MapPost("/api/start", (StartRequest req, HttpContext ctx) =>
 {
+    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = "仅管理员可操作" }, statusCode: 403);
     var port = req.Port ?? dsh.DefaultPort();
     dsh.Start(port);
-    return new { ok = true };
+    return Results.Ok(new { ok = true });
 });
-app.MapPost("/api/stop", () => { dsh.Stop(); return new { ok = true }; });
+app.MapPost("/api/stop", (HttpContext ctx) =>
+{
+    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = "仅管理员可操作" }, statusCode: 403);
+    dsh.Stop();
+    return Results.Ok(new { ok = true });
+});
 app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
 {
     if (req.Url != null)
@@ -1041,7 +1063,15 @@ app.MapGet("/api/tasks", (string? inst, string? scope, int? page, int? pageSize,
 app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
+    var isAdmin = (bool)ctx.Items["isAdmin"]!;
     if (string.IsNullOrWhiteSpace(req.Inst)) return Results.Json(new { ok = false, error = "缺少成员" }, statusCode: 400);
+    if (!isAdmin)
+    {
+        var bound = auth.Find(username)?.InstanceId ?? username;
+        if (!string.Equals(req.Inst, bound, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(req.Inst, username, StringComparison.OrdinalIgnoreCase))
+            return Results.Json(new { ok = false, error = "无权操作该成员" }, statusCode: 403);
+    }
     try
     {
         var list = ReadTaskList(req.Inst);
@@ -1525,7 +1555,7 @@ app.Use(async (ctx, next) =>
             // injected auto-open script, otherwise the DSH UI stays on "选择工作区"
             // (the instance branches below already do this). Read it from the
             // launcher's own .dsh/storages/workspace.json.
-            workspaceId = ReadWorkspaceId(Path.Combine(root, ".dsh"));
+            workspaceId = ReadWorkspaceId(dsh.DshHome);
             // Check for token URL (may have been captured from a previous DSH
             // process or from a prior request in this session).
             var tu = dsh.TokenUrl();
@@ -2213,6 +2243,28 @@ static string FindRoot(string baseDir)
         dir = parent.FullName;
     }
     return baseDir;
+}
+
+// Keep per-user DSH data under the workspace rather than the install dir: move
+// <install>\.dsh and <install>\instances to <workspace>\.dsh / <workspace>\instances
+// when the workspace differs and the target does not exist yet.
+static void MigrateDataHomes(string root)
+{
+    try
+    {
+        var ws = DshService.ResolveWorkspacePath(root);
+        if (string.IsNullOrWhiteSpace(ws)) return;
+        foreach (var name in new[] { ".dsh", "instances" })
+        {
+            var src = Path.GetFullPath(Path.Combine(root, name));
+            var dst = Path.GetFullPath(Path.Combine(ws, name));
+            if (string.Equals(src, dst, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!Directory.Exists(src) || Directory.Exists(dst)) continue;
+            Directory.CreateDirectory(ws);
+            Directory.Move(src, dst);
+        }
+    }
+    catch (Exception ex) { Trace.WriteLine($"[migrate] data homes move failed: {ex.Message}"); }
 }
 
 // Read the first workspaceId from an instance's storages/workspace.json.

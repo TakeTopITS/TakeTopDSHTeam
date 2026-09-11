@@ -63,9 +63,14 @@ public class InstanceManager
     public InstanceManager(string root, int basePort = 46000)
     {
         _root = root;
-        _instRoot = Path.Combine(root, "instances");
+        var ws = DshService.ResolveWorkspacePath(root);
+        var wsInst = Path.Combine(ws, "instances");
+        var legacyInst = Path.Combine(root, "instances");
+        _instRoot = Directory.Exists(wsInst) ? wsInst : (Directory.Exists(legacyInst) ? legacyInst : wsInst);
         _instancesDir = Path.Combine(root, "config", "instances.json");
-        _dshTemplate = Path.Combine(root, ".dsh");
+        var wsTpl = Path.Combine(ws, ".dsh");
+        var legacyTpl = Path.Combine(root, ".dsh");
+        _dshTemplate = Directory.Exists(wsTpl) ? wsTpl : (Directory.Exists(legacyTpl) ? legacyTpl : wsTpl);
         _basePort = basePort;
         // A fresh clone has no admin root .dsh/.credentials.yaml (it is gitignored,
         // since it holds the real API key). Ensure a placeholder template exists so
@@ -155,6 +160,7 @@ public class InstanceManager
                     {
                         try { inst.Proc = Process.GetProcessById(pid); } catch { inst.Proc = null; }
                         if (inst.Proc == null) inst.Running = false;
+                        else inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [resume] instance already running (pid {pid})");
                     }
                     else inst.Running = false;
                 }
@@ -580,6 +586,7 @@ public class InstanceManager
         lock (_gate)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
+            inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] {inst.Id} port={inst.DshPort} workspace={inst.Workspace}");
             Trace.WriteLine($"[start:{inst.Id}] beginning start sequence");
 
             // Sync the shared API key from the admin template BEFORE the early-return
@@ -681,6 +688,7 @@ public class InstanceManager
             proc.Start();
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
+            inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] dsh started (pid {proc.Id})");
             Trace.WriteLine($"[start:{inst.Id}] process started in {sw.ElapsedMilliseconds}ms");
 
             // If the process dies immediately (common when a restricted user lacks
@@ -1110,7 +1118,7 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
 
     // Absolute path of the shared settings-general client bundle.
     public static string SharedSettingsPath(string root) =>
-        Path.Combine(DshPkgDirFor(root), "node_modules", "@deepseek-ai", "dsh-client-ui-settings-general", "lib", "client.js");
+        Path.Combine(DshPatcher.ResolvePluginDir(DshPkgDirFor(root), "dsh-client-ui-settings-general"), "lib", "client.js");
 
     // Per-instance variant: ensure the instance has its OWN settings bundle
     // copy, then patch it (hide for non-admin). The shared/admin bundle stays
@@ -1121,10 +1129,11 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
         {
             var pkgDir = Path.Combine(inst.DshHome, "profiles", "web", "node_modules", "@deepseek-ai", "dsh-client-ui-settings-general");
             var target = Path.Combine(pkgDir, "lib", "client.js");
-            var sharedPkgDir = Path.Combine(DshPkgDir(), "node_modules", "@deepseek-ai", "dsh-client-ui-settings-general");
+            var sharedPkgDir = DshPatcher.ResolvePluginDir(DshPkgDir(), "dsh-client-ui-settings-general");
             if (!Directory.Exists(sharedPkgDir)) return;
-            if (!File.Exists(target))
+            if (!File.Exists(target) || SettingsVersion(pkgDir) != SettingsVersion(sharedPkgDir))
             {
+                try { if (Directory.Exists(pkgDir)) Directory.Delete(pkgDir, true); } catch { }
                 Directory.CreateDirectory(pkgDir);
                 CopyDir(sharedPkgDir, pkgDir);
             }
@@ -1134,6 +1143,19 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
         {
             Trace.WriteLine($"[client-patch] per-instance settings failed: {ex.Message}");
         }
+    }
+
+    // Read the "version" field from a package dir's package.json ("" if unknown).
+    private static string SettingsVersion(string pkgDir)
+    {
+        try
+        {
+            var pj = Path.Combine(pkgDir, "package.json");
+            if (!File.Exists(pj)) return "";
+            using var doc = JsonDocument.Parse(File.ReadAllText(pj));
+            return doc.RootElement.TryGetProperty("version", out var v) ? (v.GetString() ?? "") : "";
+        }
+        catch { return ""; }
     }
 
     private static void PatchSettingsBundle(string settingsGeneral, bool visible)

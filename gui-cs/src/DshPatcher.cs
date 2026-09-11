@@ -78,6 +78,7 @@ public static class DshPatcher
         Say(PatchSandboxModeLock(Path.Combine(ResolvePluginDir(dshPkg, "dsh-sandbox-policy"), "lib", "index.js")));
         Say(PatchSandboxWrite(Path.Combine(ResolvePluginDir(dshPkg, "dsh-sandbox"), "lib", "index.js")));
         Say(PatchFsEscalation(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-fs"), "lib", "index.js")));
+        Say(PatchWelcomeNotice(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-settings-models"), "lib", "client.js")));
         // Shell tools are declared in the AGENT presets (agent-plane), which a host
         // cordis.patch.yml cannot disable — patch the preset files directly.
         foreach (var preset in new[] { "standard", "minimal", "ptc", "cordis" })
@@ -88,7 +89,7 @@ public static class DshPatcher
     // Resolve a plugin package dir. Depending on the npm version/install, plugins
     // are either nested under the dsh package OR hoisted next to it at the
     // top-level node_modules. Check both.
-    private static string ResolvePluginDir(string dshPkg, string pkg)
+    public static string ResolvePluginDir(string dshPkg, string pkg)
     {
         var nested = Path.Combine(dshPkg, "node_modules", "@deepseek-ai", pkg);
         if (Directory.Exists(nested)) return nested;
@@ -256,6 +257,22 @@ public static class DshPatcher
     }
 
     // ====== 6) show/hide the sidebar "设置" trigger on the SHARED bundle ======
+    // Suppress DSH's one-time "Internal Testing Notice" welcome modal: short-circuit
+    // the WelcomeNotice component so it never renders. Idempotent.
+    private static string PatchWelcomeNotice(string file)
+    {
+        if (!File.Exists(file)) return "[welcome] not found";
+        var src = File.ReadAllText(file);
+        const string marker = "/* tt-welcome-off */";
+        if (src.Contains(marker)) return "[welcome] already patched";
+        const string old = "if (state.status === \"idle\" || state.status === \"loading\" || state.acknowledged) return null;";
+        var idx = src.IndexOf(old, StringComparison.Ordinal);
+        if (idx < 0) return "[welcome] source changed (SKIPPED)";
+        src = src.Remove(idx, old.Length).Insert(idx, "return null; " + marker);
+        File.WriteAllText(file, src);
+        return "[welcome] suppressed";
+    }
+
     private static string PatchSettingsVisibility(string file, bool visible)
     {
         if (!File.Exists(file)) return "[settings] not found";

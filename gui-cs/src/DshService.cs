@@ -43,7 +43,9 @@ public class DshService
     public DshService(string root)
     {
         _root = root;
-        _dshHome = Path.Combine(root, ".dsh");
+        var wsHome = Path.Combine(ResolveWorkspacePath(root), ".dsh");
+        var legacyHome = Path.Combine(root, ".dsh");
+        _dshHome = Directory.Exists(wsHome) ? wsHome : (Directory.Exists(legacyHome) ? legacyHome : wsHome);
     }
 
     public void SetInstanceManager(InstanceManager mgr) => _instMgr = mgr;
@@ -825,7 +827,36 @@ public class DshService
     // dsh's sandbox/cwd points at (where AI works). Empty = dsh's own default.
     public string ReadWorkspacePath()
     {
-        return OptStr(ReadDshWeb(), "WorkspacePath") ?? DefaultWorkspacePath(_root);
+        return ResolveWorkspacePath(_root);
+    }
+
+    public string DshHome => _dshHome;
+
+    // Resolve the effective workspace path from config without an instance: the
+    // gitignored local override wins, then appsettings.json, then the portable
+    // default (<install>\WorkSpace).
+    public static string ResolveWorkspacePath(string root)
+    {
+        return WorkspaceFrom(Path.Combine(root, "config", "launcher.local.json"))
+            ?? WorkspaceFrom(Path.Combine(root, "appsettings.json"))
+            ?? DefaultWorkspacePath(root);
+    }
+
+    private static string? WorkspaceFrom(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("DshWeb", out var web) &&
+                web.TryGetProperty("WorkspacePath", out var ws) && ws.ValueKind == JsonValueKind.String)
+            {
+                var v = ws.GetString();
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
+        }
+        catch { }
+        return null;
     }
 
     // Portable default used when the admin has not configured a workspace: a
