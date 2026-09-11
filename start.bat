@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 set "LAUNCHER_URL=http://127.0.0.1:46001"
-set "LAUNCHER_EXE=%~dp0gui-cs\src\bin\Release\net10.0\win-x64\publish\TakeTopDshLauncher.exe"
+set "LAUNCHER_EXE=%~dp0dsh-launcher\win-x64\TakeTopDshLauncher.exe"
 set "CSPROJ=%~dp0gui-cs\src\TakeTopDshLauncher.csproj"
 
 REM ---- Check admin; if not admin, re-launch elevated and exit ----
@@ -23,7 +23,7 @@ if not exist "%LAUNCHER_EXE%" (
         exit /b 1
     )
     pushd "%~dp0gui-cs\src"
-    dotnet publish "%CSPROJ%" -c Release -r win-x64 --self-contained true -o "%~dp0gui-cs\src\bin\Release\net10.0\win-x64\publish" --nologo
+    dotnet publish "%CSPROJ%" -c Release -r win-x64 --self-contained true -o "%~dp0dsh-launcher\win-x64" --nologo
     popd
     if not exist "%LAUNCHER_EXE%" (
         echo ERROR: build failed.

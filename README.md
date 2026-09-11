@@ -1,6 +1,6 @@
 # TakeTopDSHTeam
 
-TakeTopDSHTeam turns [DeepSeek Harness] into a **team-ready, multi-user platform**,it is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
+TakeTopDSHTeam turns DeepSeek Harness into a **team-ready, multi-user platform**. It is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
 **Key Features**:
 - 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
@@ -19,13 +19,19 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 
 ---
 
+> 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDSH Team ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
+
+> 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
+
+---
+
 ## Highlights
 
 - 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to each member's private DSH, so you expose only one public port.
 - 👤 **Per-user isolation** — each user runs DSH under a dedicated OS user + sandboxed workspace; no cross-user access.
 - 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
 - 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
-- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks persist as XML in each workspace (`TaskData/tasks-<id>.xml`), files go to `TaskData/Doc`.
+- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks are stored per member in **SQLite** (`TaskData/tasks-<id>.db`; legacy XML is auto-imported on first use), files go to `TaskData/Doc`.
 - 🌐 **i18n** — full Chinese / English UI (buttons, table headers, statuses, task form, login page).
 - 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
 - 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
@@ -43,7 +49,7 @@ Linux   : ./start.sh
 
 Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
-> Do **not** open `:46000` directly (returns 404); DSH needs the `token` that the launcher injects.
+> Do **not** open `:46000` directly (it answers `401 Unauthorized`); DSH needs the `token` that the launcher injects.
 
 See  [Guide/USER_GUIDE_English.pdf](Guide/USER_GUIDE_English.pdf) for setup and usage.
 
@@ -96,7 +102,7 @@ Each user sees tasks assigned to them:
 ### 5. Task Assignment (admin) — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
 - **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
-- Tasks stored as **XML** under `<workspace>/TaskData/tasks-<id>.xml`; files uploaded to `<workspace>/TaskData/Doc`.
+- Tasks stored per member in **SQLite** at `<workspace>/TaskData/tasks-<id>.db` (legacy XML auto-imported on first use); files uploaded to `<workspace>/TaskData/Doc`.
 
 ### 6. Language
 Full **Chinese / English** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.

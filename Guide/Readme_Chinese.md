@@ -19,6 +19,12 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 
 ---
 
+> 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDSH Team ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
+
+> 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
+
+---
+
 ## Highlights
 
 - 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to each member's private DSH, so you expose only one public port.

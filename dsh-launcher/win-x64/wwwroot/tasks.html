@@ -1,0 +1,701 @@
+<!--
+  TakeTopDSH Team — multi-user DeepSeek Harness platform
+  Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
+  EMail: service@taketopits.com
+
+  This software is licensed under the Business Source License 1.1 (BSL 1.1).
+  You may copy, modify, redistribute, and make non-production use; production
+  use is free for an organization with up to 10 users. Use by more than 10
+  users requires a commercial license. See LICENSE for the full terms and
+  LICENSE-COMMERCIAL.md for commercial licensing.
+
+  On the Change Date (2030-09-11) this version automatically converts to the
+  Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+  WARRANTY OF ANY KIND.
+
+  This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
+  (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+  A commercial license is also available; see LICENSE-COMMERCIAL.md.
+-->
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Task Assignment</title>
+<style>
+  @keyframes fb2spin { to { transform: rotate(360deg); } }
+  html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; background: #f5f6f8; color: #1c1e21; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #d5d9df; }
+  .topbar a { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 14px; }
+  .topbar a:hover { text-decoration: underline; }
+  .topbar .title { font-weight: 700; font-size: 16px; }
+  .topbar .spacer { flex: 1; }
+  .topbar select { padding: 5px 8px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 13px; background: #fff; }
+  .layout { display: flex; height: calc(100% - 49px); }
+  .members { width: 220px; border-right: 1px solid #d5d9df; background: #fff; overflow: auto; }
+  .members h3 { margin: 0; padding: 10px 14px; font-size: 13px; color: #6b7280; border-bottom: 1px solid #eef0f3; }
+  .member { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f5f6f8; font-size: 14px; }
+  .member:hover { background: #f5f7fa; }
+  .member.active { background: #eef4ff; color: #1d4ed8; font-weight: 600; }
+  .tasks { flex: 1; padding: 14px 18px; overflow: auto; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .toolbar .hint { color: #6b7280; font-size: 13px; }
+  .toolbar .sp { flex: 1; }
+  button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; }
+  button:hover { filter: brightness(0.92); }
+  button.secondary { background: #64748b; }
+  button.danger { background: #dc2626; }
+  .table-wrap { background: #fff; border: 1px solid #e0e2e6; border-radius: 8px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 9px 12px; border-bottom: 1px solid #eef0f3; text-align: left; vertical-align: top; }
+  th { background: #f8fafc; font-weight: 700; color: #475569; position: sticky; top: 0; }
+  .st { font-weight: 600; }
+  .st.processing { color: #d97706; }
+  .st.done { color: #16a34a; }
+  .st.cancelled { color: #9ca3af; }
+  .st.pending { color: #64748b; }
+  .task-name-link { color:#2563eb; text-decoration:none; font-weight:600; }
+  .task-name-link:hover { text-decoration:underline; }
+  .row-ops button { padding: 3px 9px; font-size: 12px; }
+  .row-ops button + button { margin-left: 5px; }
+  .files-list { list-style: none; margin: 0; padding: 0; }
+  .files-list li { font-size: 12.5px; color: #334155; line-height: 1.7; }
+  .muted { color: #6b7280; font-size: 13px; }
+  .empty { padding: 24px; text-align: center; color: #9ca3af; font-size: 14px; }
+  .tt-pager { display:flex; align-items:center; justify-content:center; gap:4px; padding:8px 0; }
+  /* modal */
+  .overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: none; align-items: center; justify-content: center; z-index: 10005; }
+  .overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 10px; width: min(560px,94vw); max-height: 90vh; padding: 20px 24px; box-shadow: 0 12px 40px rgba(0,0,0,.25); display: flex; flex-direction: column; overflow: auto; }
+  .modal h2 { margin: 0 0 14px; font-size: 17px; }
+  .modal .field { margin-bottom: 12px; }
+  .modal label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .modal input, .modal select, .modal textarea { width: 100%; padding: 7px 9px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 14px; box-sizing: border-box; font-family: inherit; }
+  .modal textarea { min-height: 84px; resize: vertical; }
+  .modal .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .modal .chip { background: #eef1f5; border-radius: 14px; padding: 3px 10px; font-size: 12.5px; color: #334155; display: inline-flex; align-items: center; gap: 6px; }
+  .modal .chip b { cursor: pointer; color: #dc2626; }
+  [contenteditable] img { max-width: 100%; height: auto; }
+  [contenteditable]:focus { outline: 2px solid #93c5fd; }
+  .rich-toolbar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; border: 1px solid #d5d9df; border-radius: 7px; padding: 4px; background: #f8fafc; }
+  .rich-toolbar button { padding: 5px 9px; background: #fff; border: 1px solid #d5d9df; border-radius: 5px; color: #334155; font-size: 13px; cursor: pointer; line-height: 1; }
+  .rich-toolbar button:hover { background: #eef4ff; border-color: #2563eb; }
+  .rich-toolbar button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .modal .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a href="/work" id="backLink">← 返回</a>
+    <span class="title" id="pageTitle">任务分配</span>
+    <span class="spacer"></span>
+    <select id="langSel">
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+
+  <div class="layout">
+    <div class="members">
+      <h3 id="memberTitle">成员</h3>
+      <div id="memberList"></div>
+    </div>
+    <div class="tasks">
+      <div class="toolbar">
+        <span class="hint" id="curMember"></span>
+        <span class="sp"></span>
+        <button id="addTaskBtn">添加任务</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th id="thSeq" style="width:60px;">序号</th>
+              <th id="thType" style="width:120px;">任务类型</th>
+              <th id="thName">任务名称</th>
+              <th id="thFeedback" style="width:90px;">反馈</th>
+              <th id="thCreator" style="width:100px;">创建者</th>
+              <th id="thAssigned" style="width:140px;">分派时间</th>
+              <th id="thStatus" style="width:90px;">状态</th>
+              <th id="thFiles">相关文件</th>
+              <th id="thOps" style="width:110px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="taskBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="emptyHint" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Task form modal -->
+  <div class="overlay" id="modal">
+    <div class="modal">
+      <h2 id="modalTitle">添加任务</h2>
+      <div class="field"><label id="lblType">任务类型</label><input id="fType" /></div>
+      <div class="field"><label id="lblName">任务名称</label><input id="fName" /></div>
+      <div class="field"><label id="lblContent">任务内容</label>
+        <div class="rich-toolbar" id="richToolbar">
+          <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+          <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+          <button type="button" data-cmd="insertUnorderedList" title="Bullet list">•≡</button>
+          <button type="button" data-cmd="insertOrderedList" title="Numbered list">1≡</button>
+          <button type="button" data-cmd="formatBlock" data-val="blockquote" title="Quote">❝</button>
+          <button type="button" id="richImage" title="Insert image">🖼</button>
+          <button type="button" data-cmd="removeFormat" title="Clear format">⌫</button>
+        </div>
+        <div id="fContent" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:90px;max-height:38vh;font-size:14px;line-height:1.5;overflow:auto;"></div>
+      </div>
+      <div class="field"><label id="lblAssigned">分派时间</label><input type="datetime-local" id="fAssigned" /></div>
+      <div class="field"><label id="lblStatus">状态</label>
+        <select id="fStatus">
+          <option value="processing">处理中</option>
+          <option value="done">完成</option>
+          <option value="cancelled">取消</option>
+        </select>
+      </div>
+      <div class="field"><label id="lblFiles">相关文件（可多选，上传至 TaskData/Doc）</label>
+        <label for="fFiles" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">选择文件</label>
+        <input type="file" id="fFiles" multiple style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" />
+        <span id="fFilesLabel" style="margin-left:8px;font-size:13px;color:#6b7280;"></span>
+        <div class="chips" id="fileChips"></div>
+      </div>
+      <div class="btns">
+        <button class="secondary" id="modalCancel">取消</button>
+        <button id="modalSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View task content modal -->
+  <div class="overlay" id="viewModal">
+    <div class="modal" style="width:min(62vw,1000px);">
+      <h2 id="viewTitle">任务内容</h2>
+      <div id="viewContent" style="border:1px solid #e0e2e6;border-radius:6px;padding:14px;font-size:14px;line-height:1.6;min-height:200px;max-height:72vh;overflow:auto;box-sizing:border-box;"></div>
+      <div class="btns"><button class="secondary" id="viewClose">关闭</button></div>
+    </div>
+  </div>
+
+  <!-- Full-screen image preview (original size) -->
+  <div class="overlay" id="imgPreview">
+    <div style="position:relative;max-width:96vw;max-height:94vh;display:flex;align-items:center;justify-content:center;">
+      <img id="imgPreviewImg" style="max-width:96vw;max-height:94vh;object-fit:contain;border-radius:4px;box-shadow:0 12px 40px rgba(0,0,0,.4);" />
+      <button id="imgPreviewClose" style="position:fixed;top:14px;right:18px;padding:8px 16px;background:#fff;color:#1c1e21;border:0;border-radius:6px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.2);">×</button>
+    </div>
+  </div>
+
+<!-- Office preview libs + shared attachment preview (see /vendor/licenses) -->
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/docx-preview.min.js"></script>
+<script src="/vendor/exceljs.min.js"></script>
+<script type="module" src="/vendor/pptx-loader.js"></script>
+<script src="/vendor/preview.js"></script>
+
+<script>
+(function () {
+  var I18N = {
+    zh: {
+      back:"← 返回", title:"任务分配", members:"成员", add:"添加任务", cur:"当前成员：",
+      thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thOps:"操作",
+      edit:"编辑", del:"删除", feedback:"反馈", fbContent:"反馈内容", fbRecord:"反馈记录", fbNo:"序号", fbBy:"反馈人", fbTime:"时间", fbFiles:"附件", fbEmpty:"暂无反馈", fbRequired:"请填写反馈内容", empty:"暂无任务", modalAdd:"添加任务", modalEdit:"编辑任务",
+      lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）",
+      save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
+      saveOk:"保存成功", saveFail:"保存失败", saveDone:"正在保存...",
+      st:{processing:"处理中", done:"完成", cancelled:"取消", pending:"待处理"},
+      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败"
+    },
+    en: {
+      back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
+      thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thOps:"Actions",
+      edit:"Edit", del:"Delete", feedback:"Feedback", fbContent:"Content", fbRecord:"Feedback records", fbNo:"No.", fbBy:"By", fbTime:"Time", fbFiles:"Files", fbEmpty:"No feedback yet", fbRequired:"Please enter feedback", empty:"No tasks", modalAdd:"Add Task", modalEdit:"Edit Task",
+      lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)",
+      save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
+      saveOk:"Saved successfully", saveFail:"Save failed", saveDone:"Saving...",
+      st:{processing:"Processing", done:"Done", cancelled:"Cancelled", pending:"Pending"},
+      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed"
+    }
+  };
+  var lang = 'zh';
+  var launcherToken = (function(){ try { return new URLSearchParams(location.search).get('launcher_token'); } catch(e){ return null; } })();
+  function withToken(u){ if(launcherToken && /\/api\/(files|feedback)/.test(u)){ u += (u.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(launcherToken); } return u; }
+  function norm(c){var x=String(c||'').toLowerCase();return (x==='en'||x==='en-us'||x==='en-gb'||x==='us')?'en':'zh';}
+  function curLang(){try{var m=document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);if(m)return decodeURIComponent(m[1]);}catch(e){}try{var l=localStorage.getItem('tt_lang');if(l)return l;}catch(e){}return 'zh';}
+  lang = norm(curLang());
+  function t(k){ if(k==='st') return I18N[lang].st; return I18N[lang][k] || I18N.zh[k] || k; }
+  function applyBar(){
+    $('#pageTitle').textContent = t('title');
+    $('#backLink').textContent = t('back');
+    $('#memberTitle').textContent = t('members');
+    $('#addTaskBtn').textContent = t('add');
+    $('#thSeq').textContent = t('thSeq'); $('#thType').textContent = t('thType'); $('#thName').textContent = t('thName'); $('#thCreator').textContent = t('thCreator'); $('#thAssigned').textContent = t('thAssigned');
+    $('#thStatus').textContent = t('thStatus'); $('#thFiles').textContent = t('thFiles'); $('#thFeedback').textContent = t('feedback'); $('#thOps').textContent = t('thOps');
+    $('#modalTitle').textContent = ''; // set on open
+    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles');
+    $('#modalCancel').textContent = t('cancel'); $('#modalSave').textContent = t('save');
+    $('#viewClose').textContent = t('close');
+    document.getElementById('curMember').textContent = t('cur') + (curMember || '-');
+    // Rebuild the status <option> labels from the (possibly switched) locale,
+    // preserving the currently selected status value.
+    var fs = document.getElementById('fStatus');
+    if (fs) {
+      var stD = t('st'), curV = fs.value || 'processing';
+      fs.innerHTML = Object.keys(stD).map(function(k){ return '<option value="' + k + '">' + stD[k] + '</option>'; }).join('');
+      fs.value = curV;
+    }
+  }
+  var $ = function(s){ return document.querySelector(s); };
+  var members = [], curMember = '', tasks = [];
+  var editing = 0; // seq being edited (0 = new)
+  var editingMember = ''; // member the editing task belongs to
+  var editingCreator = ''; // creator of the editing task
+  var pendingFiles = []; // [{name, rel}]
+  var myName = '';
+  var PAGE_SIZE = 25;
+  var taskPage = 1;      // current server-side page
+  var taskTotal = 0;     // total records from server
+
+  function paginate(container, data, renderRow, emptyMsg) {
+    var state = { page: 1, data: data };
+    container._paginate = state;
+    function render() {
+      var total = state.data.length;
+      var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (state.page > pages) state.page = pages;
+      var start = (state.page - 1) * PAGE_SIZE;
+      var slice = state.data.slice(start, start + PAGE_SIZE);
+      var body = document.createElement('tbody');
+      renderRow(body, slice, start);
+      var table = container.querySelector('table');
+      if (!table) return;
+      var old = table.querySelector('tbody');
+      if (old) table.replaceChild(body, old); else table.appendChild(body);
+      var pag = container.querySelector('.tt-pager');
+      if (!pag) { pag = document.createElement('div'); pag.className = 'tt-pager'; container.appendChild(pag); }
+      if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+      var html = '<span style="font-size:12px;color:#6b7280;margin-right:8px;">' + total + ' items</span>';
+      html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> ';
+      for (var p = 1; p <= pages; p++) {
+        html += '<button data-p="' + p + '" style="padding:3px 10px;border:1px solid ' + (p===state.page?'#2563eb':'#d5d9df') + ';border-radius:5px;background:' + (p===state.page?'#2563eb':'#fff') + ';color:' + (p===state.page?'#fff':'#334155') + ';font-size:12px;cursor:pointer;margin:0 1px;">' + p + '</button> ';
+      }
+      html += '<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>';
+      pag.innerHTML = html;
+      pag.querySelectorAll('button[data-p]').forEach(function(b) {
+        b.onclick = function() {
+          var v = b.getAttribute('data-p');
+          if (v === 'prev') state.page = Math.max(1, state.page - 1);
+          else if (v === 'next') state.page = Math.min(pages, state.page + 1);
+          else state.page = parseInt(v, 10);
+          render();
+        };
+      });
+    }
+    render();
+  }
+  fetch('/api/auth/me').then(function(r){return r.json()}).then(function(d){myName=(d.username||'').toLowerCase();}).catch(function(){});
+
+  function req(method, url, body) {
+    var opt = { method: method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opt.body = JSON.stringify(body);
+    return fetch(url, opt).then(function(r){ return r.json().catch(function(){ return {}; }); });
+  }
+
+  async function loadMembers() {
+    try {
+      var d = await req('GET', '/api/members');
+      members = (d.members || []).map(function(x){ return { id:x.id, name:x.name, admin:x.admin }; });
+      // "All" overview for collaboration: show tasks created by every member.
+      members.unshift({ id:'', name: lang==='en'?'All':'全部', admin:false });
+      var box = $('#memberList'); box.innerHTML = '';
+      members.forEach(function(m){
+        var el = document.createElement('div');
+        el.className = 'member' + (m.id === curMember ? ' active' : '');
+        el.textContent = m.name;
+        el.onclick = function(){ curMember = m.id; taskPage = 1; loadMembers(); loadTasks(); };
+        box.appendChild(el);
+      });
+      if (curMember === undefined || curMember === null) curMember = '';
+      $('#curMember').textContent = t('cur') + (curMember || '-');
+      loadTasks();
+    } catch(e) { console.error('members', e); }
+  }
+
+  function renderTasks() {
+    var st = t('st');
+    var empty = $('#emptyHint');
+    var tableWrap = $('.table-wrap');
+    if (!tasks.length) { empty.style.display='block'; empty.textContent = t('empty'); tableWrap.style.display='none'; return; }
+    empty.style.display = 'none'; tableWrap.style.display = '';
+    // remove old pager (server-side pager uses .tt-pager class)
+    var oldPag = tableWrap.querySelector('.tt-pager');
+    if (oldPag) oldPag.remove();
+    var body = tableWrap.querySelector('tbody');
+    body.innerHTML = '';
+    tasks.forEach(function(task){
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + task.seq + '</td>'
+        + '<td>' + (task.type || '') + '</td>'
+        + '<td><a href="javascript:void(0)" class="task-name-link">' + (task.name || '') + '</a></td>'
+        + '<td><button class="fb-btn" style="padding:3px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:11px;cursor:pointer;">' + t('feedback') + '</button></td>'
+        + '<td>' + (task.createdBy || '') + '</td>'
+        + '<td>' + (task.assignedAt || '') + '</td>'
+        + '<td><span class="st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
+        + '<td><ul class="files-list">' + (task.files||[]).map(function(f){
+            var name = String(f).split('/').pop();
+            return '<li><a href="javascript:void(0)" class="task-file-link" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a></li>';
+          }).join('') + '</ul></td>'
+        + '<td class="row-ops">'
+        +   '<button class="secondary">' + t('edit') + '</button> '
+        +   '<button class="danger">' + t('del') + '</button>'
+        + '</td>';
+      tr.querySelector('a.task-name-link').onclick = function(){ openView(task); };
+      tr.querySelectorAll('a.task-file-link').forEach(function(a){
+        a.onclick = function(){ openTaskFile(a.getAttribute('data-file'), task.member, task.createdBy); };
+      });
+      tr.querySelector('button.secondary').onclick = function(){ openModal(task); };
+      tr.querySelector('button.danger').onclick = function(){ delTask(task); };
+      tr.querySelector('button.fb-btn').onclick = function(){ openFeedback(task); };
+      body.appendChild(tr);
+    });
+    renderServerPager(tableWrap);
+  }
+
+  // Server-side pagination: clicking a page button refetches that page from the API.
+  function renderServerPager(tableWrap) {
+    var pages = Math.max(1, Math.ceil(taskTotal / PAGE_SIZE));
+    if (taskPage > pages) taskPage = pages;
+    var pag = tableWrap.querySelector('.tt-pager');
+    if (!pag) { pag = document.createElement('div'); pag.className = 'tt-pager'; pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:12px;'; tableWrap.appendChild(pag); }
+    if (taskTotal <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+    var html = '<span style="font-size:12px;color:#6b7280;margin-right:8px;">' + taskTotal + ' items</span>';
+    html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> ';
+    for (var p = 1; p <= pages; p++) {
+      html += '<button data-p="' + p + '" style="padding:3px 10px;border:1px solid ' + (p===taskPage?'#2563eb':'#d5d9df') + ';border-radius:5px;background:' + (p===taskPage?'#2563eb':'#fff') + ';color:' + (p===taskPage?'#fff':'#334155') + ';font-size:12px;cursor:pointer;margin:0 1px;">' + p + '</button> ';
+    }
+    html += '<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>';
+    pag.innerHTML = html;
+    pag.querySelectorAll('button[data-p]').forEach(function(b) {
+      b.onclick = function() {
+        var v = b.getAttribute('data-p');
+        if (v === 'prev') taskPage = Math.max(1, taskPage - 1);
+        else if (v === 'next') taskPage = Math.min(pages, taskPage + 1);
+        else taskPage = parseInt(v, 10);
+        loadTasks();
+      };
+    });
+  }
+
+  async function loadTasks() {
+    var url = curMember ? '/api/tasks?inst=' + encodeURIComponent(curMember) + '&scope=assignment' : '/api/tasks';
+    url += (curMember ? '&' : '?') + 'page=' + taskPage + '&pageSize=' + PAGE_SIZE + '&_=' + Date.now();
+    var d = await req('GET', url);
+    tasks = d.tasks || [];
+    if (typeof d.total === 'number') taskTotal = d.total;
+    renderTasks();
+  }
+
+  async function delTask(task) {
+    if (!confirm(t('confirmDel'))) return;
+    await req('DELETE', '/api/tasks?inst=' + encodeURIComponent(task.member || curMember) + '&seq=' + task.seq);
+    loadTasks();
+  }
+
+  function openModal(task) {
+    editing = task ? task.seq : 0;
+    editingMember = task ? (task.member || curMember) : '';
+    editingCreator = task ? (task.createdBy || '') : '';
+    $('#modalTitle').textContent = editing ? t('modalEdit') : t('modalAdd');
+    $('#fType').value = task ? (task.type||'') : '';
+    $('#fName').value = task ? (task.name||'') : '';
+    $('#fContent').innerHTML = task ? (task.content||'') : '';
+    // datetime-local expects "YYYY-MM-DDTHH:mm"; normalize "YYYY-MM-DD HH:mm"
+    var at = task ? (task.assignedAt||'') : '';
+    if (at) {
+      $('#fAssigned').value = at.replace(' ', 'T').slice(0,16);
+    } else {
+      // New task: default the assigned time to now (today, current hour:minute).
+      var d = new Date();
+      var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+      $('#fAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    $('#fStatus').value = task ? (task.status||'processing') : 'processing';
+    pendingFiles = (task && task.files) ? task.files.slice() : [];
+    $('#fFilesLabel').textContent = '';
+    renderChips();
+    $('#modal').classList.add('show');
+  }
+  function closeModal(){ $('#modal').classList.remove('show'); }
+  function openView(task) {
+    $('#viewTitle').textContent = (task.name || t('modalEdit'));
+    $('#viewContent').innerHTML = task.content || '';
+    // Double-click any image shows it in a full-screen preview at original size.
+    $('#viewContent').querySelectorAll('img').forEach(function (im) {
+      im.style.cursor = 'zoom-in';
+      im.addEventListener('dblclick', function () {
+        $('#imgPreviewImg').src = im.currentSrc || im.src;
+        $('#imgPreview').classList.add('show');
+      });
+    });
+    $('#viewModal').classList.add('show');
+  }
+  function closeView(){ $('#viewModal').classList.remove('show'); }function closeView(){ $('#viewModal').classList.remove('show'); }
+var fbModal2=null;
+var fb2PendingFiles=[];
+var fb2Inst=''; var fb2Seq=0;
+function ensureFb2(){ if(fbModal2) return;
+  fbModal2=document.createElement("div"); fbModal2.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10001;display:none;align-items:center;justify-content:center;";
+  fbModal2.innerHTML='<div style="background:#fff;border-radius:10px;width:min(760px,96vw);max-height:90vh;padding:20px 24px;display:flex;flex-direction:column;overflow-y:auto;">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><strong id="fb2Title" style="font-size:16px;"></strong><button id="fb2Close" style="padding:4px 14px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">'+t("close")+'</button></div>'+
+    '<div style="margin-bottom:4px;font-weight:600;font-size:13px;">'+t("fbContent")+'</div>'+
+    '<div class="rich-toolbar" id="fb2Toolbar">'+
+      '<button type="button" data-cmd="bold" title="Bold"><b>B</b></button>'+
+      '<button type="button" data-cmd="italic" title="Italic"><i>I</i></button>'+
+      '<button type="button" data-cmd="underline" title="Underline"><u>U</u></button>'+
+      '<button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>'+
+      '<button type="button" data-cmd="insertUnorderedList" title="Bullet">•≡</button>'+
+      '<button type="button" data-cmd="insertOrderedList" title="Numbered">1≡</button>'+
+      '<button type="button" data-cmd="formatBlock" data-val="blockquote" title="Quote">❝</button>'+
+      '<button type="button" id="fb2Image" title="Insert image">🖼</button>'+
+      '<button type="button" data-cmd="removeFormat" title="Clear">⌫</button>'+
+    '</div>'+
+    '<div id="fb2Editor" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:80px;max-height:240px;font-size:14px;line-height:1.5;overflow:auto;"></div>'+
+    '<div style="margin-top:6px;"><label for="fb2FileInput" style="display:inline-block;padding:5px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">📎 '+(lang==='en'?'Attach file':'添加附件')+'</label><input type="file" id="fb2FileInput" multiple accept="*/*" style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" /><div id="fb2FileChips" style="margin-top:4px;"></div></div>'+
+    '<div style="margin:10px 0 6px;font-weight:600;font-size:13px;">'+t("fbRecord")+'</div>'+
+    '<div style="max-height:220px;overflow:auto;border:1px solid #eef0f3;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbNo")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbContent")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbBy")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbTime")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbFiles")+'</th></tr></thead><tbody id="fb2Body"></tbody></table></div>'+
+    '<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;"><span id="fb2Msg" style="font-size:13px;color:#16a34a;display:none;margin-right:auto;"></span><button id="fb2Save" style="padding:7px 16px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:90px;"><span id="fb2SaveSpin" style="display:none;width:14px;height:14px;border:2px solid #ffffff;border-top-color:transparent;border-radius:50%;animation:fb2spin 0.7s linear infinite;"></span><span id="fb2SaveTxt">'+t("save")+'</span></button></div>'+
+  '</div>'; document.body.appendChild(fbModal2);
+  fbModal2.querySelector("#fb2Close").onclick=function(){fbModal2.style.display="none";};
+  fbModal2.addEventListener("click",function(ev){ if(ev.target===fbModal2) fbModal2.style.display="none"; });
+  fbModal2.querySelector("#fb2Save").onclick=saveFeedback2;
+  fb2PendingFiles=[];
+  fbModal2.querySelector("#fb2FileInput").addEventListener("change",function(){
+    var chips=fbModal2.querySelector("#fb2FileChips"); chips.innerHTML="";
+    fb2PendingFiles=[];
+    Array.from(this.files).forEach(function(f,i){ fb2PendingFiles.push(f); var s=document.createElement("span"); s.style.cssText="display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;"; s.textContent=f.name; chips.appendChild(s); });
+  });
+  fbModal2.querySelector("#fb2Image").addEventListener("click",function(){
+    var inp=fbModal2.querySelector("#fb2FileInput"); inp.accept="image/*";
+    inp.onchange=function(){ var file=inp.files[0]; if(!file) {inp.accept="*/*";return;} var fd=new FormData(); fd.append("path","TaskData/Feedback"); fd.append("file",file,"img_"+Date.now()+"_"+(file.name||"image.png"));
+      fetch("/api/files/upload?inst="+encodeURIComponent(fb2Inst),{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(d){
+        if(d.ok&&d.saved&&d.saved.length){ var downPath="TaskData/Feedback/"+fb2Seq+"/"+d.saved[0]; var editor=fbModal2.querySelector("#fb2Editor"); var img=document.createElement("img"); img.src=withToken("/api/files/download?inst="+encodeURIComponent(fb2Inst)+"&path="+encodeURIComponent(downPath)+"&inline=1"); img.style.cssText="display:block;margin:6px 0;max-width:100%;"; editor.appendChild(img); var p=document.createElement("div"); p.appendChild(document.createElement("br")); editor.appendChild(p); }
+      }).catch(function(){}).finally(function(){inp.accept="*/*";inp.onchange=null;}); };
+    inp.click();
+  });
+  fbModal2.querySelectorAll("#fb2Toolbar button[data-cmd]").forEach(function(b){
+    b.addEventListener("mousedown",function(ev){ev.preventDefault();});
+    b.addEventListener("click",function(){ fbModal2.querySelector("#fb2Editor").focus(); var cmd=b.getAttribute("data-cmd"); if(cmd==="formatBlock") document.execCommand(cmd,false,b.getAttribute("data-val")); else document.execCommand(cmd,false,null); });
+  });
+  fbModal2.querySelector("#fb2Editor").addEventListener("dblclick",function(ev){
+    var t=ev.target; if(t&&t.tagName&&t.tagName.toUpperCase()==="IMG"){
+      ev.preventDefault(); var cur=(t.style&&t.style.width)||"";
+      var val=prompt(t("fbImgWidth")||"设置图片显示宽度 (数字=px，如 400；百分比如 50%；留空=100%)",cur);
+      if(val===null)return; val=String(val||"").trim();
+      if(!val){t.style.width="";return;}
+      if(/^\d+(\.\d+)?$/.test(val))val=val+"px";
+      else if(!/%$/.test(val))val=val+"%";
+      t.style.width=val; t.style.height="auto";
+    }
+  });
+}
+function renderFb2Chips(){var c=fbModal2.querySelector("#fb2FileChips"); c.innerHTML=""; fb2PendingFiles.forEach(function(f,i){var s=document.createElement("span"); s.style.cssText="display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;"; s.textContent=f.name; c.appendChild(s);});}
+function openFeedback(task){ task=task||{}; fb2Inst=(task.member||curMember||''); fb2Seq=task.seq||0; ensureFb2(); fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; fbModal2.querySelector("#fb2Title").textContent=(task.name||"")+" (#"+task.seq+")"; fbModal2.querySelector("#fb2Editor").innerHTML=""; fbModal2.style.display="flex"; loadFeedback2(); }
+async function loadFeedback2(){ try{ var r=await fetch("/api/feedback?inst="+encodeURIComponent(fb2Inst)+"&seq="+fb2Seq); var d=await r.json().catch(function(){return{};}); var es=d.entries||[]; var body=fbModal2.querySelector("#fb2Body"); var wrap=body.closest("div[style]");
+var oldPag2=wrap.querySelector(".tt-pager2"); if(oldPag2)oldPag2.remove();
+if(!es.length){ body.innerHTML='<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:14px;">'+t("fbEmpty")+'</td></tr>'; } else {
+var now=new Date(); var today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0'); var mine=es.find(function(e){ var byMatch=(e.by||'').toLowerCase()===myName; if(!byMatch)return false; if(e.date&&e.date===today)return true; if(e.time&&e.time.slice(0,10)===today)return true; return false; }); if(mine){fbModal2.querySelector("#fb2Editor").innerHTML=mine.content||"";} 
+pagFb2(wrap, es);
+} }catch(e){} }
+function pagFb2(wrap, es){ var pg={page:1,data:es}; function render(){ var total=pg.data.length; var pages=Math.max(1,Math.ceil(total/PAGE_SIZE)); if(pg.page>pages)pg.page=pages; var s=(pg.page-1)*PAGE_SIZE; var slice=pg.data.slice(s,s+PAGE_SIZE); var b=fbModal2.querySelector("#fb2Body"); b.innerHTML=""; slice.forEach(function(e,i){ var filesHtml=""; if(e.files){ e.files.split(",").filter(Boolean).forEach(function(fn){ var esc=String(fn).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); filesHtml+='<div><a href="javascript:void(0)" class="fb2-file-link" data-f="'+esc+'" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">'+esc+'</a></div>'; }); } var tr=document.createElement("tr"); tr.innerHTML='<td style="padding:8px;">'+(total-(s+i))+'</td><td style="padding:8px;">'+(e.content||"")+'</td><td style="padding:8px;">'+(e.by||"")+'</td><td style="padding:8px;">'+(e.time||"")+'</td><td style="padding:8px;">'+filesHtml+'</td>'; b.appendChild(tr); }); b.querySelectorAll("a.fb2-file-link").forEach(function(a){ a.onclick=function(){ openFbFile(a.getAttribute("data-f")); }; }); var pag=wrap.querySelector(".tt-pager2"); if(!pag){pag=document.createElement("div");pag.className="tt-pager2";pag.style.cssText="display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;";wrap.appendChild(pag);} if(total<=PAGE_SIZE){pag.innerHTML="";return;} var html='<span style="font-size:12px;color:#6b7280;margin-right:8px;">'+total+' items</span><button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> '; for(var p=1;p<=pages;p++){html+='<button data-p="'+p+'" style="padding:3px 10px;border:1px solid '+(p===pg.page?'#2563eb':'#d5d9df')+';border-radius:5px;background:'+(p===pg.page?'#2563eb':'#fff')+';color:'+(p===pg.page?'#fff':'#334155')+';font-size:12px;cursor:pointer;margin:0 1px;">'+p+'</button> ';} html+='<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>'; pag.innerHTML=html; pag.querySelectorAll("button[data-p]").forEach(function(btn){ btn.onclick=function(){ var v=btn.getAttribute("data-p"); if(v==="prev")pg.page=Math.max(1,pg.page-1); else if(v==="next")pg.page=Math.min(pages,pg.page+1); else pg.page=parseInt(v,10); render(); }; }); }
+  render();
+}
+async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor"); var html=editor.innerHTML.trim(); if(!html||html==="<br>"||html==="<div><br></div>"){ alert(t("fbRequired")); return; } var btn=fbModal2.querySelector("#fb2Save"); var spin=fbModal2.querySelector("#fb2SaveSpin"); var txt=fbModal2.querySelector("#fb2SaveTxt"); var msg=fbModal2.querySelector("#fb2Msg"); btn.disabled=true; btn.style.opacity="0.75"; btn.style.cursor="wait"; spin.style.display="inline-block"; txt.textContent=t("saveDone"); msg.style.display="none"; var fd=new FormData(); fd.append("inst",fb2Inst); fd.append("seq",fb2Seq); fd.append("content",html); for(var i=0;i<fb2PendingFiles.length;i++){ fd.append("files",fb2PendingFiles[i]); } var r=await fetch("/api/feedback",{method:"POST",body:fd}); var d=await r.json().catch(function(){return{};}); if(!d.ok){ spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; alert(d.error||"Failed"); return; } fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; await loadFeedback2(); spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; msg.textContent=t("saveOk"); msg.style.color="#16a34a"; msg.style.display="inline-block"; setTimeout(function(){msg.style.display="none";},3000); }
+  function closeImgPreview(){ $('#imgPreview').classList.remove('show'); }
+
+  // Preview a file via /api/files/read (returns a base64 dataUri for images),
+  // exactly like the file manager. Non-image files prompt to download.
+  var PREVIEW_IMG = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
+  function readFileForPreview(inst, path) {
+    var url = withToken('/api/files/read?inst=' + encodeURIComponent(inst));
+    return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path: path }) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }); });
+  }
+  function openFbFile(fn) {
+    TTPreview.open({ insts: [fb2Inst, curMember, 'admin'], path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: fn, token: launcherToken });
+  }
+  function fileUrl(f, member, creator, inline) {
+    var name = String(f).split('/').pop();
+    var m = member || creator || curMember || '';
+    return withToken('/api/files/download?inst=' + encodeURIComponent(m) + '&path=' + encodeURIComponent('TaskData/Doc/' + name) + (inline ? '&inline=1' : ''));
+  }
+  function openTaskFile(f, member, creator) {
+    var name = String(f).split('/').pop();
+    TTPreview.open({ insts: [member, creator, curMember, 'admin'], path: 'TaskData/Doc/' + name, name: name, token: launcherToken });
+  }
+  function renderChips(){
+    $('#fileChips').innerHTML = pendingFiles.map(function(f, i){
+      var name = String(f).split('/').pop();
+      return '<span class="chip"><a href="javascript:void(0)" class="chip-file" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a> <b data-i="'+i+'">×</b></span>';
+    }).join('');
+    $('#fileChips').querySelectorAll('a.chip-file').forEach(function(a){
+      a.onclick = function(){ openTaskFile(a.getAttribute('data-file'), editingMember, editingCreator); };
+    });
+    $('#fileChips').querySelectorAll('b[data-i]').forEach(function(b){
+      b.onclick = function(){ pendingFiles.splice(parseInt(b.getAttribute('data-i'),10),1); renderChips(); };
+    });
+  }
+
+  async function uploadFiles(files) {
+    if (!files || !files.length) return;
+    var fd = new FormData();
+    fd.append('path', 'TaskData/Doc');
+    for (var i=0;i<files.length;i++) fd.append('file', files[i]);
+    var r = await fetch('/api/files/upload?inst=' + encodeURIComponent(curMember), { method:'POST', body: fd });
+    var d = await r.json().catch(function(){return{};});
+    if (!d.ok) { alert(t('errUpload')); return; }
+    (d.saved || []).forEach(function(name){ pendingFiles.push('Doc/' + name); });
+    renderChips();
+  }
+
+  async function saveTask() {
+    var payload = {
+      inst: editing ? editingMember : curMember, seq: editing,
+      name: $('#fName').value.trim(),
+      type: $('#fType').value.trim(),
+      content: $('#fContent').innerHTML,
+      status: $('#fStatus').value,
+      assignedAt: ($('#fAssigned').value || '').replace('T', ' '),
+      files: pendingFiles
+    };
+    var method = editing ? 'PUT' : 'POST';
+    var d = await req(method, '/api/tasks', payload);
+    if (!d.ok) { alert((d.error || t('errSave'))); return; }
+    closeModal(); loadTasks();
+  }
+
+  // Rich-text image paste: upload the pasted image into TaskData/Doc and insert
+  // an <img> pointing at the download endpoint so it persists and renders on all
+  // task views. The editor is the #fContent contenteditable box.
+  $('#fContent').addEventListener('paste', function (ev) {
+    var items = (ev.clipboardData || window.clipboardData).items;
+    var imgs = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.type && it.type.indexOf('image/') === 0) imgs.push(it.getAsFile());
+    }
+    if (!imgs.length) return;    // let default paste proceed for text
+    ev.preventDefault();
+    var saveBtn = $('#modalSave'); saveBtn.disabled = true;
+    var pendingUploads = imgs.length;
+    imgs.forEach(function (file) {
+      var fd = new FormData();
+      fd.append('path', 'TaskData/Doc');
+      fd.append('file', file, 'pasted_' + Date.now() + '_' + (file.name || 'image.png'));
+      fetch('/api/files/upload?inst=' + encodeURIComponent(curMember), { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.ok && d.saved && d.saved.length) {
+            var rel = 'Doc/' + d.saved[0];
+            pendingFiles.push(rel);
+            renderChips();
+            appendImgToEditor(rel);
+          }
+        }).catch(function(){})
+        .finally(function(){ if (--pendingUploads <= 0) saveBtn.disabled = false; });
+    });
+  });
+
+  // Rich-text toolbar: map each tool button to a document.execCommand on the
+  // editor, keeping focus in the contenteditable box.
+  var editor = $('#fContent');
+  // Insert an uploaded image into the editor content (appended at the end, which
+  // is reliable regardless of focus/selection state), so it shows in the content.
+  function appendImgToEditor(rel) {
+    var img = document.createElement('img');
+    // rel is like "Doc/xxx.png" (relative to TaskData); the file lives under
+    // <workspace>/TaskData/, so the download path (relative to workspace root)
+    // must include the TaskData/ prefix.
+    var downPath = String(rel).replace(/^\/+/, '');
+    if (downPath.indexOf('TaskData') !== 0) downPath = 'TaskData/' + downPath;
+    img.src = withToken('/api/files/download?inst=' + encodeURIComponent(curMember) + '&path=' + encodeURIComponent(downPath) + '&inline=1');
+    img.style.display = 'block';
+    img.style.margin = '6px 0';
+    editor.appendChild(img);
+    // put a paragraph after the image so typing continues below it
+    var p = document.createElement('div'); p.appendChild(document.createElement('br'));
+    editor.appendChild(p);
+  }
+  function insertImgUrl(rel) { appendImgToEditor(rel); }
+  function uploadAndInsertImg(file) {
+    var saveBtn = $('#modalSave'); saveBtn.disabled = true;
+    var fd = new FormData();
+    fd.append('path', 'TaskData/Doc');
+    fd.append('file', file, 'img_' + Date.now() + '_' + (file.name || 'image.png'));
+    fetch('/api/files/upload?inst=' + encodeURIComponent(curMember), { method: 'POST', body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.ok && d.saved && d.saved.length) { var rel = 'Doc/' + d.saved[0]; pendingFiles.push(rel); renderChips(); appendImgToEditor(rel); }
+      }).catch(function(){}).finally(function(){ saveBtn.disabled = false; });
+  }
+  $('#richToolbar').querySelectorAll('button[data-cmd]').forEach(function (b) {
+    b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });   // keep selection
+    b.addEventListener('click', function () {
+      editor.focus();
+      var cmd = b.getAttribute('data-cmd');
+      if (cmd === 'formatBlock') document.execCommand(cmd, false, b.getAttribute('data-val'));
+      else document.execCommand(cmd, false, null);
+      // reflect active state (bold/italic/underline)
+      var on = false;
+      try { on = document.queryCommandState(cmd); } catch (e) {}
+      b.classList.toggle('active', !!on);
+    });
+  });
+  $('#richImage').addEventListener('click', function () {
+    editor.focus();
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = function () { if (inp.files && inp.files.length) uploadAndInsertImg(inp.files[0]); };
+    inp.click();
+  });
+
+  // Double-click an image inside the editor to set its displayed width.
+  $('#fContent').addEventListener('dblclick', function (ev) {
+    var t = ev.target;
+    if (t && t.tagName && t.tagName.toUpperCase() === 'IMG') {
+      ev.preventDefault();
+      var cur = (t.style && t.style.width) || '';
+      var val = prompt('设置图片显示宽度 (数字=px，如 400；百分比如 50%；留空=100%)', cur);
+      if (val === null) return;
+      val = String(val || '').trim();
+      if (!val) { t.style.width = ''; return; }
+      if (/^\d+(\.\d+)?$/.test(val)) val = val + 'px';       // bare number -> px
+      else if (!/%$/.test(val)) val = val + '%';              // treat as % 
+      t.style.width = val;
+      t.style.height = 'auto';
+    }
+  });
+
+  $('#addTaskBtn').onclick = function(){ openModal(null); };
+  $('#modalCancel').onclick = closeModal;
+  $('#viewClose').onclick = closeView;
+  $('#imgPreviewClose').onclick = closeImgPreview;
+  $('#imgPreview').addEventListener('click', function(ev){ if (ev.target === $('#imgPreview')) closeImgPreview(); });
+  $('#modalSave').onclick = saveTask;
+  $('#fFiles').onchange = function(){
+    var names=[]; for(var i=0;i<this.files.length;i++) names.push(this.files[i].name);
+    $('#fFilesLabel').textContent=names.join(', ');
+    uploadFiles(this.files).then(function(){ var i=$('#fFiles'); i.value=''; $('#fFilesLabel').textContent=''; }); };
+  $('#langSel').onchange = function(){
+    lang = norm(this.value);
+    try{ localStorage.setItem('tt_lang', lang); document.cookie='tt_lang='+lang+'; path=/; max-age=31536000; SameSite=Lax'; }catch(e){}
+    applyBar(); renderTasks();
+  };
+  try { $('#langSel').value = lang; } catch(e){}
+
+  applyBar();
+  loadMembers();
+})();
+</script>
+</body>
+</html>

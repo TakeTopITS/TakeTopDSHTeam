@@ -421,10 +421,9 @@ config/*.bak
 /docs/
 # Compiled launcher output — ignore build intermediates but KEEP the self-contained
 # publish folders so a fresh clone runs out of the box without the .NET SDK.
-# start.bat (Windows) uses gui-cs/src/bin/.../publish/; start.sh (Linux/macOS)
-# uses dsh-launcher/linux-*/ and dsh-launcher/osx-arm64/. The dsh-launcher/win-x64/
-# copy is redundant (start.bat uses gui-cs publish) so it stays ignored.
-dsh-launcher/win-x64/
+# start.sh (Linux/macOS) uses dsh-launcher/linux-x64, linux-arm64 and osx-arm64;
+# start.bat (Windows) uses dsh-launcher/win-x64. All four platform folders are
+# TRACKED so a fresh clone needs no compilation and no .NET SDK.
 gui-cs/src/obj/
 *.pdb
 # Local secrets
@@ -471,8 +470,7 @@ config/users.json
 /instances/
 /logs/
 *.log
-# Build output (bin/) is ignored wholesale by the standard [Bb]in/ rule above.
-# The self-contained launcher folder gui-cs/src/bin/Release/net10.0/win-x64/publish/
-# is deliberately TRACKED (a copy is added to the repo) so a fresh clone has the
-# launcher exe and runs out of the box without needing the .NET SDK. New build
-# intermediates inside bin/ are ignored via [Bb]in/.
+# Build output (bin/) is ignored. The self-contained launchers are TRACKED under
+# dsh-launcher/win-x64/ (Windows), linux-x64, linux-arm64 and osx-arm64, so a
+# fresh clone has the launcher exe for its platform and runs out of the box
+# without needing the .NET SDK.
