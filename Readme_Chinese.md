@@ -1,5 +1,7 @@
 # TakeTopDSHTeam
 
+![TakeTopDSH Team — 分屏工作台：左侧文件管理器 + 右侧 DSH 对话](assets/workbench.png)
+
 TakeTopDSHTeam 把 DeepSeek Harness 变成**面向团队的多用户平台**。它是一个**基于网页的 AI 协作平台**，面向软件开发与办公协作。团队成员直接在浏览器里使用 AI 辅助编码、文档编辑与任务管理——**团队的经验数据会沉淀并在团队内共享**，越用越聪明。
 
 **主要特性**：

@@ -1,5 +1,7 @@
 # TakeTopDSHTeam
 
+![TakeTopDSH Team — split-screen workbench: File Manager (left) + DSH chat (right)](assets/workbench.png)
+
 TakeTopDSHTeam turns DeepSeek Harness into a **team-ready, multi-user platform**. It is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
 **Key Features**:
@@ -9,7 +11,6 @@ TakeTopDSHTeam turns DeepSeek Harness into a **team-ready, multi-user platform**
 - 🚀 **One-click install** — Copy and run, no compilation or .NET runtime required.
 - 🖱️ **Full graphical interface** — All operations via mouse clicks; intuitive and easy to learn.
 
-> 📌 **Note**: This document contains text only and does not include any screenshots or images. The best way to experience the software is to try it out yourself!
 
 ---
 
