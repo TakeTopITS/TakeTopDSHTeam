@@ -16,8 +16,10 @@ Licensed Work:        TakeTopDSH Team (this version, v1.1.0)
 
 Additional Use Grant: Production use of the Licensed Work is permitted free of
                       charge for an organization with up to 10 (ten) individual
-                      users. Any production use by more than 10 users requires a
-                      commercial license from the Licensor; see
+                      users. Production use by more than 10 users requires a
+                      commercial license from the Licensor, priced in blocks of 10
+                      users at USD 10 per additional block per year (e.g. 11-20
+                      users = USD 10/year; 21-30 users = USD 20/year); see
                       LICENSE-COMMERCIAL.md.
 
 Change Date:          2030-09-11

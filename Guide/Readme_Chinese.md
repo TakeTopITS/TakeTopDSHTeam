@@ -15,7 +15,7 @@ TakeTopDSHTeam turns [DeepSeek Harness] into a **team-ready, multi-user platform
 
 TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their own isolated DSH instance behind a single launcher, with a built-in file manager, task assignment, and a split-screen workbench. Copy the whole folder to any machine and run — **no install, no compilation**.
 
-> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). Earlier MIT-licensed releases remain under MIT. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
+> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (tiered: **USD 10 per year for each additional block of 10 users**) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). Earlier MIT-licensed releases remain under MIT. The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — EMail: service@taketopits.com. All rights reserved.
 
 ---
 
@@ -133,7 +133,7 @@ Full **Chinese / English** toggle across the console, workbench, file manager, t
 This project is licensed under the **Business Source License 1.1 (BSL 1.1)** — see [LICENSE](LICENSE) / [COPYING](COPYING). BSL 1.1 is a **source-available** license (it is not OSI open source).
 
 - You may copy, modify, create derivative works, redistribute, and make **non-production** use of the software.
-- **Additional Use Grant:** production use is **free for an organization with up to 10 users**; above 10 users a **commercial license** is required (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
+- **Additional Use Grant:** production use is **free for an organization with up to 10 users**; above 10 users a **commercial license** is required, priced in **blocks of 10 users at USD 10 per additional block per year** (e.g. 11–20 users = USD 10/year; 21–30 users = USD 20/year) (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
 - **Automatic conversion:** on the Change Date (**2030-09-11**) — or the fourth anniversary of a version's first public release, whichever is earlier — that version converts to the **Apache License, Version 2.0** (fully open source). The license applies per version.
 - Earlier releases published under the **MIT License remain available under MIT** permanently.
 

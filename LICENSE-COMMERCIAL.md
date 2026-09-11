@@ -11,9 +11,12 @@ converts to the **Apache License, Version 2.0** on the Change Date.
   redistribute, and make non-production use of the software.
 - **Additional Use Grant (free tier).** Production use is permitted **free of
   charge for an organization with up to 10 users**.
-- **Above 10 users** requires a **commercial license** from the company. If your
-  use exceeds the grant you must purchase a commercial license, or refrain from
-  using the software.
+- **Above 10 users (tiered pricing).** A **commercial license** is required.
+  Users are counted in **blocks of 10**: the first block (up to 10 users) is free,
+  and **each additional block of 10 users costs USD 10 per year** — e.g. 11–20
+  users = USD 10/year, 21–30 users = USD 20/year, and so on. If your use exceeds
+  the grant you must purchase a commercial license, or refrain from using the
+  software.
 - **Automatic conversion.** On the Change Date (2030-09-11) — or the fourth
   anniversary of a given version's first public release, whichever is earlier —
   that version converts to **Apache-2.0** (fully open source). The license applies
@@ -35,6 +38,9 @@ converts to the **Apache License, Version 2.0** on the Change Date.
 
 - For more than 10 users, or any use not covered by the Additional Use Grant,
   contact the company for a commercial license.
+- **Pricing:** users are counted in **blocks of 10**. The first block (up to 10
+  users) is free; **each additional block of 10 users is USD 10 per year**
+  (e.g. 11–20 users = USD 10/year; 21–30 users = USD 20/year; and so on).
 - Contact: **service@taketopits.com**
   (please state: intended use, deployment, and user count).
 
