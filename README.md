@@ -53,7 +53,7 @@ Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
 > Do **not** open `:46000` directly (it answers `401 Unauthorized`); DSH needs the `token` that the launcher injects.
 
-See  [Guide/USER_GUIDE_English.pdf](Guide/USER_GUIDE_English.pdf) for setup and usage.
+See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
 
 ---
 

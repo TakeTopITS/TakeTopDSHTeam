@@ -1,6 +1,6 @@
 # TakeTopDSHTeam
 
-TakeTopDSHTeam turns [DeepSeek Harness] into a **team-ready, multi-user platform**,it is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
+TakeTopDSHTeam turns DeepSeek Harness into a **team-ready, multi-user platform**. It is a **web-based AI collaboration platform** designed for software development and office teamwork. Team members access AI-assisted coding, document editing, and task management directly from their browser — **team experience data accumulates and is shared across the team**, getting smarter over time.
 
 **Key Features**:
 - 🌐 **Web-based** — Runs in the browser, no client installation needed, accessible from anywhere.
@@ -31,7 +31,7 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 - 👤 **Per-user isolation** — each user runs DSH under a dedicated OS user + sandboxed workspace; no cross-user access.
 - 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks (two tabs), right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
 - 📁 **Built-in file manager** — upload, new folder, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
-- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks persist as XML in each workspace (`TaskData/tasks-<id>.xml`), files go to `TaskData/Doc`.
+- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files). Tasks are stored per member in **SQLite** (`TaskData/tasks-<id>.db`; legacy XML is auto-imported on first use), files go to `TaskData/Doc`.
 - 🌐 **i18n** — full English / Chinese UI (buttons, table headers, statuses, task form, login page).
 - 🧩 **Survives upgrades** — a patch system re-applies all custom behavior after every DSH update.
 - 📦 **Copy-to-run across platforms** — Windows / macOS / Linux x64 & arm64, self-contained, bundles the runtime and Node. No compilation on the target machine.
@@ -43,15 +43,17 @@ TakeTopDSHTeam is a **team-ready, multi-user platform: every member gets their o
 
 ```
 Windows : double-click start.bat
-macOS   : ./start.sh
-Linux   : ./start.sh
+macOS   : bash start.sh
+Linux   : bash start.sh
 ```
+
+> On a fresh `git clone`, run the script as `bash start.sh` — the executable bit is not guaranteed to survive a Windows checkout (you may also `chmod +x start.sh` once).
 
 Then open `http://127.0.0.1:46001` → log in → click **Open DSH**.
 
-> Do **not** open `:46000` directly (returns 404); DSH needs the `token` that the launcher injects.
+> Do **not** open `:46000` directly (it answers `401 Unauthorized`); DSH needs the `token` that the launcher injects.
 
-See [Guide/INSTALL_GUIDE_English.md](Guide/INSTALL_GUIDE_English.md) for full setup, and [Guide/USER_GUIDE_English.pdf](Guide/USER_GUIDE_English.pdf) for usage.
+See  [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf) for setup and usage.
 
 ---
 
@@ -102,7 +104,7 @@ Each user sees tasks assigned to them:
 ### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
 - **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
-- Tasks stored as **XML** under `<workspace>/TaskData/tasks-<id>.xml`; files uploaded to `<workspace>/TaskData/Doc`.
+- Tasks stored per member in **SQLite** at `<workspace>/TaskData/tasks-<id>.db` (legacy XML auto-imported on first use); files uploaded to `<workspace>/TaskData/Doc`.
 
 ### 6. Language
 Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
@@ -130,7 +132,7 @@ Full **English / Chinese** toggle across the console, workbench, file manager, t
 | Platform | Node | @deepseek-ai/dsh deps |
 |----------|------|------------------------|
 | Windows x64 | bundled, offline | bundled, offline |
-| macOS / Linux (x64 & arm64) | bundled (tar, offline) | first-run requires one network `npm install`, then offline |
+| macOS / Linux (x64 & arm64) | bundled (tar, offline) | bundled (offline tarball); falls back to `npm install` only if the bundle is missing |
 
 ---
 
