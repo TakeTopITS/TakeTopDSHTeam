@@ -1447,6 +1447,26 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/session-token");
     if (launcherOwned) { await next(); return; }
 
+    // Root landing: a TOP-LEVEL navigation to "/" is sent to the split workbench
+    // (/work), so a bookmark to the root always opens the two-pane workbench.
+    // Sub-frame / subresource loads of "/" (e.g. the workbench's right-pane iframe,
+    // which carries ?launcher_token=) must pass through unchanged, otherwise the
+    // workbench nests itself recursively.
+    if (user != null && (path == "/" || path == ""))
+    {
+        var secDest = ctx.Request.Headers["Sec-Fetch-Dest"].ToString();
+        var hasToken = !string.IsNullOrEmpty(ctx.Request.Query["launcher_token"].FirstOrDefault());
+        var hasInst = !string.IsNullOrEmpty(ctx.Request.Query["inst"].FirstOrDefault());
+        var isTopNav = secDest.Length == 0 || secDest.Equals("document", StringComparison.OrdinalIgnoreCase);
+        if (isTopNav && !hasToken && !hasInst)
+        {
+            var sessTok = ctx.Request.Cookies["tt_session"];
+            var q = string.IsNullOrEmpty(sessTok) ? "" : "?launcher_token=" + Uri.EscapeDataString(sessTok);
+            ctx.Response.Redirect("/work" + q);
+            return;
+        }
+    }
+
     // DSH-owned requests are proxied to the logged-in user's own instance.
     // Not logged in → show the login shell at the root.
     if (user == null)
