@@ -62,7 +62,7 @@ Each member also gets a simple **My Instance** page — start/stop their own DSH
 ### 2. Workbench (split screen)
 - Click **Open DSH** on a member row (or the launcher's "Open DSH") → split workbench.
 - **Left pane** tabs: **File Manager** and **My Tasks**.
-- Resize: drag the divider, or the ⤢ button toggles 30% ↔ 70%.
+- Resize: drag the divider, or the >> icon toggles 30% ↔ 70%.
 
 ![Split-screen workbench — File Manager / My Tasks on the left, DSH chat on the right](assets/workbench.png)
 
