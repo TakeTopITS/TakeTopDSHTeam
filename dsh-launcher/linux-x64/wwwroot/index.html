@@ -258,7 +258,7 @@
 
   <!-- File viewer modal -->
   <div id="viewerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10000; align-items:center; justify-content:center;">
-    <div style="background:#fff; border-radius:10px; width:min(92vw,900px); height:min(86vh,700px); display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <div style="background:#fff; border-radius:10px; width:95vw; height:min(86vh,700px); display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.3);">
       <div style="display:flex; align-items:center; padding:10px 16px; border-bottom:1px solid #e5e7eb; gap:8px;">
         <strong id="viewerTitle" style="flex:1; word-break:break-all; font-size:15px;"></strong>
         <button id="viewerCloseBtn" class="secondary" data-i18n="fileCancel">关闭</button>
@@ -1771,8 +1771,9 @@ async function fmUploadFiles(files) {
 }
 
 // ---- File viewer ----
-function fmViewerOpen() { $('#viewerModal').style.display = 'flex'; }
-function fmViewerClose() { $('#viewerModal').style.display = 'none'; $('#viewerBody').innerHTML = ''; }
+function fmNotifyParent(open) { try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'tt-viewer', open: !!open }, '*'); } catch (e) {} }
+function fmViewerOpen() { $('#viewerModal').style.display = 'flex'; fmNotifyParent(true); }
+function fmViewerClose() { $('#viewerModal').style.display = 'none'; $('#viewerBody').innerHTML = ''; fmNotifyParent(false); }
 
 function fmGuessLang(ext) {
   const map = { '.js':'javascript','.ts':'typescript','.jsx':'javascript','.tsx':'typescript','.json':'json',

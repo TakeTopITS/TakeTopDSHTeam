@@ -155,6 +155,14 @@
   // Let the embedded /fm page widen the left pane (e.g. when its "My Tasks" tab
   // is opened) so the tasks table has more room.
   window.ttExpandLeft = function () { setFmWidth(70); updateExpandIcon(); };
+
+  // A file preview opens as a position:fixed overlay INSIDE the left pane (the
+  // iframe), so it never exceeds the pane. When one opens, widen the pane to 70%
+  // so the preview has room.
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type === 'tt-viewer' && d.open) { setFmWidth(70); updateExpandIcon(); }
+  });
   expandBtn.onclick = function (ev) {
     ev.stopPropagation();
     var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;

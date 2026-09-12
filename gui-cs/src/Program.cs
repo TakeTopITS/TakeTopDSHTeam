@@ -85,7 +85,7 @@ var errEn = new Dictionary<string, string>(StringComparer.Ordinal)
     ["解压失败: "] = "Extraction failed: ",
     ["路径越界"] = "Path is out of bounds",
     ["文件不存在"] = "File not found",
-    ["文件过大，无法预览（>4MB）"] = "File too large to preview (>4MB)",
+    ["文件过大，无法预览（>99MB）"] = "File too large to preview (>99MB)",
     ["缺少成员"] = "Missing member",
     ["缺少任务ID"] = "Missing task ID",
     ["任务不存在"] = "Task not found",
@@ -1065,8 +1065,8 @@ app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
         var abs = GuardCrossRead(ctx, ws, req.Path);
         if (!File.Exists(abs)) return Results.Json(new { ok = false, error = L(ctx, "文件不存在") }, statusCode: 404);
         var fi = new FileInfo(abs);
-        const long max = 4L * 1024 * 1024;   // 4 MB cap
-        if (fi.Length > max) return Results.Json(new { ok = false, error = L(ctx, "文件过大，无法预览（>4MB）") }, statusCode: 413);
+        const long max = 99L * 1024 * 1024;   // 99 MB cap for inline preview
+        if (fi.Length > max) return Results.Json(new { ok = false, error = L(ctx, "文件过大，无法预览（>99MB）") }, statusCode: 413);
         var ext = Path.GetExtension(abs).ToLowerInvariant();
         var bytes = File.ReadAllBytes(abs);
         var isImage = (ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".webp" or ".svg" or ".ico");
