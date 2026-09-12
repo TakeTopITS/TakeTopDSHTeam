@@ -390,6 +390,8 @@ const I18N = {
     resetPassNew: "新密码", resetPassConfirm: "确认新密码",
 
     fmTabFiles: "文件管理", fmTabTasks: "我的任务",
+    thAssign: "继续分派", asgTitle: "继续分派任务", asgAssignee: "受理人", asgType: "任务类型", asgName: "任务名称", asgContent: "任务内容", asgAssigned: "分派时间", asgStatus: "状态", asgFiles: "相关文件（可多选）", asgSave: "保存", asgCancel: "取消", asgSaved: "已分派", asgFail: "保存失败", asgPick: "请选择受理人", asgTypePh: "-- 选择类型 --", asgSelect: "选择文件", asgParent: "上级任务",
+    stProcessing: "处理中", stDone: "完成", stCancelled: "取消", stPending: "待处理",
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
     myInstTitle: "我的实例", myInstStarting: "启动中...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
@@ -429,6 +431,8 @@ const I18N = {
     resetPassNew: "New password", resetPassConfirm: "Confirm new password",
 
     fmTabFiles: "File Manager", fmTabTasks: "My Tasks",
+    thAssign: "Continue Assign", asgTitle: "Continue Assign", asgAssignee: "Assignee", asgType: "Type", asgName: "Name", asgContent: "Content", asgAssigned: "Assigned At", asgStatus: "Status", asgFiles: "Files (multi-select)", asgSave: "Save", asgCancel: "Cancel", asgSaved: "Assigned", asgFail: "Save failed", asgPick: "Please choose an assignee", asgTypePh: "-- Select type --", asgSelect: "Choose files", asgParent: "Parent task",
+    stProcessing: "Processing", stDone: "Done", stCancelled: "Cancelled", stPending: "Pending",
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
     myInstTitle: "My Instance", myInstStarting: "Starting...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
@@ -992,19 +996,23 @@ function buildFmTabs() {
       var v = b.getAttribute('data-v');
       fc.style.display = (v === 'files') ? '' : 'none';
       tv.style.display = (v === 'tasks') ? '' : 'none';
-      if (v === 'tasks') loadMyTasks(tv);
+      if (v === 'tasks') {
+        loadMyTasks(tv);
+        // Ask the parent workbench (if embedded) to widen this left pane to 70%.
+        try { if (window.parent && window.parent !== window && typeof window.parent.ttExpandLeft === 'function') window.parent.ttExpandLeft(); } catch (e) {}
+      }
     };
   });
 }
 
 // Render the logged-in user's assigned tasks (admin may assign to self too).
 async function loadMyTasks(container) {
-  var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈' };
+  var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈', thAssign:'继续分派', thOps:'操作' };
   var st = { processing:'处理中', done:'完成', cancelled:'取消', pending:'待处理' };
   var lang = preferredLang();
   var lc = String(lang||'').toLowerCase();
   var en = !(lc === 'zh' || lc === 'zh-cn' || lc === 'zhcn' || lc === 'cn');
-  if (en) { dict = { thSeq:'No.', thType:'Type', thName:'Name', thCreator:'Created By', thAssigned:'Assigned At', thStatus:'Status', thFiles:'Files', thFeedback:'Feedback' }; st = { processing:'Processing', done:'Done', cancelled:'Cancelled', pending:'Pending' }; }
+  if (en) { dict = { thSeq:'No.', thType:'Type', thName:'Name', thCreator:'Created By', thAssigned:'Assigned At', thStatus:'Status', thFiles:'Files', thFeedback:'Feedback', thAssign:'Continue Assign', thOps:'Actions' }; st = { processing:'Processing', done:'Done', cancelled:'Cancelled', pending:'Pending' }; }
   try {
     var inst = currentUser || 'admin';
     var tasks = [];
@@ -1016,30 +1024,117 @@ async function loadMyTasks(container) {
     }
     await fetchPage(1);
     if (!tasks.length) { container.innerHTML = '<div class="fm-empty">' + (en?'No tasks':'暂无任务') + '</div>'; return; }
-    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th>' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th></tr></thead></table>';
+    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th>' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thAssign + '</th><th style="width:22px;"></th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th><th>' + dict.thOps + '</th></tr></thead></table>';
     container.innerHTML = hdr;
     var state = { page: 1 };
+    // Persisted expansion state (key = member#seq) so saves keep rows open.
+    var expanded = container._fmExpanded || (container._fmExpanded = {});
+
+    function buildRow(task, depth) {
+      var filesHtml = (task.files||[]).map(function(f){
+        var n = String(f).split('/').pop();
+        return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
+      }).join('');
+      var tr = document.createElement('tr');
+      var indent = depth ? ('padding-left:' + (10 + depth*16) + 'px;') : '';
+      // Edit/Delete are only offered for tasks this user created (自己分派的任务).
+      var mine = String(task.createdBy||'').toLowerCase() === String(currentUser||'').toLowerCase() && !!currentUser;
+      var opsHtml = mine
+        ? '<button class="fm-edit-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#64748b;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Edit':'编辑') + '</button> <button class="fm-del-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;margin-left:4px;">' + (en?'Delete':'删除') + '</button>'
+        : '';
+      tr.innerHTML = '<td style="' + indent + '">' + task.seq + '</td><td>' + (task.type||'') + '</td>'
+        + '<td><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.seq + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
+        + '<td><button class="fm-feedback-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Feedback':'反馈') + '</button></td>'
+        + '<td><button class="fm-assign-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#0ea5e9;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Continue Assign':'继续分派') + '</button></td>'
+        + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button class="fm-sub-toggle" data-task="' + task.seq + '" data-open="0" title="' + (en?'Expand subtasks':'展开子任务') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
+        + '<td>' + (task.createdBy||'') + '</td>'
+        + '<td>' + (task.assignedAt||'') + '</td>'
+        + '<td><span class="fm-st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
+        + '<td>' + filesHtml + '</td>'
+        + '<td class="fm-ops" style="white-space:nowrap;">' + opsHtml + '</td>';
+      tr.querySelectorAll('a.fm-task-file').forEach(function(a){
+        a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
+      });
+      tr.querySelector('a.fm-task-name-link').onclick = function(ev){
+        ev.preventDefault();
+        var tk = tasks.find(function(t){ return t.seq === task.seq; }) || task;
+        showTaskView(tk, en);
+      };
+      tr.querySelector('button.fm-feedback-btn').onclick = function(){ openFeedback(inst, task, en); };
+      tr.querySelector('button.fm-assign-btn').onclick = function(){ openAssignDialog(task, inst, en, function(){ expanded[(task.member || inst) + '#' + task.seq] = true; loadMyTasks(container); }); };
+      var stb = tr.querySelector('button.fm-sub-toggle');
+      if (stb) stb.onclick = function(){ toggleSubRow(tr, task, depth || 0); };
+      var eb = tr.querySelector('button.fm-edit-btn');
+      if (eb) eb.onclick = function(){ openEditDialog(task, inst, en, function(){ loadMyTasks(container); }); };
+      var db = tr.querySelector('button.fm-del-btn');
+      if (db) db.onclick = function(){ deleteMyTask(task, inst, en, function(){ loadMyTasks(container); }); };
+      return tr;
+    }
+
+    // Fetch and show a task's subtasks inline (indented rows right below it).
+    // Expansion state is kept on the container so a save-reload keeps rows open.
+    function toggleSubRow(tr, task, depth) {
+      var key = (task.member || inst) + '#' + task.seq;
+      var btn = tr.querySelector('button.fm-sub-toggle');
+      if (expanded[key]) {
+        var n = tr.nextSibling;
+        while (n && n.nodeType === 1 && n.classList && n.classList.contains('fm-sub-row')) {
+          var nx = n.nextSibling; n.parentNode.removeChild(n); n = nx;
+        }
+        delete expanded[key];
+        btn.setAttribute('data-open', '0'); btn.textContent = '+'; return;
+      }
+      expanded[key] = true;
+      expandRow(tr, task, depth);
+    }
+    function expandRow(tr, task, depth) {
+      var btn = tr.querySelector('button.fm-sub-toggle');
+      if (btn) { btn.setAttribute('data-open', '1'); btn.textContent = '\u2212'; }
+      var pc = encodeURIComponent(task.member || inst);
+      return fetch('/api/tasks?parent=' + task.seq + '&parentOwner=' + pc + '&page=1&pageSize=100&_=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var kids = d.tasks || [];
+          if (!kids.length) {
+            var ph = document.createElement('tr');
+            ph.className = 'fm-sub-row';
+            ph.innerHTML = '<td></td><td colspan="10" style="color:#9ca3af;font-size:12px;padding:6px 10px;">' + (en?'(no subtasks)':'\uff08\u65e0\u5b50\u4efb\u52a1\uff09') + '</td>';
+            tr.parentNode.insertBefore(ph, tr.nextSibling);
+            return ph;
+          }
+          // Insert children in order; restore each child's own expansion too so
+          // nested expanded subtrees stay open after a save reload.
+          var chain = Promise.resolve(tr);
+          kids.forEach(function(k){
+            chain = chain.then(function(prev){
+              var kr = buildRow(k, (depth || 0) + 1);
+              kr.classList.add('fm-sub-row');
+              prev.parentNode.insertBefore(kr, prev.nextSibling);
+              var kkey = (k.member || inst) + '#' + k.seq;
+              if (expanded[kkey]) return expandRow(kr, k, (depth || 0) + 1);
+              return kr;
+            });
+          });
+          return chain;
+        });
+    }
+
     function renderPage() {
       var tbl = container.querySelector('table');
       var old = tbl.querySelector('tbody'); if (old) old.remove();
       var body = document.createElement('tbody');
+      var present = {};
+      tasks.forEach(function(x){ present[(x.member || inst) + '#' + x.seq] = true; });
       tasks.forEach(function (task) {
-        var filesHtml = (task.files||[]).map(function(f){
-          var n = String(f).split('/').pop();
-          return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
-        }).join('');
-        var tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + task.seq + '</td><td>' + (task.type||'') + '</td>'
-          + '<td><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.seq + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
-          + '<td><button class="fm-feedback-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Feedback':'反馈') + '</button></td>'
-          + '<td>' + (task.createdBy||'') + '</td>'
-          + '<td>' + (task.assignedAt||'') + '</td>'
-          + '<td><span class="fm-st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
-          + '<td>' + filesHtml + '</td>';
-        body.appendChild(tr);
-        tr.querySelectorAll('a.fm-task-file').forEach(function(a){
-          a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
-        });
+        // Subtask whose parent is in this list -> shown inline under the parent.
+        if (task.parentTask) {
+          var pkey = (task.parentOwner || '') + '#' + task.parentTask;
+          if (present[pkey]) return;
+        }
+        var row = buildRow(task, 0);
+        body.appendChild(row);
+        // Restore previously expanded rows (e.g. after a save-triggered reload).
+        if (expanded[(task.member || inst) + '#' + task.seq]) expandRow(row, task, 0);
       });
       tbl.appendChild(body);
       // Hint: task names can be dragged into the AI dialog on the right.
@@ -1051,21 +1146,6 @@ async function loadMyTasks(container) {
         hint.textContent = en ? 'you can drag a task name into the ai dialog on the right' : '可以把任务名称拖动到右边 AI 会话框中';
         container.appendChild(hint);
       }
-      container.querySelectorAll('a.fm-task-name-link').forEach(function (a) {
-        a.onclick = function (ev) {
-          ev.preventDefault();
-          var seq = parseInt(a.getAttribute('data-task'), 10);
-          var task = tasks.find(function(t){ return t.seq === seq; });
-          if (task) showTaskView(task, en);
-        };
-      });
-      container.querySelectorAll('button.fm-feedback-btn').forEach(function (b) {
-        b.onclick = function () {
-          var seq = parseInt(b.getAttribute('data-task'), 10);
-          var task = tasks.find(function(t){ return t.seq === seq; });
-          if (task) openFeedback(inst, task, en);
-        };
-      });
       var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       if (state.page > pages) state.page = pages;
       var pag = container.querySelector('.tt-pager');
@@ -1134,6 +1214,205 @@ function showTaskView(task, en) {
 function openTaskFile2(rel) {
   var name = String(rel).split('/').pop();
   TTPreview.open({ insts: [currentUser, 'admin'], path: 'TaskData/Doc/' + name, name: name });
+}
+
+// ---- "Continue Assign": create a child task assigned to a team member ----
+var asgModal = null, asgEn = false, asgPendingFiles = [], asgParent = null, asgOnSaved = null;
+var asgEditSeq = 0, asgEditInst = '';
+var asgMembersCache = null;
+async function asgLoadMembers() {
+  if (asgMembersCache) return asgMembersCache;
+  try {
+    var d = await (await fetch('/api/members')).json();
+    asgMembersCache = (d.members || []).filter(function (m) { return m.id; });
+  } catch (e) { asgMembersCache = []; }
+  return asgMembersCache;
+}
+function asgGetStoredTypes() { try { return JSON.parse(localStorage.getItem('taskTypes') || '[]'); } catch (e) { return []; } }
+function asgSaveStoredTypes(a) { try { localStorage.setItem('taskTypes', JSON.stringify(a)); } catch (e) {} }
+function asgRefreshTypeOptions(current) {
+  var sel = asgModal && asgModal.querySelector('#asgTypeSelect'); if (!sel) return;
+  var types = asgGetStoredTypes();
+  if (current && types.indexOf(current) === -1) { types.push(current); asgSaveStoredTypes(types); }
+  types.sort();
+  sel.innerHTML = '<option value=""></option>' + types.map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('');
+  if (current) sel.value = current;
+}
+function ensureAsgModal() {
+  if (asgModal) return;
+  var lbl = 'display:block;font-weight:600;font-size:13px;margin-bottom:4px;';
+  var inp = 'width:100%;padding:7px 9px;border:1px solid #c8ccd2;border-radius:6px;font-size:14px;box-sizing:border-box;';
+  var m = document.createElement('div');
+  m.id = 'asgModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10002;display:none;align-items:center;justify-content:center;';
+  m.innerHTML =
+    '<div style="background:#fff;border-radius:10px;width:min(580px,94vw);max-height:92vh;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:auto;">'
+    + '<h2 id="asgTitle" style="margin:0 0 14px;font-size:17px;"></h2>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblAssignee" style="' + lbl + '"></label><select id="asgAssignee" style="' + inp + '"></select></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblType" style="' + lbl + '"></label>'
+    +   '<div style="display:flex;gap:6px;align-items:center;">'
+    +     '<input id="asgType" style="flex:1;padding:7px 9px;border:1px solid #c8ccd2;border-radius:6px;font-size:14px;box-sizing:border-box;"/>'
+    +     '<select id="asgTypeSelect" style="flex:1;padding:7px 9px;border:1px solid #c8ccd2;border-radius:6px;font-size:14px;box-sizing:border-box;"><option value=""></option></select>'
+    +     '<button type="button" id="asgAddType" title="+" style="width:32px;height:32px;border:1px solid #c8ccd2;border-radius:6px;background:#f0f2f5;cursor:pointer;font-size:16px;font-weight:bold;">+</button>'
+    +   '</div></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblName" style="' + lbl + '"></label><input id="asgName" style="' + inp + '"/></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblContent" style="' + lbl + '"></label>'
+    +   '<div class="rich-toolbar" id="asgToolbar"><button type="button" data-cmd="bold"><b>B</b></button><button type="button" data-cmd="italic"><i>I</i></button><button type="button" data-cmd="underline"><u>U</u></button><button type="button" data-cmd="insertUnorderedList">\u2022\u2261</button><button type="button" data-cmd="insertOrderedList">1\u2261</button><button type="button" data-cmd="removeFormat">\u232b</button></div>'
+    +   '<div id="asgContent" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:90px;max-height:34vh;font-size:14px;line-height:1.5;overflow:auto;"></div></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblAssigned" style="' + lbl + '"></label><input type="datetime-local" id="asgAssigned" style="' + inp + '"/></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblStatus" style="' + lbl + '"></label><select id="asgStatus" style="' + inp + '"></select></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblFiles" style="' + lbl + '"></label><label for="asgFiles" id="asgFileBtn" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer;font-size:13px;"></label><input type="file" id="asgFiles" multiple style="position:absolute;left:-9999px;clip:rect(0,0,0,0);"/><div id="asgFileChips" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div></div>'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:8px;"><span id="asgMsg" style="margin-right:auto;font-size:13px;color:#16a34a;display:none;"></span><button id="asgCancel" style="padding:7px 16px;border:0;border-radius:6px;background:#64748b;color:#fff;font-size:14px;cursor:pointer;"></button><button id="asgSave" style="padding:7px 16px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:14px;cursor:pointer;"></button></div>'
+    + '</div>';
+  document.body.appendChild(m);
+  asgModal = m;
+  m.querySelector('#asgCancel').onclick = function () { m.style.display = 'none'; };
+  m.addEventListener('click', function (ev) { if (ev.target === m) m.style.display = 'none'; });
+  m.querySelector('#asgSave').onclick = saveAssign;
+  m.querySelector('#asgFiles').addEventListener('change', asgOnFiles);
+  m.querySelectorAll('#asgToolbar button[data-cmd]').forEach(function (b) {
+    b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+    b.addEventListener('click', function () { var ed = m.querySelector('#asgContent'); ed.focus(); document.execCommand(b.getAttribute('data-cmd'), false, null); });
+  });
+  m.querySelector('#asgTypeSelect').addEventListener('change', function () {
+    if (this.value) m.querySelector('#asgType').value = this.value;
+  });
+  m.querySelector('#asgType').addEventListener('input', function () {
+    var v = this.value.trim(), sel = m.querySelector('#asgTypeSelect'), found = false;
+    for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === v) { sel.selectedIndex = i; found = true; break; } }
+    if (!found) sel.selectedIndex = 0;
+  });
+  m.querySelector('#asgAddType').addEventListener('click', function () {
+    var name = prompt(asgEn ? 'Enter new type name:' : '\u8f93\u5165\u65b0\u7c7b\u578b\u540d\u79f0\uff1a');
+    if (!name || !name.trim()) return;
+    name = name.trim();
+    var stored = asgGetStoredTypes();
+    if (stored.indexOf(name) === -1) { stored.push(name); stored.sort(); asgSaveStoredTypes(stored); }
+    m.querySelector('#asgType').value = name;
+    asgRefreshTypeOptions(name);
+  });
+}
+function asgOnFiles() {
+  var inp = asgModal.querySelector('#asgFiles');
+  if (!inp.files || !inp.files.length) return;
+  var assignee = asgModal.querySelector('#asgAssignee').value || currentUser;
+  var fd = new FormData();
+  fd.append('path', 'TaskData/Doc');
+  for (var i = 0; i < inp.files.length; i++) fd.append('file', inp.files[i]);
+  fetch('/api/files/upload?inst=' + encodeURIComponent(assignee), { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { (d.saved || []).forEach(function (n) { asgPendingFiles.push('Doc/' + n); }); asgRenderChips(); })
+    .catch(function () {});
+  inp.value = '';
+}
+function asgRenderChips() {
+  var box = asgModal.querySelector('#asgFileChips'); box.innerHTML = '';
+  asgPendingFiles.forEach(function (f, i) {
+    var s = document.createElement('span');
+    s.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:#e0e7ff;color:#1e40af;padding:3px 9px;border-radius:14px;font-size:12px;';
+    s.textContent = String(f).split('/').pop();
+    var x = document.createElement('b'); x.textContent = '\u00d7'; x.style.cursor = 'pointer';
+    x.onclick = function () { asgPendingFiles.splice(i, 1); asgRenderChips(); };
+    s.appendChild(x); box.appendChild(s);
+  });
+}
+async function openAssignDialog(task, inst, en, onSaved) {
+  var members = await asgLoadMembers();
+  ensureAsgModal();
+  asgEn = en; asgParent = task; asgOnSaved = onSaved || null; asgPendingFiles = [];
+  asgEditSeq = 0; asgEditInst = '';
+  var q = function (id) { return asgModal.querySelector('#' + id); };
+  q('asgTitle').textContent = en ? 'Continue Assign' : '\u7ee7\u7eed\u5206\u6d3e';
+  asgSetLabels(en);
+  var sel = q('asgAssignee');
+  sel.disabled = false;
+  sel.innerHTML = members.map(function (mm) { return '<option value="' + mm.id + '">' + mm.name + '</option>'; }).join('');
+  var def = members.filter(function (mm) { return mm.id !== (task.member || currentUser); })[0];
+  sel.value = (def && def.id) || (task.member || currentUser) || (members[0] && members[0].id) || '';
+  q('asgType').value = task.type || '';
+  asgRefreshTypeOptions(task.type || '');
+  q('asgName').value = task.name ? (task.name + (en ? ' - follow-up' : ' - \u540e\u7eed')) : '';
+  q('asgContent').innerHTML = '';
+  q('asgStatus').value = 'processing';
+  var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  q('asgAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  q('asgMsg').style.display = 'none';
+  asgRenderChips();
+  asgModal.style.display = 'flex';
+}
+function asgSetLabels(en) {
+  var q = function (id) { return asgModal.querySelector('#' + id); };
+  q('asgLblAssignee').textContent = en ? 'Assignee' : '\u53d7\u7406\u4eba';
+  q('asgLblType').textContent = en ? 'Type' : '\u4efb\u52a1\u7c7b\u578b';
+  q('asgLblName').textContent = en ? 'Name' : '\u4efb\u52a1\u540d\u79f0';
+  q('asgLblContent').textContent = en ? 'Content' : '\u4efb\u52a1\u5185\u5bb9';
+  q('asgLblAssigned').textContent = en ? 'Assigned At' : '\u5206\u6d3e\u65f6\u95f4';
+  q('asgLblStatus').textContent = en ? 'Status' : '\u72b6\u6001';
+  q('asgLblFiles').textContent = en ? 'Files (multi-select)' : '\u76f8\u5173\u6587\u4ef6\uff08\u53ef\u591a\u9009\uff09';
+  q('asgFileBtn').textContent = en ? 'Choose files' : '\u9009\u62e9\u6587\u4ef6';
+  q('asgCancel').textContent = en ? 'Cancel' : '\u53d6\u6d88';
+  q('asgSave').textContent = en ? 'Save' : '\u4fdd\u5b58';
+  var st = { processing: en?'Processing':'\u5904\u7406\u4e2d', done: en?'Done':'\u5b8c\u6210', cancelled: en?'Cancelled':'\u53d6\u6d88', pending: en?'Pending':'\u5f85\u5904\u7406' };
+  q('asgStatus').innerHTML = Object.keys(st).map(function (k) { return '<option value="' + k + '">' + st[k] + '</option>'; }).join('');
+}
+async function openEditDialog(task, inst, en, onSaved) {
+  var members = await asgLoadMembers();
+  ensureAsgModal();
+  asgEn = en; asgParent = null; asgOnSaved = onSaved || null;
+  asgEditSeq = task.seq; asgEditInst = task.member || inst || currentUser;
+  asgPendingFiles = (task.files || []).slice();
+  var q = function (id) { return asgModal.querySelector('#' + id); };
+  q('asgTitle').textContent = en ? 'Edit Task' : '\u7f16\u8f91\u4efb\u52a1';
+  asgSetLabels(en);
+  var sel = q('asgAssignee');
+  sel.innerHTML = members.map(function (mm) { return '<option value="' + mm.id + '">' + mm.name + '</option>'; }).join('');
+  sel.value = task.member || asgEditInst || currentUser;
+  sel.disabled = true;
+  q('asgType').value = task.type || '';
+  asgRefreshTypeOptions(task.type || '');
+  q('asgName').value = task.name || '';
+  q('asgContent').innerHTML = task.content || '';
+  q('asgStatus').value = task.status || 'processing';
+  q('asgAssigned').value = task.assignedAt ? String(task.assignedAt).replace(' ', 'T').slice(0, 16) : '';
+  q('asgMsg').style.display = 'none';
+  asgRenderChips();
+  asgModal.style.display = 'flex';
+}
+function deleteMyTask(task, inst, en, onSaved) {
+  if (!confirm(en ? 'Delete this task?' : '\u786e\u5b9a\u5220\u9664\u8be5\u4efb\u52a1\uff1f')) return;
+  fetch('/api/tasks?inst=' + encodeURIComponent(task.member || inst || currentUser) + '&seq=' + task.seq, { method: 'DELETE' })
+    .then(function (r) { return r.json().catch(function () { return {}; }); })
+    .then(function (d) { if (d.ok) { if (onSaved) onSaved(); } else { alert(d.error || (en ? 'Delete failed' : '\u5220\u9664\u5931\u8d25')); } })
+    .catch(function () { alert(en ? 'Delete failed' : '\u5220\u9664\u5931\u8d25'); });
+}
+async function saveAssign() {
+  var q = function (id) { return asgModal.querySelector('#' + id); };
+  var assignee = q('asgAssignee').value;
+  if (!asgEditSeq && !assignee) { alert(asgEn ? 'Please choose an assignee' : '\u8bf7\u9009\u62e9\u53d7\u7406\u4eba'); return; }
+  var common = {
+    name: q('asgName').value.trim(),
+    type: q('asgType').value.trim(),
+    content: q('asgContent').innerHTML,
+    status: q('asgStatus').value,
+    assignedAt: (q('asgAssigned').value || '').replace('T', ' '),
+    files: asgPendingFiles
+  };
+  var method, payload;
+  if (asgEditSeq) {
+    method = 'PUT';
+    payload = Object.assign({ inst: asgEditInst, seq: asgEditSeq }, common);
+  } else {
+    method = 'POST';
+    payload = Object.assign({ inst: assignee, seq: 0, parentTask: asgParent ? asgParent.seq : 0, parentOwner: asgParent ? (asgParent.member || '') : '' }, common);
+  }
+  try {
+    var r = await fetch('/api/tasks', { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    var res = await r.json().catch(function () { return {}; });
+    if (!res.ok) { alert(res.error || (asgEn ? 'Save failed' : '\u4fdd\u5b58\u5931\u8d25')); return; }
+    var msg = q('asgMsg'); msg.textContent = asgEn ? (asgEditSeq ? 'Saved' : 'Assigned') : (asgEditSeq ? '\u5df2\u4fdd\u5b58' : '\u5df2\u5206\u6d3e'); msg.style.display = 'inline-block';
+    setTimeout(function () { asgModal.style.display = 'none'; }, 600);
+    if (asgOnSaved) asgOnSaved();
+  } catch (e) { alert(asgEn ? 'Save failed' : '\u4fdd\u5b58\u5931\u8d25'); }
 }
 
 function openFbFile(fn) {

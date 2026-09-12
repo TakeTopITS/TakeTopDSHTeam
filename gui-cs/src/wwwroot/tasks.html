@@ -58,7 +58,8 @@
   .st.pending { color: #64748b; }
   .task-name-link { color:#2563eb; text-decoration:none; font-weight:600; }
   .task-name-link:hover { text-decoration:underline; }
-  .row-ops button { padding: 3px 9px; font-size: 12px; }
+  .row-ops { white-space: nowrap; }
+  .row-ops button { padding: 3px 9px; font-size: 12px; white-space: nowrap; }
   .row-ops button + button { margin-left: 5px; }
   .files-list { list-style: none; margin: 0; padding: 0; }
   .files-list li { font-size: 12.5px; color: #334155; line-height: 1.7; }
@@ -114,13 +115,14 @@
             <tr>
               <th id="thSeq" style="width:60px;">序号</th>
               <th id="thType" style="width:120px;">任务类型</th>
-              <th id="thName">任务名称</th>
+              <th id="thName" style="width:34%;min-width:240px;">任务名称</th>
+              <th id="thSub" style="width:24px;padding:9px 2px;"></th>
               <th id="thFeedback" style="width:90px;">反馈</th>
               <th id="thCreator" style="width:100px;">创建者</th>
               <th id="thAssigned" style="width:140px;">分派时间</th>
               <th id="thStatus" style="width:90px;">状态</th>
-              <th id="thFiles">相关文件</th>
-              <th id="thOps" style="width:110px;">操作</th>
+              <th id="thFiles" style="width:16%;">相关文件</th>
+              <th id="thOps" style="width:130px;">操作</th>
             </tr>
           </thead>
           <tbody id="taskBody"></tbody>
@@ -140,6 +142,9 @@
           <select id="fTypeSelect" style="flex:1;padding:6px 8px;border:1px solid #c8ccd2;border-radius:6px;font-size:14px;"><option value="">-- 选择类型 --</option></select>
           <button type="button" id="addTypeBtn" title="添加新类型" style="width:30px;height:30px;border:1px solid #c8ccd2;border-radius:6px;background:#f0f2f5;cursor:pointer;font-size:16px;font-weight:bold;">+</button>
         </div>
+      </div>
+      <div class="field"><label id="lblAssignee">受理人</label>
+        <select id="fAssignee"></select>
       </div>
       <div class="field"><label id="lblName">任务名称</label><input id="fName" /></div>
       <div class="field"><label id="lblContent">任务内容</label>
@@ -208,8 +213,9 @@
       back:"← 返回", title:"任务分配", members:"成员", add:"添加任务", cur:"当前成员：",
       thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thOps:"操作",
       edit:"编辑", del:"删除", feedback:"反馈", fbContent:"反馈内容", fbRecord:"反馈记录", fbNo:"序号", fbBy:"反馈人", fbTime:"时间", fbFiles:"附件", fbEmpty:"暂无反馈", fbRequired:"请填写反馈内容", empty:"暂无任务", modalAdd:"添加任务", modalEdit:"编辑任务",
-      lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）",
+      lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）", lblAssignee:"受理人",
       selectType:"-- 选择类型 --", addTypeTip:"输入新类型名称：",
+      subTasks:"子任务", noSubTasks:"（无子任务）", expand:"展开子任务", collapse:"收起子任务",
       save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
       saveOk:"保存成功", saveFail:"保存失败", saveDone:"正在保存...",
       st:{processing:"处理中", done:"完成", cancelled:"取消", pending:"待处理"},
@@ -220,8 +226,9 @@
       back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
       thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thOps:"Actions",
       edit:"Edit", del:"Delete", feedback:"Feedback", fbContent:"Content", fbRecord:"Feedback records", fbNo:"No.", fbBy:"By", fbTime:"Time", fbFiles:"Files", fbEmpty:"No feedback yet", fbRequired:"Please enter feedback", empty:"No tasks", modalAdd:"Add Task", modalEdit:"Edit Task",
-      lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)",
+      lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)", lblAssignee:"Assignee",
       selectType:"-- Select type --", addTypeTip:"Enter new type name:",
+      subTasks:"Subtasks", noSubTasks:"(no subtasks)", expand:"Expand subtasks", collapse:"Collapse subtasks",
       save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
       saveOk:"Saved successfully", saveFail:"Save failed", saveDone:"Saving...",
       st:{processing:"Processing", done:"Done", cancelled:"Cancelled", pending:"Pending"},
@@ -244,7 +251,7 @@
     $('#thSeq').textContent = t('thSeq'); $('#thType').textContent = t('thType'); $('#thName').textContent = t('thName'); $('#thCreator').textContent = t('thCreator'); $('#thAssigned').textContent = t('thAssigned');
     $('#thStatus').textContent = t('thStatus'); $('#thFiles').textContent = t('thFiles'); $('#thFeedback').textContent = t('feedback'); $('#thOps').textContent = t('thOps');
     $('#modalTitle').textContent = ''; // set on open
-    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles');
+    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles'); $('#lblAssignee').textContent = t('lblAssignee');
     $('#modalCancel').textContent = t('cancel'); $('#modalSave').textContent = t('save');
     $('#viewClose').textContent = t('close');
     document.getElementById('curMember').textContent = t('cur') + (curMember || '-');
@@ -262,6 +269,9 @@
   var editing = 0; // seq being edited (0 = new)
   var editingMember = ''; // member the editing task belongs to
   var editingCreator = ''; // creator of the editing task
+  var pendingParent = 0;        // parent task seq for the next new task (0 = none)
+  var pendingParentOwner = '';  // owner/member of that parent task
+  var pendingAssignee = '';     // default assignee for the next new task
   var pendingFiles = []; // [{name, rel}]
   var myName = '';
   var PAGE_SIZE = 25;
@@ -329,12 +339,61 @@
       });
       if (curMember === undefined || curMember === null) curMember = '';
       $('#curMember').textContent = t('cur') + (curMember || '-');
+      refreshAssigneeOptions();
       loadTasks();
     } catch(e) { console.error('members', e); }
   }
 
-  function renderTasks() {
+  // Fill the modal's "assignee" dropdown with every real member (the assignee
+  // becomes the new task's owner). The pseudo "All" entry (empty id) is skipped.
+  function refreshAssigneeOptions(selected) {
+    var sel = $('#fAssignee'); if (!sel) return;
+    var prev = (selected !== undefined) ? selected : sel.value;
+    sel.innerHTML = members.filter(function(m){ return m.id !== ''; }).map(function(m){
+      return '<option value="' + m.id + '">' + m.name + '</option>';
+    }).join('');
+    if (prev) sel.value = prev;
+    if (!sel.value && curMember) sel.value = curMember;
+  }
+
+  var expandedKeys = {}; // "member#seq" -> true when its subtasks are shown
+
+  function taskRowKey(task) { return (task.member || '') + '#' + task.seq; }
+
+  function buildTaskRow(task, depth) {
     var st = t('st');
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-key', taskRowKey(task));
+    var indent = depth ? 'padding-left:' + (14 + depth * 18) + 'px;' : '';
+    tr.innerHTML = '<td style="' + indent + '">' + task.seq + '</td>'
+      + '<td>' + (task.type || '') + '</td>'
+      + '<td><a href="javascript:void(0)" class="task-name-link">' + (task.name || '') + '</a></td>'
+      + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button type="button" class="sub-toggle" title="' + t('expand') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
+      + '<td><button class="fb-btn" style="padding:3px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:11px;cursor:pointer;">' + t('feedback') + '</button></td>'
+      + '<td>' + (task.createdBy || '') + '</td>'
+      + '<td>' + (task.assignedAt || '') + '</td>'
+      + '<td><span class="st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
+      + '<td><ul class="files-list">' + (task.files||[]).map(function(f){
+          var name = String(f).split('/').pop();
+          return '<li><a href="javascript:void(0)" class="task-file-link" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a></li>';
+        }).join('') + '</ul></td>'
+      + '<td class="row-ops">'
+      +   '<button class="secondary">' + t('edit') + '</button> '
+      +   '<button class="danger">' + t('del') + '</button>'
+      + '</td>';
+    tr.querySelector('a.task-name-link').onclick = function(){ openView(task); };
+    tr.querySelectorAll('a.task-file-link').forEach(function(a){
+      a.onclick = function(){ openTaskFile(a.getAttribute('data-file'), task.member, task.createdBy); };
+    });
+    tr.querySelector('button.secondary').onclick = function(){ openModal(task); };
+    tr.querySelector('button.danger').onclick = function(){ delTask(task); };
+    tr.querySelector('button.fb-btn').onclick = function(){ openFeedback(task); };
+    var stb = tr.querySelector('button.sub-toggle');
+    if (stb) stb.onclick = function(){ toggleSubtasks(tr, task, depth || 0); };
+    return tr;
+  }
+
+  function renderTasks() {
     var empty = $('#emptyHint');
     var tableWrap = $('.table-wrap');
     if (!tasks.length) { empty.style.display='block'; empty.textContent = t('empty'); tableWrap.style.display='none'; return; }
@@ -344,33 +403,79 @@
     if (oldPag) oldPag.remove();
     var body = tableWrap.querySelector('tbody');
     body.innerHTML = '';
+    var present = {};
+    tasks.forEach(function(x){ present[(x.member || '') + '#' + x.seq] = true; });
     tasks.forEach(function(task){
-      var tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + task.seq + '</td>'
-        + '<td>' + (task.type || '') + '</td>'
-        + '<td><a href="javascript:void(0)" class="task-name-link">' + (task.name || '') + '</a></td>'
-        + '<td><button class="fb-btn" style="padding:3px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:11px;cursor:pointer;">' + t('feedback') + '</button></td>'
-        + '<td>' + (task.createdBy || '') + '</td>'
-        + '<td>' + (task.assignedAt || '') + '</td>'
-        + '<td><span class="st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
-        + '<td><ul class="files-list">' + (task.files||[]).map(function(f){
-            var name = String(f).split('/').pop();
-            return '<li><a href="javascript:void(0)" class="task-file-link" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a></li>';
-          }).join('') + '</ul></td>'
-        + '<td class="row-ops">'
-        +   '<button class="secondary">' + t('edit') + '</button> '
-        +   '<button class="danger">' + t('del') + '</button>'
-        + '</td>';
-      tr.querySelector('a.task-name-link').onclick = function(){ openView(task); };
-      tr.querySelectorAll('a.task-file-link').forEach(function(a){
-        a.onclick = function(){ openTaskFile(a.getAttribute('data-file'), task.member, task.createdBy); };
-      });
-      tr.querySelector('button.secondary').onclick = function(){ openModal(task); };
-      tr.querySelector('button.danger').onclick = function(){ delTask(task); };
-      tr.querySelector('button.fb-btn').onclick = function(){ openFeedback(task); };
+      // A subtask whose parent is shown in this list is rendered inline instead
+      // (after expanding the parent); otherwise it stays a normal top-level row.
+      if (task.parentTask) {
+        var pkey = (task.parentOwner || '') + '#' + task.parentTask;
+        if (present[pkey]) return;
+      }
+      var tr = buildTaskRow(task, 0);
       body.appendChild(tr);
+      // Restore any previously expanded state (e.g. after a save reload).
+      if (expandedKeys[taskRowKey(task)]) expandSubtasks(tr, task, 0);
     });
     renderServerPager(tableWrap);
+  }
+
+  // Fetch and show a task's subtasks inline (as indented rows right below it).
+  function toggleSubtasks(tr, task, depth) {
+    var key = taskRowKey(task);
+    if (expandedKeys[key]) {
+      collapseSubtasks(tr);
+      delete expandedKeys[key];
+      var b = tr.querySelector('button.sub-toggle');
+      if (b) { b.textContent = '+'; b.title = t('expand'); }
+      return;
+    }
+    expandedKeys[key] = true;
+    expandSubtasks(tr, task, depth);
+  }
+
+  function expandSubtasks(tr, task, depth) {
+    var key = taskRowKey(task);
+    var btn = tr.querySelector('button.sub-toggle');
+    if (btn) { btn.textContent = '−'; btn.title = t('collapse'); }
+    var member = task.member || curMember || '';
+    return fetch('/api/tasks?parent=' + task.seq + '&parentOwner=' + encodeURIComponent(member) + '&page=1&pageSize=100&_=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var kids = d.tasks || [];
+        if (!kids.length) {
+          var ph = document.createElement('tr');
+          ph.className = 'sub-child';
+          ph.setAttribute('data-for', key);
+          ph.innerHTML = '<td></td><td colspan="8" style="color:#9ca3af;font-size:12px;padding:6px 12px;">' + t('noSubTasks') + '</td><td></td>';
+          tr.parentNode.insertBefore(ph, tr.nextSibling);
+          return ph;
+        }
+        // Insert children in order; restore each child's own expansion too so a
+        // nested expanded subtree stays open after a save reload.
+        var chain = Promise.resolve(tr);
+        kids.forEach(function(k){
+          chain = chain.then(function(prev){
+            var kr = buildTaskRow(k, (depth || 0) + 1);
+            kr.classList.add('sub-child');
+            kr.setAttribute('data-for', key);
+            prev.parentNode.insertBefore(kr, prev.nextSibling);
+            if (expandedKeys[taskRowKey(k)]) return expandSubtasks(kr, k, (depth || 0) + 1);
+            return kr;
+          });
+        });
+        return chain;
+      });
+  }
+
+  function collapseSubtasks(tr) {
+    var n = tr.nextSibling;
+    while (n && n.nodeType === 1 && n.classList && n.classList.contains('sub-child')) {
+      var k = n.getAttribute('data-key'); if (k) delete expandedKeys[k];
+      var next = n.nextSibling;
+      n.parentNode.removeChild(n);
+      n = next;
+    }
   }
 
   // Server-side pagination: clicking a page button refetches that page from the API.
@@ -435,12 +540,25 @@
       $('#fAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     }
     $('#fStatus').value = task ? (task.status||'processing') : 'processing';
+    // Assignee (owner of a new task). When editing, show the current owner and
+    // lock it (moving a task between members is not supported here).
+    var asg = task ? (task.member || editingMember || curMember) : (pendingAssignee || curMember);
+    refreshAssigneeOptions(asg);
+    $('#fAssignee').disabled = !!editing;
     pendingFiles = (task && task.files) ? task.files.slice() : [];
     $('#fFilesLabel').textContent = '';
     renderChips();
     $('#modal').classList.add('show');
   }
-  function closeModal(){ $('#modal').classList.remove('show'); }
+  function closeModal(){ $('#modal').classList.remove('show'); pendingParent = 0; pendingParentOwner = ''; pendingAssignee = ''; }
+  // Open the add-task form pre-linked to a parent task (used by "Continue Assign").
+  function openContinueAssign(parentSeq, parentOwner, assignee) {
+    pendingParent = parseInt(parentSeq, 10) || 0;
+    pendingParentOwner = parentOwner || '';
+    pendingAssignee = assignee || '';
+    openModal(null);
+  }
+  window.openContinueAssign = openContinueAssign;
 
   /* ---- Type dropdown ---- */
   function getStoredTypes() {
@@ -629,15 +747,18 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
 
   async function saveTask() {
-    if (!editing && !curMember) { alert(t('pickMember')); return; }
+    var assignee = ($('#fAssignee') && $('#fAssignee').value) || curMember || '';
+    if (!editing && !assignee) { alert(t('pickMember')); return; }
     var payload = {
-      inst: editing ? editingMember : curMember, seq: editing,
+      inst: editing ? editingMember : assignee, seq: editing,
       name: $('#fName').value.trim(),
       type: $('#fType').value.trim(),
       content: $('#fContent').innerHTML,
       status: $('#fStatus').value,
       assignedAt: ($('#fAssigned').value || '').replace('T', ' '),
-      files: pendingFiles
+      files: pendingFiles,
+      parentTask: editing ? undefined : (pendingParent || 0),
+      parentOwner: editing ? undefined : (pendingParentOwner || '')
     };
     var method = editing ? 'PUT' : 'POST';
     var d = await req(method, '/api/tasks', payload);

@@ -986,18 +986,35 @@ void WriteTaskList(string instId, List<TaskRecord> tasks)
 // member. Admin may read any member (and "admin" for its own); a normal user may
 // only read its own. Supports backend pagination (page/pageSize); omitting them
 // returns the full list (backwards compatible).
-app.MapGet("/api/tasks", (string? inst, string? scope, int? page, int? pageSize, HttpContext ctx) =>
+app.MapGet("/api/tasks", (string? inst, string? scope, int? parent, string? parentOwner, int? page, int? pageSize, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
     ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
     ctx.Response.Headers["Pragma"] = "no-cache";
     ctx.Response.Headers["Expires"] = "0";
-    Console.WriteLine($"[tasks] user={username} admin={isAdmin} inst={inst} scope={scope} page={page} pageSize={pageSize} ip={ctx.Connection.RemoteIpAddress}");
+    Console.WriteLine($"[tasks] user={username} admin={isAdmin} inst={inst} scope={scope} parent={parent} parentOwner={parentOwner} page={page} pageSize={pageSize} ip={ctx.Connection.RemoteIpAddress}");
     try
     {
         List<(TaskRecord Task, string Member)> all;
-        if (string.IsNullOrWhiteSpace(inst))
+        if (parent.HasValue)
+        {
+            // Subtask lookup: find the direct children of a parent task, scanning
+            // every member list (a child lives in the ASSIGNEE's list, which may
+            // differ from the parent's owner). Non-admins only see tasks they
+            // created. parentOwner disambiguates seq collisions across members.
+            all = new List<(TaskRecord Task, string Member)>();
+            foreach (var m in instMgr.List())
+                foreach (var t in ReadTaskList(m.Id))
+                    all.Add((t, m.Id));
+            foreach (var t in ReadTaskList("admin"))
+                if (!all.Any(x => x.Member == "admin" && x.Task.Seq == t.Seq))
+                    all.Add((t, "admin"));
+            if (!isAdmin) all = all.Where(x => string.Equals(x.Task.CreatedBy, username, StringComparison.OrdinalIgnoreCase)).ToList();
+            all = all.Where(x => x.Task.ParentTask == parent.Value
+                && (string.IsNullOrWhiteSpace(parentOwner) || string.Equals(x.Task.ParentOwner, parentOwner, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+        else if (string.IsNullOrWhiteSpace(inst))
         {
             all = new List<(TaskRecord Task, string Member)>();
             foreach (var m in instMgr.List())
@@ -1043,10 +1060,28 @@ app.MapGet("/api/tasks", (string? inst, string? scope, int? page, int? pageSize,
             page = pg;
         }
 
+        // Direct-child counts for every task (across all owners) so the UI only
+        // shows the expand "+" when a task actually has subtasks. Non-admins
+        // count only children they created (matching the subtask lookup filter).
+        var childCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        void CountChildren(IEnumerable<TaskRecord> list)
+        {
+            foreach (var t in list)
+            {
+                if (t.ParentTask <= 0) continue;
+                if (!isAdmin && !string.Equals(t.CreatedBy, username, StringComparison.OrdinalIgnoreCase)) continue;
+                var ck = (t.ParentOwner ?? "") + "#" + t.ParentTask;
+                childCounts[ck] = childCounts.TryGetValue(ck, out var c) ? c + 1 : 1;
+            }
+        }
+        foreach (var m in instMgr.List()) CountChildren(ReadTaskList(m.Id));
+        CountChildren(ReadTaskList("admin"));
+
         var result = slice.Select(x => new {
             seq = x.Task.Seq, name = x.Task.Name, type = x.Task.Type, content = x.Task.Content,
             status = x.Task.Status, assignedAt = x.Task.AssignedAt, createdBy = x.Task.CreatedBy,
-            files = x.Task.Files, member = x.Member
+            parentTask = x.Task.ParentTask, parentOwner = x.Task.ParentOwner, files = x.Task.Files, member = x.Member,
+            childCount = childCounts.TryGetValue(x.Member + "#" + x.Task.Seq, out var cc) ? cc : 0
         });
         if (pagedTotal.HasValue)
         {
@@ -1068,15 +1103,19 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
     if (!isAdmin)
     {
         var bound = auth.Find(username)?.InstanceId ?? username;
+        // A member may create tasks for themselves OR assign to any known team
+        // member (used by the "Continue Assign" flow on the My Tasks page).
+        var knownMember = instMgr.Get(req.Inst!) != null;
         if (!string.Equals(req.Inst, bound, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(req.Inst, username, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(req.Inst, username, StringComparison.OrdinalIgnoreCase) &&
+            !knownMember)
             return Results.Json(new { ok = false, error = "无权操作该成员" }, statusCode: 403);
     }
     try
     {
         var list = ReadTaskList(req.Inst);
         var seq = (list.Count == 0 ? 0 : list.Max(t => t.Seq)) + 1;
-        list.Add(new TaskRecord { Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = req.Content ?? "", Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, Files = req.Files ?? new List<string>() });
+        list.Add(new TaskRecord { Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = req.Content ?? "", Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentTask = req.ParentTask ?? 0, ParentOwner = req.ParentOwner ?? "", Files = req.Files ?? new List<string>() });
         WriteTaskList(req.Inst, list);
         return Results.Ok(new { ok = true, seq });
     }
@@ -1101,6 +1140,8 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         t.Content = req.Content ?? t.Content;
         t.Status = req.Status ?? t.Status;
         t.AssignedAt = req.AssignedAt ?? t.AssignedAt;
+        if (req.ParentTask.HasValue) t.ParentTask = req.ParentTask.Value;
+        if (req.ParentOwner != null) t.ParentOwner = req.ParentOwner;
         if (req.Files != null) t.Files = req.Files;
         WriteTaskList(req.Inst, list);
         return Results.Ok(new { ok = true });
@@ -2366,10 +2407,16 @@ record TaskRecord
     public string? Status { get; set; }
     public string? AssignedAt { get; set; }
     public string? CreatedBy { get; set; }
+    // Parent task seq (0 = top-level). Child tasks point at the task they were
+    // "continue-assigned" from. Used to expand subtasks inline in the table.
+    public int ParentTask { get; set; }
+    // Owner (member id) of the parent task, so a seq never collides across
+    // members' independent task lists when expanding subtasks.
+    public string? ParentOwner { get; set; }
     public List<string> Files { get; set; } = new();
 }
 
-record TaskUpsertRequest(string? Inst, int Seq, string? Name, string? Type, string? Content, string? Status, string? AssignedAt, List<string>? Files);
+record TaskUpsertRequest(string? Inst, int Seq, string? Name, string? Type, string? Content, string? Status, string? AssignedAt, List<string>? Files, int? ParentTask, string? ParentOwner);
 
 record FeedbackEntry
 {

@@ -170,6 +170,8 @@ CREATE TABLE IF NOT EXISTS tasks(
   status      TEXT NOT NULL DEFAULT 'pending',
   assigned_at TEXT NOT NULL DEFAULT '',
   created_by  TEXT NOT NULL DEFAULT '',
+  parent_task INTEGER NOT NULL DEFAULT 0,
+  parent_owner TEXT NOT NULL DEFAULT '',
   PRIMARY KEY(owner, seq)
 );
 CREATE TABLE IF NOT EXISTS task_files(
@@ -198,6 +200,16 @@ CREATE TABLE IF NOT EXISTS feedback_files(
 );
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
 ");
+        // Migrations for databases created before the column existed. Each is
+        // guarded by a pragma_table_info check so it is safe to run every open.
+        try
+        {
+            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_task';") == 0)
+                Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_task INTEGER NOT NULL DEFAULT 0;");
+            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_owner';") == 0)
+                Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_owner TEXT NOT NULL DEFAULT '';");
+        }
+        catch { }
     }
 
     // ================= Users =================
@@ -349,7 +361,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         }
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT seq,name,type,content,status,assigned_at,created_by FROM tasks WHERE owner=$o ORDER BY seq DESC;";
+            cmd.CommandText = "SELECT seq,name,type,content,status,assigned_at,created_by,parent_task,parent_owner FROM tasks WHERE owner=$o ORDER BY seq DESC;";
             cmd.Parameters.AddWithValue("$o", owner);
             using var r = cmd.ExecuteReader();
             while (r.Read())
@@ -364,6 +376,8 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                     Status = r.GetString(4),
                     AssignedAt = r.GetString(5),
                     CreatedBy = r.GetString(6),
+                    ParentTask = r.FieldCount > 7 && !r.IsDBNull(7) ? r.GetInt32(7) : 0,
+                    ParentOwner = r.FieldCount > 8 && !r.IsDBNull(8) ? r.GetString(8) : "",
                     Files = filesBySeq.TryGetValue(seq, out var fl) ? fl : new List<string>(),
                 });
             }
@@ -386,7 +400,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             using (var ins = conn.CreateCommand())
             {
                 ins.Transaction = tx;
-                ins.CommandText = "INSERT INTO tasks(owner,seq,name,type,content,status,assigned_at,created_by) VALUES($o,$seq,$name,$type,$content,$status,$at,$by);";
+                ins.CommandText = "INSERT INTO tasks(owner,seq,name,type,content,status,assigned_at,created_by,parent_task,parent_owner) VALUES($o,$seq,$name,$type,$content,$status,$at,$by,$parent,$parentOwner);";
                 ins.Parameters.AddWithValue("$o", owner);
                 ins.Parameters.AddWithValue("$seq", t.Seq);
                 ins.Parameters.AddWithValue("$name", t.Name ?? "");
@@ -395,6 +409,8 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 ins.Parameters.AddWithValue("$status", string.IsNullOrWhiteSpace(t.Status) ? "pending" : t.Status!);
                 ins.Parameters.AddWithValue("$at", t.AssignedAt ?? "");
                 ins.Parameters.AddWithValue("$by", t.CreatedBy ?? "");
+                ins.Parameters.AddWithValue("$parent", t.ParentTask);
+                ins.Parameters.AddWithValue("$parentOwner", t.ParentOwner ?? "");
                 ins.ExecuteNonQuery();
             }
             var idx = 0;

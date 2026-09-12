@@ -152,6 +152,9 @@
     expandBtn.textContent = curW < 50 ? '▶▶' : '◀◀';
   }
   updateExpandIcon();
+  // Let the embedded /fm page widen the left pane (e.g. when its "My Tasks" tab
+  // is opened) so the tasks table has more room.
+  window.ttExpandLeft = function () { setFmWidth(70); updateExpandIcon(); };
   expandBtn.onclick = function (ev) {
     ev.stopPropagation();
     var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;
