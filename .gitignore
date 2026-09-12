@@ -476,6 +476,9 @@ config/users.json
 # dsh-launcher/win-x64/ (Windows), linux-x64, linux-arm64 and osx-arm64, so a
 # fresh clone has the launcher exe for its platform and runs out of the box
 # without needing the .NET SDK.
+# Unanchored patterns for gui-cs project build output
+gui-cs/src/bin/
+gui-cs/src/obj/
 
 # ---- Runtime settings + generated files (must not be committed) ----
 # Settings changed in the UI (workspace path, URL, language) are written here, so
