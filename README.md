@@ -8,15 +8,15 @@ TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user A
 
 ## Highlights
 
-- 🧠 **Shared team experience** — one member's conversations, findings and files become reusable knowledge for the whole team.
-- 👤 **Per-user isolation** — each user runs DSH under a dedicated OS account with a sandboxed workspace; no cross-user access.
+- 🧠 **Shared team experience** — one member's conversations, findings and files become reusable knowledge for the whole team, getting better the more you use it!
+- 👤 **Per-user isolation** — each user runs DSH under a dedicated OS account with a sandboxed workspace; no cross-user file/data access.
 - 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks; right pane = the DSH chat. Drag or one-click (⤢) to resize 30% ↔ 70%.
 - 🔌 **Single entry, single port** — one launcher (`:46001`) proxies to every member's private DSH, so you expose only one public port.
-- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files), in a shared SQLite store.
+- ✅ **Task assignment** — admins assign tasks per member (rich text + images + attached files), in a shared database.
 - 📁 **Built-in file manager** — upload, folders, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
 - 🌐 **Bilingual UI** — full English / Chinese (buttons, tables, statuses, task form, login page).
-- 🚀 **One-click, offline install** — copy the folder and run; no compilation, no .NET SDK, no extra downloads.
-- 🧩 **Survives upgrades** — a patch layer re-applies every customization after each DSH update.
+- 🚀 **One-click, offline install** — copy the folder and run; no compilation, no extra downloads.
+- 🧩 **Survives upgrades** — one-click upgrade patch layer, enjoy new features instantly!
 - 📦 **Cross-platform** — Windows / macOS / Linux, x64 & arm64, self-contained (bundles the runtime and Node).
 
 > 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDshTeam ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
@@ -91,7 +91,7 @@ Each user sees tasks assigned to them:
 ### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
 - **Add / Edit** a task: **Type**, **Name**, **Content** (rich text — bold/lists/quote, paste or insert images), **Status** (Processing / Done / Cancelled), **Related files** (multi-select upload).
-- Tasks are stored in the launcher's shared **SQLite** database (`<workspace>/database/taketopDSHTeam.db`; legacy per-member XML/DB is auto-imported on first use); attachments go to `<workspace>/TaskData/Doc`.
+- Tasks are stored in the launcher's shared **database** (`<workspace>/database/taketopDSHTeam.db`; legacy per-member XML/DB is auto-imported on first use); attachments go to `<workspace>/TaskData/Doc`.
 
 ![Task assignment — pick a member, then add/edit their tasks](assets/TaskAssignment.png)
 ![Task assignment — pick a member, then add/edit their tasks](assets/AddTask.png)
