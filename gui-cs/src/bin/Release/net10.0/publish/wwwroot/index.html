@@ -169,48 +169,62 @@
     <div id="tokenHint" class="muted" style="min-height:18px;margin-top:6px;"></div>
   </div>
 
-  <div class="card" data-admin>
-    <h2 data-i18n="configTitle">配置</h2>
-    <div class="row">
-      <label data-i18n="cfgUrl">appsettings URL</label>
-      <input id="cfgUrl" style="width: 260px" />
-      <button id="saveCfgBtn" class="secondary" data-i18n="save">保存</button>
-      <span id="cfgSaved" class="muted"></span>
+  <div class="card" data-admin style="padding:0;overflow:hidden;">
+    <div id="adminTabs" style="display:flex;border-bottom:2px solid #e5e7eb;background:#f8fafc;">
+      <button class="admin-tab active" data-tab="config" data-i18n="configTitle" style="flex:1;padding:12px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;font-weight:600;color:#334155;border-bottom:2px solid #2563eb;margin-bottom:-2px;">配置</button>
+      <button class="admin-tab" data-tab="instances" data-i18n="instTitle" style="flex:1;padding:12px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;font-weight:600;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;">实例管理</button>
+      <button class="admin-tab" data-tab="update" data-i18n="updateTitle" style="flex:1;padding:12px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;font-weight:600;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;">更新</button>
     </div>
-    <div class="row">
-      <label data-i18n="extUrl">外部访问地址</label>
-      <input id="extUrl" style="width: 260px" data-ph="extUrlPh" />
-    </div>
-    <div class="row">
-      <label data-i18n="workspace">工作区路径</label>
-      <input id="workspace" style="width: 280px" data-ph="workspacePh" />
-      <button id="browseWsBtn" class="secondary" data-i18n="browse">浏览</button>
-      <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
-      <span id="wsSaved" class="muted"></span>
-    </div>
-    <div id="wsDefaultWarn" data-i18n="wsDefaultWarn" style="display:none;margin:6px 0 2px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;white-space:pre-line"></div>
-    <div class="row">
-      <label data-i18n="defaultLang">缺省语言</label>
-      <select id="defaultLangSel" style="width: 200px;"></select>
-      <button id="saveLangBtn" class="secondary" data-i18n="save">保存</button>
-      <span id="langSaved" class="muted"></span>
-    </div>
-    <div class="muted" style="margin-top:4px" id="configHint"></div>
-  </div>
 
-    <div class="card" data-admin>
-    <h2 data-i18n="instTitle">实例管理（多用户）</h2>
-    <div class="row-nowrap">
-      <label data-i18n="instName">用户名</label>
-      <input id="instId" style="width: 120px" placeholder="userA" oninput="updateInstWs()" />
-      <label data-i18n="instWs">工作区</label>
-      <input id="instWs" style="width: 200px" placeholder="留空=自动按 全局工作区/用户名" data-ph="instWsPh" />
-      <label data-i18n="instPass">密码</label>
-      <input id="instPass" type="password" style="width: 110px" placeholder="******" />
-      <button id="createInstBtn" class="secondary" data-i18n="instCreate">新建实例</button>
+    <div id="tabConfig" class="tab-panel" style="padding:20px 24px;">
+      <div class="row">
+        <label data-i18n="cfgUrl">appsettings URL</label>
+        <input id="cfgUrl" style="width: 260px" />
+        <button id="saveCfgBtn" class="secondary" data-i18n="save">保存</button>
+        <span id="cfgSaved" class="muted"></span>
+      </div>
+      <div class="row">
+        <label data-i18n="extUrl">外部访问地址</label>
+        <input id="extUrl" style="width: 260px" data-ph="extUrlPh" />
+      </div>
+      <div class="row">
+        <label data-i18n="workspace">工作区路径</label>
+        <input id="workspace" style="width: 280px" data-ph="workspacePh" />
+        <button id="browseWsBtn" class="secondary" data-i18n="browse">浏览</button>
+        <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
+        <span id="wsSaved" class="muted"></span>
+      </div>
+      <div id="wsDefaultWarn" data-i18n="wsDefaultWarn" style="display:none;margin:6px 0 2px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;white-space:pre-line"></div>
+      <div class="row">
+        <label data-i18n="defaultLang">缺省语言</label>
+        <select id="defaultLangSel" style="width: 200px;"></select>
+        <button id="saveLangBtn" class="secondary" data-i18n="save">保存</button>
+        <span id="langSaved" class="muted"></span>
+      </div>
+      <div class="muted" style="margin-top:4px" id="configHint"></div>
     </div>
-    <div class="muted" style="margin-top:2px;min-height:18px;" id="instMsg"></div>
-    <div id="instList" style="margin-top:8px;"></div>
+
+    <div id="tabInstances" class="tab-panel" style="padding:20px 24px;display:none;">
+      <div class="row-nowrap">
+        <label data-i18n="instName">用户名</label>
+        <input id="instId" style="width: 120px" placeholder="userA" oninput="updateInstWs()" />
+        <label data-i18n="instWs">工作区</label>
+        <input id="instWs" style="width: 200px" placeholder="留空=自动按 全局工作区/用户名" data-ph="instWsPh" />
+        <label data-i18n="instPass">密码</label>
+        <input id="instPass" type="password" style="width: 110px" placeholder="******" />
+        <button id="createInstBtn" class="secondary" data-i18n="instCreate">新建实例</button>
+      </div>
+      <div class="muted" style="margin-top:2px;min-height:18px;" id="instMsg"></div>
+      <div id="instList" style="margin-top:8px;"></div>
+    </div>
+
+    <div id="tabUpdate" class="tab-panel" style="padding:20px 24px;display:none;">
+      <div class="row">
+        <button id="checkUpdateBtn" class="secondary" data-i18n="checkUpdate">Check Update</button>
+        <button id="applyUpdateBtn" style="display:none;" data-i18n="applyUpdate">升级</button>
+        <span id="verInfo" class="muted" style="display:inline-flex;align-items:center;gap:6px;"></span>
+      </div>
+    </div>
   </div>
 
   <!-- My Instance: non-admin users control their own instance -->
@@ -245,14 +259,7 @@
     </div>
   </div>
 
-  <div class="card" data-admin>
-    <h2 data-i18n="updateTitle">更新</h2>
-    <div class="row">
-      <button id="checkUpdateBtn" class="secondary" data-i18n="checkUpdate">Check Update</button>
-      <button id="applyUpdateBtn" style="display:none;" data-i18n="applyUpdate">升级</button>
-      <span id="verInfo" class="muted" style="display:inline-flex;align-items:center;gap:6px;"></span>
-    </div>
-  </div>
+  <!-- tabs end -->
 
   <div class="card">
     <h2 data-i18n="logTitle">日志</h2>
@@ -548,6 +555,23 @@ function applyLang(lang) {
     localStorage.setItem('tt_lang', lang);
   } catch (e) { }
 }
+
+/* ---- Admin tabs ---- */
+(function() {
+  var tabs = document.querySelectorAll('.admin-tab');
+  var panels = { config: $('#tabConfig'), instances: $('#tabInstances'), update: $('#tabUpdate') };
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var target = tab.getAttribute('data-tab');
+      tabs.forEach(function(t) { t.classList.remove('active'); t.style.color = '#94a3b8'; t.style.borderBottomColor = 'transparent'; });
+      tab.classList.add('active'); tab.style.color = '#334155'; tab.style.borderBottomColor = '#2563eb';
+      Object.keys(panels).forEach(function(k) { if (panels[k]) panels[k].style.display = k === target ? '' : 'none'; });
+    });
+  });
+  // set initial active tab text color
+  var active = document.querySelector('.admin-tab.active');
+  if (active) { active.style.color = '#334155'; active.style.borderBottomColor = '#2563eb'; }
+})();
 
 async function refresh() {
   const st = await (await fetch('/api/status')).json();
