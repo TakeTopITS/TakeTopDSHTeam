@@ -561,6 +561,23 @@ bool IsAssignableTarget(string id)
     return string.Equals(id, "admin", StringComparison.OrdinalIgnoreCase) || instMgr.Get(id) != null;
 }
 
+// Normalize client-supplied task file references to a bare "Doc/<basename>" with
+// no directory components, so a crafted entry like "TaskData/../../secret" can
+// never be used for path traversal when the files are moved on reassignment.
+static List<string> SanitizeTaskFiles(System.Collections.Generic.IEnumerable<string>? files)
+{
+    var outList = new List<string>();
+    if (files == null) return outList;
+    foreach (var f in files)
+    {
+        if (string.IsNullOrWhiteSpace(f)) continue;
+        var name = Path.GetFileName(f.Replace('\\', '/').Trim());
+        if (string.IsNullOrEmpty(name) || name == "." || name == "..") continue;
+        outList.Add("Doc/" + name);
+    }
+    return outList;
+}
+
 // Resolve the workspace a file-manager request should operate on. Supports an
 // optional ?inst=<id> target (used by the /work split page): admins may view any
 // user's workspace; non-admins are confined to their own. `allowCrossMemberRead`
@@ -606,6 +623,31 @@ string SafeResolve(string root, string? rel)
     if (!abs.Equals(baseRoot, StringComparison.OrdinalIgnoreCase) &&
         !abs.StartsWith(boundary, StringComparison.OrdinalIgnoreCase))
         throw new ArgumentException("path escapes the permitted workspace");
+    return abs;
+}
+
+// True when the request targets a DIFFERENT workspace than the caller's own
+// (e.g. ?inst=<other-member> or ?inst=admin). Admins are handled separately.
+bool IsCrossWorkspaceRequest(HttpContext ctx)
+{
+    var username = (string)ctx.Items["username"]!;
+    var instParam = ctx.Request.Query["inst"].FirstOrDefault();
+    return !string.IsNullOrEmpty(instParam) && !string.Equals(instParam, username, StringComparison.OrdinalIgnoreCase);
+}
+
+// A NON-ADMIN cross-workspace READ may only reach the target workspace's
+// TaskData subtree (where task/feedback attachments live). Everything else —
+// .dsh credentials, database, instances, config — is refused. Admins are not
+// restricted. Non-cross (own-workspace) reads are also unrestricted.
+string GuardCrossRead(HttpContext ctx, string ws, string? rel)
+{
+    var abs = SafeResolve(ws, rel);
+    var caller = auth.Find((string)ctx.Items["username"]!);
+    if (caller?.Admin == true || !IsCrossWorkspaceRequest(ctx)) return abs;
+    var td = Path.GetFullPath(Path.Combine(ws, "TaskData")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    if (!abs.Equals(td, StringComparison.OrdinalIgnoreCase) &&
+        !abs.StartsWith(td + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        throw new ArgumentException("cross-workspace read is limited to TaskData");
     return abs;
 }
 
@@ -685,7 +727,8 @@ void MoveTaskAttachments(string fromInst, string toInst, int oldSeq, TaskRecord 
     {
         var norm = (rel ?? "").Replace('\\', '/').TrimStart('/');
         var under = norm.StartsWith("TaskData", StringComparison.OrdinalIgnoreCase) ? norm : "TaskData/" + norm;
-        var src = Path.Combine(Path.GetFullPath(fromWs), under.Replace('/', Path.DirectorySeparatorChar));
+        string src;
+        try { src = SafeResolve(fromWs, under); } catch { newFiles.Add(rel ?? ""); continue; }
         if (!File.Exists(src)) { newFiles.Add(rel ?? ""); continue; }
         var name = Path.GetFileName(src);
         var dst = Path.Combine(destDoc, name);
@@ -749,7 +792,7 @@ app.MapGet("/api/files/list", (string? path, HttpContext ctx) =>
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
-        var absDir = SafeResolve(ws, path);
+        var absDir = GuardCrossRead(ctx, ws, path);
         if (!Directory.Exists(absDir)) return Results.Json(new { ok = false, error = L(ctx, "目录不存在") }, statusCode: 404);
         var entries = BuildFileEntries(absDir);
         return Results.Ok(new { ok = true, root = ws, path = path ?? "", entries });
@@ -987,7 +1030,7 @@ app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
-        var abs = SafeResolve(ws, req.Path);
+        var abs = GuardCrossRead(ctx, ws, req.Path);
         if (!File.Exists(abs)) return Results.Json(new { ok = false, error = L(ctx, "文件不存在") }, statusCode: 404);
         var fi = new FileInfo(abs);
         const long max = 4L * 1024 * 1024;   // 4 MB cap
@@ -1017,7 +1060,7 @@ app.MapGet("/api/files/download", (string? path, string? inline, HttpContext ctx
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
-        var abs = SafeResolve(ws, path);
+        var abs = GuardCrossRead(ctx, ws, path);
         // Legacy/back-compat: task-content images stored the path relative to
         // TaskData (e.g. "Doc/img.png"); the file actually lives under TaskData/.
         // If the requested path doesn't exist, retry under <workspace>/TaskData.
@@ -1341,7 +1384,7 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         var list = ReadTaskList(req.Inst);
         var seq = (list.Count == 0 ? 0 : list.Max(t => t.Seq)) + 1;
         var uid = LauncherDb.NewTaskUid();
-        list.Add(new TaskRecord { Uid = uid, Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = StripLauncherToken(req.Content), Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentUid = req.ParentUid ?? "", Files = req.Files ?? new List<string>() });
+        list.Add(new TaskRecord { Uid = uid, Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = StripLauncherToken(req.Content), Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentUid = req.ParentUid ?? "", Files = SanitizeTaskFiles(req.Files) });
         WriteTaskList(req.Inst, list);
         return Results.Ok(new { ok = true, uid, seq });
     }
@@ -1368,7 +1411,7 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         t.Status = req.Status ?? t.Status;
         t.AssignedAt = req.AssignedAt ?? t.AssignedAt;
         if (req.ParentUid != null) t.ParentUid = req.ParentUid;
-        if (req.Files != null) t.Files = req.Files;
+        if (req.Files != null) t.Files = SanitizeTaskFiles(req.Files);
 
         // Re-assignment: move the task to another member's list (keeping it in the
         // assignee's list is what makes it show up on their My Tasks page). The
