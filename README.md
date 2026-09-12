@@ -111,7 +111,7 @@ Full **English / Chinese** toggle across the console, workbench, file manager, t
 ```
 ┌────────────┐  :46001   ┌─────────────┐   WebSocket / HTTP proxy
 │  Browser    │─────────▶│  Launcher    │──────────▶ DSH :46000 (admin default)
-└────────────┘           │  (ASP.NET)   │──────────▶ DSH :46002 (jackzhong)
+└────────────┘           │──────────▶ DSH :46002 (jackzhong)
                          │  multi-user  │──────────▶ DSH :46003 (ericliu)
                          └─────────────┘──────────▶ ...
 ```
