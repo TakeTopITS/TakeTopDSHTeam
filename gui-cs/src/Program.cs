@@ -612,6 +612,62 @@ static string SuggestName(string parentDir, string name)
     return stem + " (" + Guid.NewGuid().ToString("N")[..6] + ")" + ext;
 }
 
+// True when an upload path is one of the attachment folders a task/feedback form
+// writes to. Used to allow a member to upload attachments into ANOTHER member's
+// workspace without opening up general cross-member writes.
+static bool IsAttachmentUploadPath(string? rel)
+{
+    var r = (rel ?? "").Replace('\\', '/').Trim('/').ToLowerInvariant();
+    return r == "taskdata/doc" || r.StartsWith("taskdata/feedback/");
+}
+
+// Move a task's referenced files (TaskData/Doc/...) and its feedback folder
+// (TaskData/Feedback/<oldSeq>) from the old owner's workspace to the new owner's
+// when the task is reassigned, so the new assignee's browser AND their sandboxed
+// AI agent can still open the attachments. Mutates t.Files to the new relative
+// names (a name conflict gets a " (n)" suffix).
+void MoveTaskAttachments(string fromInst, string toInst, int oldSeq, TaskRecord t)
+{
+    var fromWs = TaskWorkspace(fromInst);
+    var toWs = TaskWorkspace(toInst);
+    if (string.IsNullOrWhiteSpace(fromWs) || string.IsNullOrWhiteSpace(toWs)) return;
+    if (string.Equals(Path.GetFullPath(fromWs), Path.GetFullPath(toWs), StringComparison.OrdinalIgnoreCase)) return;
+
+    // Task attachments live under "<ws>/TaskData/Doc"; list entries are like "Doc/name".
+    var destDoc = Path.Combine(Path.GetFullPath(toWs), "TaskData", "Doc");
+    Directory.CreateDirectory(destDoc);
+    var newFiles = new List<string>();
+    foreach (var rel in t.Files ?? new List<string>())
+    {
+        var norm = (rel ?? "").Replace('\\', '/').TrimStart('/');
+        var under = norm.StartsWith("TaskData", StringComparison.OrdinalIgnoreCase) ? norm : "TaskData/" + norm;
+        var src = Path.Combine(Path.GetFullPath(fromWs), under.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(src)) { newFiles.Add(rel ?? ""); continue; }
+        var name = Path.GetFileName(src);
+        var dst = Path.Combine(destDoc, name);
+        if (File.Exists(dst)) { name = SuggestName(destDoc, name); dst = Path.Combine(destDoc, name); }
+        try { File.Move(src, dst); newFiles.Add("Doc/" + name); }
+        catch { newFiles.Add(rel ?? ""); }
+    }
+    t.Files = newFiles;
+
+    // Feedback attachments for the task live under "<ws>/TaskData/Feedback/<seq>".
+    var fromFb = Path.Combine(Path.GetFullPath(fromWs), "TaskData", "Feedback", oldSeq.ToString());
+    if (Directory.Exists(fromFb))
+    {
+        var toFb = Path.Combine(Path.GetFullPath(toWs), "TaskData", "Feedback", t.Seq.ToString());
+        Directory.CreateDirectory(toFb);
+        foreach (var f in Directory.GetFiles(fromFb))
+        {
+            var name = Path.GetFileName(f);
+            var dst = Path.Combine(toFb, name);
+            if (File.Exists(dst)) { name = SuggestName(toFb, name); dst = Path.Combine(toFb, name); }
+            try { File.Move(f, dst); } catch { }
+        }
+        try { if (!Directory.EnumerateFileSystemEntries(fromFb).Any()) Directory.Delete(fromFb); } catch { }
+    }
+}
+
 // Return top-level entries (dirs first, then files, both sorted) for a listing.
 static IReadOnlyList<object> BuildFileEntries(string absDir)
 {
@@ -659,6 +715,18 @@ app.MapGet("/api/files/list", (string? path, HttpContext ctx) =>
 app.MapPost("/api/files/upload", (HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
+    // A member may also upload task/feedback ATTACHMENTS into ANOTHER member's
+    // workspace, but ONLY under TaskData/Doc or TaskData/Feedback/<seq> — the two
+    // folders the task/feedback forms use. Every other cross-member write stays
+    // refused, so a workspace is otherwise private.
+    if (string.IsNullOrWhiteSpace(ws))
+    {
+        var instParam = ctx.Request.Query["inst"].FirstOrDefault();
+        var relPath = ctx.Request.Form["path"].ToString();
+        var caller = auth.Find((string)ctx.Items["username"]!);
+        if (!string.IsNullOrEmpty(instParam) && caller?.Admin != true && IsAttachmentUploadPath(relPath))
+            ws = instMgr.Get(instParam)?.Workspace;
+    }
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
@@ -1269,10 +1337,14 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
                     !knownMember)
                     return Results.Json(new { ok = false, error = L(ctx, "无权操作该成员") }, statusCode: 403);
             }
+            var oldSeq = t.Seq;
             list.Remove(t);
             var newList = ReadTaskList(target!);
             t.Seq = (newList.Count == 0 ? 0 : newList.Max(x => x.Seq)) + 1;
             newList.Add(t);
+            // Carry the attachments to the new owner's workspace (this mutates
+            // t.Files to the moved names), then persist both lists.
+            try { MoveTaskAttachments(req.Inst, target!, oldSeq, t); } catch { }
             WriteTaskList(req.Inst, list);
             WriteTaskList(target!, newList);
 
