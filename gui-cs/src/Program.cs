@@ -1374,11 +1374,26 @@ app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, string
             if (!fb.TryGetValue(t.Uid ?? "", out var list) || list == null) return false;
             return list.Any(e => !string.Equals(e.By, t.CreatedBy, StringComparison.OrdinalIgnoreCase));
         }
+        // Distinct attachment file names across all of a task's feedback entries.
+        List<string> FeedbackFiles(TaskRecord t, string member)
+        {
+            if (!fbMemo.TryGetValue(member, out var fb)) { fb = ReadFeedback(member); fbMemo[member] = fb; }
+            if (!fb.TryGetValue(t.Uid ?? "", out var list) || list == null) return new List<string>();
+            var names = new List<string>();
+            foreach (var e in list)
+                foreach (var fn in e.Files ?? new List<string>())
+                {
+                    var b = System.IO.Path.GetFileName(fn);
+                    if (!string.IsNullOrEmpty(b) && !names.Contains(b)) names.Add(b);
+                }
+            return names;
+        }
 
         var result = slice.Select(x => new {
             uid = x.Task.Uid, seq = x.Task.Seq, name = x.Task.Name, type = x.Task.Type, content = x.Task.Content,
             status = x.Task.Status, assignedAt = x.Task.AssignedAt, createdBy = x.Task.CreatedBy,
             parentUid = x.Task.ParentUid, files = x.Task.Files, member = x.Member,
+            feedbackFiles = FeedbackFiles(x.Task, x.Member),
             childCount = childCounts.TryGetValue(x.Task.Uid, out var cc) ? cc : 0,
             hasOtherFeedback = HasOtherFeedback(x.Task, x.Member),
             hier = hierMap.TryGetValue(x.Task.Uid, out var hp) ? hp : x.Task.Seq.ToString()

@@ -1139,6 +1139,9 @@ async function loadMyTasks(container) {
       var filesHtml = (task.files||[]).map(function(f){
         var n = dispName(String(f).split('/').pop());
         return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
+      }).join('') + (task.feedbackFiles||[]).map(function(fn){
+        var b = dispName(String(fn).split('/').pop());
+        return '<div><a href="javascript:void(0)" class="fm-task-fbfile" data-name="' + String(fn).replace(/"/g,'&quot;') + '" style="color:#7c3aed;text-decoration:none;font-size:12.5px;cursor:pointer;">' + b + '</a></div>';
       }).join('');
       var tr = document.createElement('tr');
       var indent = depth ? ('padding-left:' + (10 + depth*16) + 'px;') : '';
@@ -1168,6 +1171,9 @@ async function loadMyTasks(container) {
         + '<td class="fm-ops" style="white-space:nowrap;">' + opsHtml + '</td>';
       tr.querySelectorAll('a.fm-task-file').forEach(function(a){
         a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: dispName(a.getAttribute('data-file')) }); };
+      });
+      tr.querySelectorAll('a.fm-task-fbfile').forEach(function(a){
+        a.onclick = function(){ var nm = String(a.getAttribute('data-name')).split('/').pop(); TTPreview.open({ insts: [task.member || inst, inst, 'admin'], path: 'TaskData/Feedback/' + (task.seq || 0) + '/' + nm, name: dispName(nm) }); };
       });
       tr.querySelector('a.fm-task-name-link').onclick = function(ev){
         ev.preventDefault();
@@ -1303,21 +1309,41 @@ function showTaskView(task, en) {
   }
   el.querySelector('#tcvTitle').textContent = task.name || '';
   el.querySelector('#tcvBody').innerHTML = task.content || '';
-  // Attachment file list (click to preview image / prompt download otherwise)
+  // Attachments: the task's own files PLUS every attachment from its feedback
+  // records (both live under TaskData/ in the task owner's workspace).
   var inst = currentUser || 'admin';
-  var files = task.files || [];
+  var owner = task.member || inst;
+  var rows = [];
+  (task.files || []).forEach(function (f) {
+    var base = String(f).split('/').pop();
+    rows.push({ rel: 'TaskData/Doc/' + base, name: dispName(base), insts: [owner, inst, 'admin'] });
+  });
   var fbox = el.querySelector('#tcvFiles');
-  if (!files.length) { fbox.innerHTML = ''; }
-  else {
-    var fhtml = '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px;">' + (en?'Attachments':'附件文件') + '</div>';
-    files.forEach(function(f){
-      var name = dispName(String(f).split('/').pop());
-      fhtml += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="tcv-file" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + name + '</a></div>';
+  function renderAttachments() {
+    if (!rows.length) { fbox.innerHTML = ''; return; }
+    var fhtml = '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px;">' + (en ? 'Attachments' : '附件文件') + '</div>';
+    rows.forEach(function (r, i) {
+      fhtml += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="tcv-file" data-i="' + i + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + r.name + '</a></div>';
     });
     fbox.innerHTML = fhtml;
-    fbox.querySelectorAll('a.tcv-file').forEach(function(a){
-      a.onclick = function(){ openTaskFile2(a.getAttribute('data-file')); };
+    fbox.querySelectorAll('a.tcv-file').forEach(function (a) {
+      a.onclick = function () { var r = rows[parseInt(a.getAttribute('data-i'), 10)]; if (r) TTPreview.open({ insts: r.insts, path: r.rel, name: r.name }); };
     });
+  }
+  renderAttachments();
+  if (task.uid) {
+    fetch('/api/feedback?inst=' + encodeURIComponent(owner) + '&uid=' + encodeURIComponent(task.uid))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var seq = task.seq || 0;
+        (d.entries || []).forEach(function (e) {
+          String(e.files || '').split(',').filter(Boolean).forEach(function (fn) {
+            var base = String(fn).split('/').pop();
+            rows.push({ rel: 'TaskData/Feedback/' + seq + '/' + base, name: dispName(base), insts: [owner, inst, 'admin'] });
+          });
+        });
+        renderAttachments();
+      }).catch(function () {});
   }
   el.style.display = 'flex';
 }

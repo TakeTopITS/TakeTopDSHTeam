@@ -191,6 +191,7 @@
     <div class="modal" style="width:min(62vw,1000px);">
       <h2 id="viewTitle">任务内容</h2>
       <div id="viewContent" style="border:1px solid #e0e2e6;border-radius:6px;padding:14px;font-size:14px;line-height:1.6;min-height:200px;max-height:72vh;overflow:auto;box-sizing:border-box;"></div>
+      <div id="viewFiles" style="margin-top:10px;"></div>
       <div class="btns"><button class="secondary" id="viewClose">关闭</button></div>
     </div>
   </div>
@@ -435,6 +436,9 @@
       + '<td><ul class="files-list">' + (task.files||[]).map(function(f){
           var name = dispName(String(f).split('/').pop());
           return '<li><a href="javascript:void(0)" class="task-file-link" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a></li>';
+        }).join('') + (task.feedbackFiles||[]).map(function(fn){
+          var b = dispName(String(fn).split('/').pop());
+          return '<li><a href="javascript:void(0)" class="task-fbfile-link" data-name="' + String(fn).replace(/"/g,'&quot;') + '" style="color:#7c3aed;text-decoration:none;">' + b + '</a></li>';
         }).join('') + '</ul></td>'
       + '<td class="row-ops">'
       +   (canEdit ? '<button class="secondary">' + t('edit') + '</button>' : '')
@@ -443,6 +447,9 @@
     tr.querySelector('a.task-name-link').onclick = function(){ openView(task); };
     tr.querySelectorAll('a.task-file-link').forEach(function(a){
       a.onclick = function(){ openTaskFile(a.getAttribute('data-file'), task.member, task.createdBy); };
+    });
+    tr.querySelectorAll('a.task-fbfile-link').forEach(function(a){
+      a.onclick = function(){ var nm = String(a.getAttribute('data-name')).split('/').pop(); TTPreview.open({ insts: [task.member, curMember, 'admin'], path: 'TaskData/Feedback/' + (task.seq || 0) + '/' + nm, name: dispName(nm), token: launcherToken }); };
     });
     if (canEdit) {
       tr.querySelector('button.secondary').onclick = function(){ openModal(task); };
@@ -697,6 +704,30 @@
         $('#imgPreview').classList.add('show');
       });
     });
+    // Attachments: the task's own files PLUS every file from its feedback records.
+    var fbox = $('#viewFiles');
+    var owner = task.member || curMember || '';
+    var rows = [];
+    (task.files || []).forEach(function (f) { var b = String(f).split('/').pop(); rows.push({ rel: 'TaskData/Doc/' + b, name: dispName(b), insts: [owner, curMember, 'admin'] }); });
+    function renderViewFiles() {
+      if (!rows.length) { fbox.innerHTML = ''; return; }
+      var h = '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px;">' + (lang === 'en' ? 'Attachments' : '附件文件') + '</div>';
+      rows.forEach(function (r, i) { h += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="view-file" data-i="' + i + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + r.name + '</a></div>'; });
+      fbox.innerHTML = h;
+      fbox.querySelectorAll('a.view-file').forEach(function (a) {
+        a.onclick = function () { var r = rows[parseInt(a.getAttribute('data-i'), 10)]; if (r) TTPreview.open({ insts: r.insts, path: r.rel, name: r.name, token: launcherToken }); };
+      });
+    }
+    renderViewFiles();
+    if (task.uid) {
+      fetch('/api/feedback?inst=' + encodeURIComponent(owner) + '&uid=' + encodeURIComponent(task.uid)).then(function (r) { return r.json(); }).then(function (d) {
+        var seq = task.seq || 0;
+        (d.entries || []).forEach(function (e) {
+          String(e.files || '').split(',').filter(Boolean).forEach(function (fn) { var b = String(fn).split('/').pop(); rows.push({ rel: 'TaskData/Feedback/' + seq + '/' + b, name: dispName(b), insts: [owner, curMember, 'admin'] }); });
+        });
+        renderViewFiles();
+      }).catch(function () {});
+    }
     $('#viewModal').classList.add('show');
   }
   function closeView(){ $('#viewModal').classList.remove('show'); }function closeView(){ $('#viewModal').classList.remove('show'); }
