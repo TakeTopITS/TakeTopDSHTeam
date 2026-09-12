@@ -1373,9 +1373,6 @@ app.Use(async (ctx, next) =>
     if (path == "/admin" || path == "/admin/" || path.StartsWith("/admin/"))
     {
         if (user == null) { ctx.Response.Redirect("/"); return; }
-        // Serve the launcher control page (index.html) for /admin. Never cache it:
-        // some browsers kept the old JS (the "打开" button that failed to navigate),
-        // so force a fresh fetch on every load.
         ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
         ctx.Response.Headers["Pragma"] = "no-cache";
         ctx.Response.Headers["Expires"] = "0";
@@ -1387,7 +1384,8 @@ app.Use(async (ctx, next) =>
             await ctx.Response.WriteAsync("not found");
             return;
         }
-        await ctx.Response.SendFileAsync(adminIndex);
+        var bytes = await System.IO.File.ReadAllBytesAsync(adminIndex);
+        await ctx.Response.Body.WriteAsync(bytes);
         return;
     }
 
@@ -1413,7 +1411,8 @@ app.Use(async (ctx, next) =>
             await ctx.Response.WriteAsync("not found");
             return;
         }
-        await ctx.Response.SendFileAsync(file);
+        var bytes = await System.IO.File.ReadAllBytesAsync(file);
+        await ctx.Response.Body.WriteAsync(bytes);
         return;
     }
 

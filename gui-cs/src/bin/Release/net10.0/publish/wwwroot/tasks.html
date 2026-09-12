@@ -134,7 +134,13 @@
   <div class="overlay" id="modal">
     <div class="modal">
       <h2 id="modalTitle">添加任务</h2>
-      <div class="field"><label id="lblType">任务类型</label><input id="fType" /></div>
+      <div class="field"><label id="lblType">任务类型</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input id="fType" style="flex:1;" />
+          <select id="fTypeSelect" style="flex:1;padding:6px 8px;border:1px solid #c8ccd2;border-radius:6px;font-size:14px;"><option value="">-- 选择类型 --</option></select>
+          <button type="button" id="addTypeBtn" title="添加新类型" style="width:30px;height:30px;border:1px solid #c8ccd2;border-radius:6px;background:#f0f2f5;cursor:pointer;font-size:16px;font-weight:bold;">+</button>
+        </div>
+      </div>
       <div class="field"><label id="lblName">任务名称</label><input id="fName" /></div>
       <div class="field"><label id="lblContent">任务内容</label>
         <div class="rich-toolbar" id="richToolbar">
@@ -203,6 +209,7 @@
       thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thOps:"操作",
       edit:"编辑", del:"删除", feedback:"反馈", fbContent:"反馈内容", fbRecord:"反馈记录", fbNo:"序号", fbBy:"反馈人", fbTime:"时间", fbFiles:"附件", fbEmpty:"暂无反馈", fbRequired:"请填写反馈内容", empty:"暂无任务", modalAdd:"添加任务", modalEdit:"编辑任务",
       lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）",
+      selectType:"-- 选择类型 --", addTypeTip:"输入新类型名称：",
       save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
       saveOk:"保存成功", saveFail:"保存失败", saveDone:"正在保存...",
       st:{processing:"处理中", done:"完成", cancelled:"取消", pending:"待处理"},
@@ -214,6 +221,7 @@
       thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thOps:"Actions",
       edit:"Edit", del:"Delete", feedback:"Feedback", fbContent:"Content", fbRecord:"Feedback records", fbNo:"No.", fbBy:"By", fbTime:"Time", fbFiles:"Files", fbEmpty:"No feedback yet", fbRequired:"Please enter feedback", empty:"No tasks", modalAdd:"Add Task", modalEdit:"Edit Task",
       lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)",
+      selectType:"-- Select type --", addTypeTip:"Enter new type name:",
       save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
       saveOk:"Saved successfully", saveFail:"Save failed", saveDone:"Saving...",
       st:{processing:"Processing", done:"Done", cancelled:"Cancelled", pending:"Pending"},
@@ -397,6 +405,7 @@
     tasks = d.tasks || [];
     if (typeof d.total === 'number') taskTotal = d.total;
     renderTasks();
+    refreshTypeDropdown($('#fType').value);
   }
 
   async function delTask(task) {
@@ -410,7 +419,9 @@
     editingMember = task ? (task.member || curMember) : '';
     editingCreator = task ? (task.createdBy || '') : '';
     $('#modalTitle').textContent = editing ? t('modalEdit') : t('modalAdd');
-    $('#fType').value = task ? (task.type||'') : '';
+    var typeVal = task ? (task.type||'') : '';
+    $('#fType').value = typeVal;
+    refreshTypeDropdown(typeVal);
     $('#fName').value = task ? (task.name||'') : '';
     $('#fContent').innerHTML = task ? (task.content||'') : '';
     // datetime-local expects "YYYY-MM-DDTHH:mm"; normalize "YYYY-MM-DD HH:mm"
@@ -430,6 +441,62 @@
     $('#modal').classList.add('show');
   }
   function closeModal(){ $('#modal').classList.remove('show'); }
+
+  /* ---- Type dropdown ---- */
+  function getStoredTypes() {
+    try { return JSON.parse(localStorage.getItem('taskTypes') || '[]'); } catch(e) { return []; }
+  }
+  function saveStoredTypes(arr) {
+    localStorage.setItem('taskTypes', JSON.stringify(arr));
+  }
+  function collectTypesFromTasks() {
+    var types = [];
+    (tasks || []).forEach(function(t) { if (t.type && types.indexOf(t.type) === -1) types.push(t.type); });
+    return types;
+  }
+  function refreshTypeDropdown(current) {
+    var sel = $('#fTypeSelect');
+    var stored = getStoredTypes();
+    var fromTasks = collectTypesFromTasks();
+    var merged = stored.slice();
+    fromTasks.forEach(function(v) { if (merged.indexOf(v) === -1) merged.push(v); });
+    merged.sort();
+    saveStoredTypes(merged);
+    sel.innerHTML = '<option value="">' + t('selectType') + '</option>';
+    merged.forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      if (v === current) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (current && merged.indexOf(current) === -1) {
+      var opt2 = document.createElement('option');
+      opt2.value = current; opt2.textContent = current; opt2.selected = true;
+      sel.insertBefore(opt2, sel.firstChild.nextSibling);
+    }
+  }
+  $('#fTypeSelect').addEventListener('change', function() {
+    var v = this.value;
+    if (v) $('#fType').value = v;
+  });
+  $('#fType').addEventListener('input', function() {
+    var v = this.value.trim();
+    var sel = $('#fTypeSelect');
+    var found = false;
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === v) { sel.selectedIndex = i; found = true; break; }
+    }
+    if (!found) sel.selectedIndex = 0;
+  });
+  $('#addTypeBtn').addEventListener('click', function() {
+    var name = prompt(t('addTypeTip'));
+    if (!name || !name.trim()) return;
+    name = name.trim();
+    var stored = getStoredTypes();
+    if (stored.indexOf(name) === -1) { stored.push(name); stored.sort(); saveStoredTypes(stored); }
+    $('#fType').value = name;
+    refreshTypeDropdown(name);
+  });
   function openView(task) {
     $('#viewTitle').textContent = (task.name || t('modalEdit'));
     $('#viewContent').innerHTML = task.content || '';
