@@ -44,7 +44,7 @@
   h1 { font-size: 20px; margin: 0 0 14px; }
   h2 { font-size: 15px; margin: 10px 0 6px; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  .row-nowrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .row-nowrap { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; margin-bottom: 8px; }
   .row-nowrap input { flex: none; }
   .row-nowrap button, .row-nowrap label { flex: 0 0 auto; white-space: nowrap; }
   label { font-weight: 600; font-size: 14px; }
@@ -215,11 +215,11 @@
     <div id="tabInstances" class="tab-panel" style="padding:20px 24px;display:none;">
       <div class="row-nowrap">
         <label data-i18n="instName">用户名</label>
-        <input id="instId" style="width: 120px" placeholder="userA" oninput="updateInstWs()" />
+        <input id="instId" style="width: 80px" placeholder="userA" oninput="updateInstWs()" />
         <label data-i18n="instWs">工作区</label>
-        <input id="instWs" style="width: 200px" placeholder="留空=自动按 全局工作区/用户名" data-ph="instWsPh" />
+        <input id="instWs" style="flex: 1 1 auto; min-width: 140px;" placeholder="留空=自动按 全局工作区/用户名" data-ph="instWsPh" />
         <label data-i18n="instPass">密码</label>
-        <input id="instPass" type="password" style="width: 110px" placeholder="******" />
+        <input id="instPass" type="password" style="width: 90px" placeholder="******" />
         <button id="createInstBtn" class="secondary" data-i18n="instCreate">新建实例</button>
       </div>
       <div class="muted" style="margin-top:2px;min-height:18px;" id="instMsg"></div>
