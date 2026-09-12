@@ -1627,6 +1627,7 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/admin/") ||
         path.StartsWith("/api/tasks") ||
         path.StartsWith("/api/feedback") ||
+        path.StartsWith("/api/sessions") ||
         path.StartsWith("/api/session-token");
     if (launcherOwned) { await next(); return; }
 

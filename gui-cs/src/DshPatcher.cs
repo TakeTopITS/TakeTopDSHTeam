@@ -204,56 +204,100 @@ public static class DshPatcher
         return $"[{name}-escalation] applied (escalation disabled)";
     }
 
-    // ====== 5) search/glob containment ======
+    // ====== 5) search/glob containment (v2: canonicalize + fail-closed) ======
+    // v1 checked the RAW argv string with a naive prefix test, so
+    // <workspace>\..\..\elsewhere passed and ripgrep then resolved the traversal;
+    // relative "..\.." escaped too; and a denied path was silently rewritten to "."
+    // (fail-open -> misleading results). v2 canonicalizes (path.resolve + realpathSync
+    // of the deepest existing ancestor), tests containment with path.relative, and
+    // fails CLOSED. Handles a pristine file, an existing v1 patch (upgraded), or an
+    // existing v2 patch (skipped).
     private static string PatchSearchContainment(string file)
     {
         if (!File.Exists(file)) return "[search-containment] not found";
         var src = File.ReadAllText(file);
+        if (src.IndexOf("function containSearchArgv", StringComparison.Ordinal) >= 0)
+            return "[search-containment] already patched (v2)";
+
         var anchor = "\tconst workdir = exec.agent?.session.header.cwd ?? process.cwd();";
-        var marker = "// --- WORKSPACE CONTAINMENT PATCH ---";
-        var inject = $$"""
-				// --- WORKSPACE CONTAINMENT PATCH ---
-				let containedArgv = argv;
-				if (workdir && exec.agent?.session.header.cwd) {
-					const wc = String(workdir).replace(/[\\/]+/g, "\\").replace(/[\\/]$/, "").toLowerCase();
-					containedArgv = argv.map((a) => {
-						if (typeof a !== "string") return a;
-						const t2 = a.trim(); if (t2.length === 0) return a;
-						const isAbs = /^[A-Za-z]:[\\/]/.test(t2) || /^[\\/]{2}[^\\/]+/.test(t2) || /^[\\/]/.test(t2);
-						if (!isAbs) return a;
-						const c2 = t2.replace(/[\\/]+/g, "\\").replace(/[\\/]$/, "").toLowerCase();
-						if (c2 === wc || c2.startsWith(wc + "\\")) return a;
-						return ".";
-					});
-				}
-				""";
-        var markerIdx = src.IndexOf(marker, StringComparison.Ordinal);
         var anchorIdx = src.IndexOf(anchor, StringComparison.Ordinal);
-        if (markerIdx >= 0)
-        {
-            if (anchorIdx < 0 || markerIdx > anchorIdx) return "[search-containment] already patched";
-            // An earlier build injected the block BEFORE the `const workdir` line, so it
-            // referenced `workdir` while still in its TDZ ("Cannot access 'workdir' before
-            // initialization"). Move the block to AFTER the declaration.
-            var block = src.Substring(markerIdx, anchorIdx - markerIdx);
-            var afterAnchor = src.Substring(anchorIdx);
-            var eol = afterAnchor.IndexOf('\n');
-            if (eol < 0) return "[search-containment] source changed (SKIPPED)";
-            var fixedSrc = src.Substring(0, markerIdx)
-                + afterAnchor.Substring(0, eol + 1)
-                + block
-                + afterAnchor.Substring(eol + 1);
-            File.WriteAllText(file, fixedSrc);
-            return "[search-containment] fixed (block moved after workdir)";
-        }
         if (anchorIdx < 0)
-            return "[search-containment] source changed (SKIPPED) — anchor not found";
-        var patched = src.Replace(anchor, anchor + inject);   // inject AFTER the const (avoid TDZ on `workdir`)
-        patched = patched.Replace("await resolveRgPath(),\n\t\t\t\t\"--no-config\",\n\t\t\t\t...argv", "await resolveRgPath(),\n\t\t\t\t\"--no-config\",\n\t\t\t\t...containedArgv");
+            return "[search-containment] source changed (SKIPPED) - anchor not found";
+        var letIdx = src.IndexOf("let handle;", anchorIdx, StringComparison.Ordinal);
+        if (letIdx < 0)
+            return "[search-containment] source changed (SKIPPED) - handle marker not found";
+        var wasV1 = src.IndexOf("const isAbs = /^[A-Za-z]:", StringComparison.Ordinal) >= 0;
+
+        var helpers =
+            "// --- WORKSPACE CONTAINMENT HELPERS (canonicalize + fail-closed) ---\n" +
+            "function canonicalWorkspacePath(p) {\n" +
+            "\tlet cur = p;\n" +
+            "\tconst tail = [];\n" +
+            "\tfor (;;) {\n" +
+            "\t\tif (existsSync(cur)) {\n" +
+            "\t\t\ttry {\n" +
+            "\t\t\t\treturn join(realpathSync.native(cur), ...tail.reverse());\n" +
+            "\t\t\t} catch {\n" +
+            "\t\t\t\treturn join(cur, ...tail.reverse());\n" +
+            "\t\t\t}\n" +
+            "\t\t}\n" +
+            "\t\tconst parent = dirname(cur);\n" +
+            "\t\tif (parent === cur) return p;\n" +
+            "\t\ttail.push(parse(cur).base);\n" +
+            "\t\tcur = parent;\n" +
+            "\t}\n" +
+            "}\n" +
+            "function isPathInsideWorkspace(target, root) {\n" +
+            "\tconst rel = relative(root, target);\n" +
+            "\tif (rel === \"\") return true;\n" +
+            "\tif (isAbsolute(rel)) return false;\n" +
+            "\tconst first = rel.split(/[\\\\/]/)[0];\n" +
+            "\treturn first !== \"..\";\n" +
+            "}\n" +
+            "function containSearchArgv(toolName, workdir, argv) {\n" +
+            "\tconst rootCanon = canonicalWorkspacePath(resolve(workdir));\n" +
+            "\treturn argv.map((a) => {\n" +
+            "\t\tif (typeof a !== \"string\") return a;\n" +
+            "\t\tif (a === \"--\" || a.startsWith(\"-\")) return a;\n" +
+            "\t\tconst target = canonicalWorkspacePath(resolve(workdir, a));\n" +
+            "\t\tif (!isPathInsideWorkspace(target, rootCanon)) throw new SearchError(`${toolName} refused to search outside the sandboxed workspace: ${a}`, \"SEARCH_FAILED\");\n" +
+            "\t\treturn a;\n" +
+            "\t});\n" +
+            "}\n";
+
+        var v2Block =
+            "// --- WORKSPACE CONTAINMENT PATCH --- v2: canonicalize (resolve realpath) then fail closed\n" +
+            "\tconst containedArgv = containSearchArgv(toolName, workdir, argv);";
+
+        // Replace the region from the workdir declaration through the `let handle;`
+        // that follows it. Works for a pristine file (no injected block) and for a
+        // file carrying the v1 block: both are normalized to the v2 shape.
+        var patched = src.Substring(0, anchorIdx)
+            + anchor + "\n" + v2Block + "\n\tlet handle;"
+            + src.Substring(letIdx + "let handle;".Length);
+
+        // Imports needed by the helpers (no-ops when already present).
+        patched = patched.Replace(
+            "import { isAbsolute, join, parse, relative, sep } from \"node:path\";",
+            "import { dirname, isAbsolute, join, parse, relative, resolve, sep } from \"node:path\";");
+        patched = patched.Replace(
+            "import { existsSync } from \"node:fs\";",
+            "import { existsSync, realpathSync } from \"node:fs\";");
+
+        // Insert the helpers before the runRipgrep JSDoc.
+        var helperAnchor = "return rgPathPromise;\n}\n/**";
+        if (patched.IndexOf(helperAnchor, StringComparison.Ordinal) >= 0)
+            patched = patched.Replace(helperAnchor, "return rgPathPromise;\n}\n" + helpers + "/**");
+
+        // The spawn must use the contained vector.
+        patched = patched.Replace("...argv", "...containedArgv");
+
         if (string.Equals(patched, src, StringComparison.Ordinal))
             return "[search-containment] source changed (SKIPPED)";
         File.WriteAllText(file, patched);
-        return "[search-containment] applied";
+        return wasV1
+            ? "[search-containment] upgraded (v1 -> v2: canonicalize + fail-closed)"
+            : "[search-containment] applied (v2: canonicalize + fail-closed)";
     }
 
     // ====== 6) show/hide the sidebar "设置" trigger on the SHARED bundle ======

@@ -16,13 +16,22 @@ const ROOT = path.resolve(__dirname);
 // Resolve the admin workspace the same way the launcher does: prefer the
 // configured DshWeb.WorkspacePath in appsettings.json; fall back to the portable
 // default <root>/WorkSpace. Never hard-code a machine-specific path here.
-function resolveWorkspace() {
+function readWorkspaceFrom(file) {
   try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "appsettings.json"), "utf8"));
+    const cfg = JSON.parse(fs.readFileSync(file, "utf8"));
     const ws = cfg && cfg.DshWeb && cfg.DshWeb.WorkspacePath;
     if (typeof ws === "string" && ws.trim()) return ws.trim();
-  } catch (e) { /* fall through to default */ }
-  return path.join(ROOT, "WorkSpace");
+  } catch (e) { /* ignore missing/invalid file */ }
+  return null;
+}
+function resolveWorkspace() {
+  // Match the launcher's precedence: the gitignored local override wins, then
+  // appsettings.json, then the portable default <root>/WorkSpace. Reading only
+  // appsettings.json missed the runtime-configured WorkspacePath, so the script
+  // resolved the wrong workspace and reported "no backup dir" forever.
+  return readWorkspaceFrom(path.join(ROOT, "config", "launcher.local.json"))
+    || readWorkspaceFrom(path.join(ROOT, "appsettings.json"))
+    || path.join(ROOT, "WorkSpace");
 }
 
 const WS = resolveWorkspace();
@@ -33,8 +42,9 @@ const BACKUP_DIR = [
   path.join(WS, "adminroot", "sharedata", "data", "sessions-backup"),
   path.join(WS, "sharedata", "data", "sessions-backup"),
 ].find((d) => fs.existsSync(d)) || path.join(WS, "sharedata", "data", "sessions-backup");
-// Per-day Markdown goes into the shared docs dir the AI is instructed to read.
-const OUT_DIR = path.join(WS, "adminroot", "sharedata", "data", "sessions-md");
+// Per-day Markdown goes where the launcher's GET /api/sessions reads it:
+// <ws>/sharedata/data/sessions-md (must match Program.cs exactly).
+const OUT_DIR = path.join(WS, "sharedata", "data", "sessions-md");
 
 // Decompress a .zstd JSONL session file -> array of parsed event objects.
 function decompressSession(file) {
@@ -84,6 +94,15 @@ function extractUserFromBackup(filename) {
   return "unknown";
 }
 
+// Extract the session id from the backup filename (the last underscore-separated
+// field). Using the parent directory named every session "sessions-backup"
+// because the backups sit flat under one folder.
+function extractSessionIdFromBackup(filename) {
+  const base = filename.replace(/_session\.jsonl\.zstd$/, "");
+  const parts = base.split("_");
+  return parts.length >= 2 ? parts[parts.length - 1] : base;
+}
+
 function collectConversation(lines) {
   let title = "";
   let createdDay = null;
@@ -123,7 +142,7 @@ function main() {
       const { title, createdDay, turns } = collectConversation(lines);
       if (!turns.length) continue;
       const day = createdDay || dayKey(fs.statSync(file).mtimeMs);
-      const sessionId = path.basename(path.dirname(file));
+      const sessionId = extractSessionIdFromBackup(path.basename(file));
       const user = extractUserFromBackup(path.basename(file));
       if (!byDay.has(day)) byDay.set(day, []);
       byDay.get(day).push({ title, turns, id: sessionId, user });

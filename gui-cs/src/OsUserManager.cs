@@ -390,8 +390,53 @@ public static class OsUserManager
         return proc;
     }
 
-    // ──────────────────── HELPERS ────────────────────────────
+    // ──────────────────── RUN AS INSTANCE USER ───────────────
 
+    /// <summary>
+    /// Run a bash script as an instance's OS user. Needed because on Unix each
+    /// instance workspace is chown'd to that user and chmod 700, so a launcher
+    /// running as a DIFFERENT user (e.g. a non-root systemd service) cannot write
+    /// into it. Root uses `su`; a non-root launcher with passwordless sudo uses
+    /// `sudo -n -u`. Returns true on exit 0.
+    /// </summary>
+    [UnsupportedOSPlatform("windows")]
+    public static bool RunAsInstanceUser(string id, string script, out string output)
+    {
+        output = "";
+        var user = OsUser(id);
+        var quoted = script.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        var uid = RunBash("id -u", throwOnError: false).Output.Trim();
+        string cmd, args;
+        if (uid == "0")
+        {
+            cmd = "su";
+            args = $"- {user} -c \"{quoted}\"";
+        }
+        else
+        {
+            cmd = "sudo";
+            args = $"-n -u {user} bash -c \"{quoted}\"";
+        }
+        try
+        {
+            var r = RunCmd(cmd, args, throwOnError: false);
+            output = r.Output.Trim();
+            return r.ExitCode == 0;
+        }
+        catch (Exception ex) { output = ex.Message; return false; }
+    }
+
+    /// <summary>
+    /// Make a file tree readable (o+rX) by other OS users on Unix, so a
+    /// per-instance copy run as that user can read the shared session Markdown.
+    /// </summary>
+    [UnsupportedOSPlatform("windows")]
+    public static void MakeWorldReadable(string path)
+    {
+        try { RunBash($"chmod -R o+rX \"{path}\"", throwOnError: false); } catch { }
+    }
+
+    // ──────────────────── HELPERS ────────────────────────────
     // Escape a value for safe interpolation inside SINGLE quotes in a POSIX shell.
     // The outer quotes are supplied by the caller ('...'); this returns the inner
     // text with every ' replaced by the canonical '\'' idiom, so a value containing

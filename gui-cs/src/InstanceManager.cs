@@ -816,8 +816,6 @@ public class InstanceManager
 
             var norm = inst.Workspace.Replace('\\', '/');
             var nativePath = Path.GetFullPath(inst.Workspace);   // native (backslash) form DSH canonicalizes to
-            // Shared experience data lives in the admin workspace's sharedata dir.
-            var docsDir = Path.Combine(inst.Workspace, "..", "adminroot", "sharedata").Replace('\\', '/');
 
             // Build the complete cordis.patch.yml with sandbox + persona restrictions.
             var sb = new System.Text.StringBuilder();
@@ -867,16 +865,13 @@ public class InstanceManager
             sb.AppendLine();
             sb.AppendLine("      FILE ACCESS RULES (STRICTLY ENFORCED):");
             sb.AppendLine($"      1. You may ONLY read and write files within your workspace at {{{{cwd}}}}.");
-            sb.AppendLine($"      2. You may ONLY READ (never write, modify, or delete) files in the shared docs directory: {docsDir}");
-            sb.AppendLine("      3. You must NOT access, read, list, or reference any files or directories outside your workspace and the docs directory above.");
-            sb.AppendLine("      4. If a task requires accessing files outside these directories, inform the user that access is restricted.");
-            sb.AppendLine("      5. Use web search or web fetch tools for external resources instead of local file access.");
+            sb.AppendLine("      2. You must NOT access, read, list, or reference any files or directories outside your workspace.");
+            sb.AppendLine("      3. If a task requires accessing files outside the workspace, inform the user that access is restricted.");
+            sb.AppendLine("      4. Use web search or web fetch tools for external resources (public internet) instead of local file access.");
             sb.AppendLine();
             sb.AppendLine("      SHARED EXPERIENCE:");
-            sb.AppendLine("      To learn from other users' past work, use web_fetch to call the sessions API:");
-            sb.AppendLine("        - List available dates: web_fetch http://127.0.0.1:46001/api/sessions");
-            sb.AppendLine("        - Read a day's sessions: web_fetch http://127.0.0.1:46001/api/sessions?date=YYYY-MM-DD");
-            sb.AppendLine("      The response contains conversation logs from all team members. Reference them when handling similar tasks.");
+            sb.AppendLine("      The team's past sessions are exported as Markdown files inside your workspace, under the 'shared-sessions/' folder (one file per day, named sessions-YYYY-MM-DD.md).");
+            sb.AppendLine("      Use glob/grep to search those files and read to inspect them when you want to learn from how other members handled a similar task.");
 
             File.WriteAllText(patchFile, sb.ToString());
 

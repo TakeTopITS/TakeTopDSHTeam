@@ -307,7 +307,6 @@ public class DshService
             try { Directory.CreateDirectory(Path.GetDirectoryName(patchFile)!); } catch { }
 
             var normalized = workspace.Replace('\\', '/');
-            var docsDir = Path.Combine(ReadWorkspacePath(), "adminroot", "sharedata").Replace('\\', '/');
 
             // Build the complete cordis.patch.yml with sandbox + persona restrictions.
             var sb = new System.Text.StringBuilder();
@@ -349,16 +348,13 @@ public class DshService
             sb.AppendLine();
             sb.AppendLine("      FILE ACCESS RULES (STRICTLY ENFORCED):");
             sb.AppendLine($"      1. You may ONLY read and write files within your workspace at {{{{cwd}}}}.");
-            sb.AppendLine($"      2. You may ONLY READ (never write, modify, or delete) files in the shared docs directory: {docsDir}");
-            sb.AppendLine("      3. You must NOT access, read, list, or reference any files or directories outside your workspace and the docs directory above.");
-            sb.AppendLine("      4. If a task requires accessing files outside these directories, inform the user that access is restricted.");
-            sb.AppendLine("      5. Use web search or web fetch tools for external resources instead of local file access.");
+            sb.AppendLine("      2. You must NOT access, read, list, or reference any files or directories outside your workspace.");
+            sb.AppendLine("      3. If a task requires accessing files outside the workspace, inform the user that access is restricted.");
+            sb.AppendLine("      4. Use web search or web fetch tools for external resources (public internet) instead of local file access.");
             sb.AppendLine();
             sb.AppendLine("      SHARED EXPERIENCE:");
-            sb.AppendLine("      To learn from other users' past work, use web_fetch to call the sessions API:");
-            sb.AppendLine("        - List available dates: web_fetch http://127.0.0.1:46001/api/sessions");
-            sb.AppendLine("        - Read a day's sessions: web_fetch http://127.0.0.1:46001/api/sessions?date=YYYY-MM-DD");
-            sb.AppendLine("      The response contains conversation logs from all team members. Reference them when handling similar tasks.");
+            sb.AppendLine("      The team's past sessions are exported as Markdown files inside your workspace, under the 'shared-sessions/' folder (one file per day, named sessions-YYYY-MM-DD.md).");
+            sb.AppendLine("      Use glob/grep to search those files and read to inspect them when you want to learn from how other members handled a similar task.");
 
             File.WriteAllText(patchFile, sb.ToString());
             AddLog($"[dsh] Applied workspace root: {workspace} (sandbox: workspace-write)");
@@ -571,10 +567,24 @@ public class DshService
             }
         }
 
+        // Keep only the newest snapshot per session. A session's log is
+        // append-only, so the newest snapshot is the COMPLETE conversation;
+        // older snapshots of the same session add nothing to the shared-
+        // experience export, and removing them bounds this folder's growth.
+        try { DedupSessionBackups(); }
+        catch (Exception ex) { AddLog($"[backup] dedup: {ex.Message}"); }
+
         // After mirroring .zstd snapshots, regenerate the readable per-day
         // Markdown that the AI can search ("have we done similar before").
         try { GenerateSessionMarkdown(); }
         catch (Exception ex) { AddLog($"[backup] md: {ex.Message}"); }
+
+        // Then copy that Markdown into every instance's workspace so each user's
+        // agent can read the shared experience with its normal file tools. Reads
+        // are sandboxed to the workspace, so the data must live INSIDE it; the
+        // loopback API path is unreachable (web_fetch blocks non-public IPs).
+        try { DistributeSharedSessions(); }
+        catch (Exception ex) { AddLog($"[backup] distribute: {ex.Message}"); }
     }
 
     // Invoke the bundled Node script to decompress sessions and write per-day MD.
@@ -601,6 +611,117 @@ public class DshService
         foreach (var line in outp.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             AddLog($"[backup] {line.Trim()}");
         if (!string.IsNullOrWhiteSpace(err)) AddLog($"[backup] md-err: {err.Trim()}");
+    }
+
+    // Keep only the newest backup per session id. Naming is
+    // <yyyyMMdd-HHmmss>_<user>_<sessionId>_session.jsonl.zstd; the leading
+    // timestamp sorts lexicographically, so the max timestamp is the newest and
+    // (append-only log) the most complete snapshot. Older duplicates are deleted.
+    private void DedupSessionBackups()
+    {
+        var backupDir = Path.Combine(ReadWorkspacePath(), "sharedata", "data", "sessions-backup");
+        if (!Directory.Exists(backupDir)) return;
+        const string suffix = "_session.jsonl.zstd";
+        var best = new Dictionary<string, (string name, string ts)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in Directory.GetFiles(backupDir, "*.zstd"))
+        {
+            var name = Path.GetFileName(f);
+            var stem = name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                ? name.Substring(0, name.Length - suffix.Length) : name;
+            var parts = stem.Split('_');
+            var id = parts.Length >= 2 ? parts[parts.Length - 1] : stem;
+            var ts = parts.Length >= 1 ? parts[0] : "";
+            if (!best.TryGetValue(id, out var cur) || string.CompareOrdinal(ts, cur.ts) > 0)
+                best[id] = (name, ts);
+        }
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in best) keep.Add(kv.Value.name);
+        var removed = 0;
+        foreach (var f in Directory.GetFiles(backupDir, "*.zstd"))
+        {
+            if (keep.Contains(Path.GetFileName(f))) continue;
+            try { File.Delete(f); removed++; } catch { }
+        }
+        if (removed > 0) AddLog($"[backup] deduped {removed} older session snapshot(s); kept {keep.Count}");
+    }
+
+    // Copy the per-day session Markdown into each instance's workspace (and the
+    // admin/global workspace) under `<workspace>/shared-sessions/`, so every
+    // user's agent can read the team's shared experience with read/glob/grep —
+    // which the fs sandbox confines to the workspace. Only files that changed are
+    // copied. Nothing is deleted. On Unix a member workspace is chown'd to the
+    // member and chmod 700, so when the launcher cannot write it directly the
+    // copy is re-run AS that member (root: `su`; non-root: passwordless sudo).
+    private void DistributeSharedSessions()
+    {
+        var src = Path.Combine(ReadWorkspacePath(), "sharedata", "data", "sessions-md");
+        if (!Directory.Exists(src)) return;
+        var files = Directory.GetFiles(src, "sessions-*.md");
+        if (files.Length == 0) return;
+
+        // The per-member fallback reads this tree as a different OS user.
+        if (!OperatingSystem.IsWindows())
+        {
+            try { OsUserManager.MakeWorldReadable(src); } catch { }
+        }
+
+        var targets = new List<(string ws, string? inst)> { (ReadWorkspacePath(), null) };
+        if (_instMgr != null)
+            foreach (var inst in _instMgr.List())
+                if (!string.IsNullOrWhiteSpace(inst.Workspace)) targets.Add((inst.Workspace, inst.Id));
+
+        var copied = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (ws, inst) in targets)
+        {
+            if (!seen.Add(ws)) continue;
+            var dst = Path.Combine(ws, "shared-sessions");
+            try
+            {
+                copied += CopyMdDirect(files, dst);
+            }
+            catch (Exception ex)
+            {
+                if (!OperatingSystem.IsWindows() && inst != null &&
+                    OsUserManager.RunAsInstanceUser(inst, BuildCopyScript(src, dst), out var o))
+                {
+                    copied += files.Length;
+                    AddLog($"[backup] shared-sessions -> {ws} (copied as {inst})");
+                }
+                else
+                {
+                    AddLog($"[backup] shared-sessions -> {ws}: {ex.Message}");
+                }
+            }
+        }
+        if (copied > 0) AddLog($"[backup] distributed shared sessions ({copied} file(s))");
+    }
+
+    // Copy changed Markdown files into dst (mtime/size aware). Throws a permission
+    // exception when the current user cannot write dst, which the caller turns into
+    // a per-user fallback on Unix.
+    private static int CopyMdDirect(string[] files, string dst)
+    {
+        Directory.CreateDirectory(dst);
+        var copied = 0;
+        foreach (var f in files)
+        {
+            var target = Path.Combine(dst, Path.GetFileName(f));
+            var srcInfo = new FileInfo(f);
+            var dstInfo = new FileInfo(target);
+            if (dstInfo.Exists && dstInfo.Length == srcInfo.Length &&
+                dstInfo.LastWriteTimeUtc >= srcInfo.LastWriteTimeUtc) continue;
+            File.Copy(f, target, overwrite: true);
+            copied++;
+        }
+        return copied;
+    }
+
+    // POSIX copy script for the per-instance fallback (single-quoted paths).
+    private static string BuildCopyScript(string src, string dst)
+    {
+        static string Q(string s) => "'" + s.Replace("'", "'\\''") + "'";
+        return $"mkdir -p {Q(dst)} && cp -f {Q(src)}/*.md {Q(dst)}/";
     }
 
     // Capture the live "dsh web: ...?token=..." URL as it streams from the DSH
