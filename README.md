@@ -54,10 +54,10 @@ Start/stop the default DSH, edit config (appsettings URL / workspace / default l
 
 Each member also gets a simple **My Instance** page — start/stop their own DSH, open it, and see that instance's logs:
 
-![Member view — My Instance and per-instance logs](assets/MemberLauncher.png)
-
 - **Create instance** — auto workspace (`<global-workspace>/<username>`), dedicated OS user + sandbox.
+- ![Member view —— Add member](assets/AddMember.png)
 - **Start / Stop / Open / Delete / Reset Password** per member.
+- ![Member view — My Instance and per-instance logs](assets/MemberLauncher.png)
 
 ### 2. Workbench (split screen)
 - Click **Open DSH** on a member row (or the launcher's "Open DSH") → split workbench.
