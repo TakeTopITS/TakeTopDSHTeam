@@ -23,7 +23,7 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 > 🔒 **自托管设计——不是云服务。** 我们**不**提供任何云端托管或租赁服务。你下载安装包并在自己的电脑或服务器上本地安装；账号、会话、文件与 API Key 都保存在你自己的磁盘上，我们从不接收或保存你的数据——数据完全由你掌控。（唯一的对外连接是你自己配置的大模型服务商。）
 
-> **BSL 1.1（源码可见）。** 本项目以 **Business Source License 1.1** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**10 个用户以内的组织免费**；超过 10 个用户需购买商业许可（**每人每月 USD 10**：例如 11 人 = USD 10/月，15 人 = USD 50/月，20 人 = USD 100/月）（[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。它是**源码可见，而非 OSI 认证的开源**，并会在变更日（2030-09-11）**自动转为 Apache-2.0**。知识产权归 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) 所有 —— 邮箱：service@taketopits.com。保留所有权利。
+> **BSL 1.1（源码可见）。** 本项目以 **Business Source License 1.1** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**10 个用户以内的组织免费**；超过 10 个用户需购买商业许可（**每人每月 USD 10**：例如 11 人 = USD 10/月，15 人 = USD 50/月，20 人 = USD 100/月）（[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。它是**源码可见，而非 OSI 认证的开源**，并会在变更日（2030-09-11）**自动转为 Apache-2.0**。知识产权归 泰顶拓鼎信息科技（上海）有限公司 所有 —— 邮箱：service@taketopits.com。保留所有权利。
 
 ---
 
@@ -154,7 +154,7 @@ Linux   : bash start.sh
 - **自动转换：** 在变更日（**2030-09-11**）——或某个版本首次公开发布满四周年之日，以较早者为准——该版本自动转为 **Apache License, Version 2.0**（完全开源）。许可按版本适用。
 - 此前以 **MIT License** 发布的版本永久继续适用 MIT。
 
-本软件的知识产权——包括其源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** 所有（邮箱：service@taketopits.com）。许可授予使用权，但不转移知识产权所有权，所有权仍归版权持有人。
+本软件的知识产权——包括其源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司** 所有（邮箱：service@taketopits.com）。许可授予使用权，但不转移知识产权所有权，所有权仍归版权持有人。
 
 本产品内置的第三方组件仍适用其各自的许可（见 `gui-cs/src/wwwroot/vendor/licenses/` 和 [NOTICE](NOTICE)）。
 

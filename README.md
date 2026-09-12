@@ -23,7 +23,7 @@ TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user A
 
 > 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
 
-> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (**USD 10 per additional user per month**: e.g. 11 users = USD 10/month, 15 users = USD 50/month, 20 users = USD 100/month) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). The intellectual property remains vested in 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) — Email: service@taketopits.com. All rights reserved.
+> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (**USD 10 per additional user per month**: e.g. 11 users = USD 10/month, 15 users = USD 50/month, 20 users = USD 100/month) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). The intellectual property remains vested in TaiDingTuoDing Information Technology (Shanghai) Co., Ltd. — Email: service@taketopits.com. All rights reserved.
 
 ---
 
@@ -150,7 +150,7 @@ This project is licensed under the **Business Source License 1.1 (BSL 1.1)** —
 - **Automatic conversion:** on the Change Date (**2030-09-11**) — or the fourth anniversary of a version's first public release, whichever is earlier — that version converts to the **Apache License, Version 2.0** (fully open source). The license applies per version.
 - Earlier releases published under the **MIT License remain available under MIT** permanently.
 
-The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)** (Email: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
+The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.** (Email: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
 Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
