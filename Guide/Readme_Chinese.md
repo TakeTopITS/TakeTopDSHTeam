@@ -21,9 +21,9 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 > 🔓 **源码完全可见——没有任何加密组件。** TakeTopDshTeam 的完整源码都在本仓库中：多用户启动器（C#/.NET）、网页界面（HTML/JS/CSS）、DSH 集成与品牌补丁，以及全部启动/构建脚本。**没有任何组件被加密、混淆或以黑盒形式提供**——你可以在运行前逐行阅读与审计。唯一的预编译部分是第三方运行时（Node.js 与 .NET 运行时），它们本身就是开源项目。请放心使用。
 
-> 🔒 **自托管设计——不是云服务。** 我们**不**提供任何云端托管或租赁服务。你下载发行版并在自己的电脑或服务器上本地安装；账号、会话、文件与 API Key 都保存在你自己的磁盘上，我们从不接收或保存你的数据——数据完全由你掌控。（唯一的对外连接是你自己配置的大模型服务商。）
+> 🔒 **自托管设计——不是云服务。** 我们**不**提供任何云端托管或租赁服务。你下载安装包并在自己的电脑或服务器上本地安装；账号、会话、文件与 API Key 都保存在你自己的磁盘上，我们从不接收或保存你的数据——数据完全由你掌控。（唯一的对外连接是你自己配置的大模型服务商。）
 
-> **BSL 1.1（源码可见）。** 本项目以 **Business Source License 1.1** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**10 个用户以内的组织免费**；超过 10 个用户需购买商业许可（**每人每年 USD 12**：例如 11 人 = USD 12/年，15 人 = USD 60/年，20 人 = USD 120/年）（[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。它是**源码可见，而非 OSI 认证的开源**，并会在变更日（2030-09-11）**自动转为 Apache-2.0**。知识产权归 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) 所有 —— 邮箱：service@taketopits.com。保留所有权利。
+> **BSL 1.1（源码可见）。** 本项目以 **Business Source License 1.1** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**10 个用户以内的组织免费**；超过 10 个用户需购买商业许可（**每人每月 USD 12**：例如 11 人 = USD 12/月，15 人 = USD 60/月，20 人 = USD 120/月）（[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。它是**源码可见，而非 OSI 认证的开源**，并会在变更日（2030-09-11）**自动转为 Apache-2.0**。知识产权归 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.) 所有 —— 邮箱：service@taketopits.com。保留所有权利。
 
 ---
 
@@ -35,13 +35,9 @@ macOS   : bash start.sh
 Linux   : bash start.sh
 ```
 
-> 全新 `git clone` 出来的请用 `bash start.sh` 运行 —— 可执行位不一定能在 Windows 检出后保留（必要时先 `chmod +x start.sh` 一次）。
->
-> **首次启动约 10–30 秒。** Windows 上窗口标题会实时显示已用时间，就绪后浏览器自动打开，无需手动刷新。
+> **启动时**，Windows 上窗口标题会实时显示已用时间，就绪后浏览器自动打开，无需手动刷新。
 
 打开 `http://127.0.0.1:46001` → 登录 → 点击 **Open DSH**。
-
-> **不要**直接打开 `:46000`（它会返回 `401 Unauthorized`）；DSH 需要启动器注入的 `token`。
 
 安装与使用说明见 [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf)。
 
@@ -145,7 +141,7 @@ Linux   : bash start.sh
 本项目以 **Business Source License 1.1 (BSL 1.1)** 授权——见 [LICENSE](LICENSE) / [COPYING](COPYING)。BSL 1.1 是**源码可见**许可（并非 OSI 认证的开源）。
 
 - 你可以复制、修改、创作衍生作品、再分发，并对本软件进行**非生产**用途。
-- **附加使用授权（Additional Use Grant）：** 生产用途对**不超过 10 个用户的组织免费**；超过 10 个用户需要**商业许可**，按**每人每年 USD 12** 计价（例如 11 人 = USD 12/年；15 人 = USD 60/年；20 人 = USD 120/年）（联系 service@taketopits.com；见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。
+- **附加使用授权（Additional Use Grant）：** 生产用途对**不超过 10 个用户的组织免费**；超过 10 个用户需要**商业许可**，按**每人每月 USD 12** 计价（例如 11 人 = USD 12/月；15 人 = USD 60/月；20 人 = USD 120/月）（联系 service@taketopits.com；见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。
 - **自动转换：** 在变更日（**2030-09-11**）——或某个版本首次公开发布满四周年之日，以较早者为准——该版本自动转为 **Apache License, Version 2.0**（完全开源）。许可按版本适用。
 - 此前以 **MIT License** 发布的版本永久继续适用 MIT。
 

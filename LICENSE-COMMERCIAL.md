@@ -12,8 +12,8 @@ converts to the **Apache License, Version 2.0** on the Change Date.
 - **Additional Use Grant (free tier).** Production use is permitted **free of
   charge for an organization with up to 10 users**.
 - **Above 10 users.** A **commercial license** is required. The first 10 users
-  are free; **each additional user costs USD 12 per year** (e.g. 11 users =
-  USD 12/year, 15 users = USD 60/year, 20 users = USD 120/year). If your use
+  are free; **each additional user costs USD 12 per month** (e.g. 11 users =
+  USD 12/month, 15 users = USD 60/month, 20 users = USD 120/month). If your use
   exceeds
   the grant you must purchase a commercial license, or refrain from using the
   software.
@@ -39,8 +39,8 @@ converts to the **Apache License, Version 2.0** on the Change Date.
 - For more than 10 users, or any use not covered by the Additional Use Grant,
   contact the company for a commercial license.
 - **Pricing:** the first 10 users are free; **each additional user is
-  USD 12 per year** (e.g. 11 users = USD 12/year; 15 users = USD 60/year;
-  20 users = USD 120/year).
+  USD 12 per month** (e.g. 11 users = USD 12/month; 15 users = USD 60/month;
+  20 users = USD 120/month).
 - Contact: **service@taketopits.com**
   (please state: intended use, deployment, and user count).
 

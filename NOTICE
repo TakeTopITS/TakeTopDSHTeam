@@ -14,8 +14,8 @@ See the LICENSE / COPYING file for the full text.
     redistribute, and make non-production use of the software.
   - Additional Use Grant: production use is free for an organization with up to
     10 users. Use by more than 10 users requires a commercial license, priced at
-    USD 12 per additional user per year (e.g. 11 users = USD 12/year; 15 users =
-    USD 60/year; 20 users = USD 120/year) (see LICENSE-COMMERCIAL.md).
+    USD 12 per additional user per month (e.g. 11 users = USD 12/month; 15 users =
+    USD 60/month; 20 users = USD 120/month) (see LICENSE-COMMERCIAL.md).
   - On the Change Date (2030-09-11), this version automatically converts to the
     Apache License, Version 2.0. The license applies per version: each version
     converts to Apache-2.0 on the earlier of its stated Change Date or the fourth
