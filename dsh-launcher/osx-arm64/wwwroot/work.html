@@ -52,7 +52,7 @@
     <a href="/admin" id="backLink">← 返回管理页</a>
     <span class="title" id="workTitle">工作台</span>
     <span class="spacer"></span>
-    <a href="/tasks" id="taskAssignLink" style="color:#fff;background:#2563eb;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;text-decoration:none;">任务分配</a>
+    <a href="/tasks" id="taskAssignLink" style="color:#fff;background:#2563eb;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;text-decoration:none;">任务分派</a>
     <select id="workLang">
       <option value="zh">中文</option>
       <option value="en">English</option>
@@ -105,7 +105,7 @@
     document.title = desiredTitle;
     try { history.replaceState(history.state, desiredTitle); } catch(e) {}
     var ta = document.getElementById('taskAssignLink');
-    if (ta) ta.textContent = zh ? '任务分配' : 'Tasks';
+    if (ta) ta.textContent = zh ? '任务分派' : 'Task Assign';
     document.getElementById('fmPane').title = zh ? '文件管理' : 'File Manager';
     document.getElementById('splitter').title = zh ? '拖动调整栏宽' : 'Drag to resize';
   }
