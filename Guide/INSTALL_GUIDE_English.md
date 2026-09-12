@@ -1,4 +1,4 @@
-# TakeTopDSH Team — Platform Installation Guide
+﻿# TakeTopDshTeam — Platform Installation Guide
 
 This guide covers Windows / macOS / Linux. **Copy-and-run**: copy the whole `TakeTopDshTeam` folder to the target machine — **no .NET install, no compilation needed**.
 

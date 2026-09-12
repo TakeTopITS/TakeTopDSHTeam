@@ -1,4 +1,4 @@
-# TakeTopDSH Team — 平台使用说明 / Platform Instructions
+﻿# TakeTopDshTeam — 平台使用说明 / Platform Instructions
 
 本说明涵盖 Windows / macOS / Linux 三平台。"拷贝即用"：整个 `TakeTopDshTeam` 目录拷贝到目标机器即可，**无需安装 .NET、无需编译**。
 

@@ -1,6 +1,6 @@
-# TakeTopDSHTeam
+﻿# TakeTopDSHTeam
 
-![TakeTopDSH Team — split-screen workbench: File Manager (left) + DSH chat (right)](assets/workbench.png)
+![TakeTopDshTeam — split-screen workbench: File Manager (left) + DSH chat (right)](assets/workbench.png)
 
 TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user AI collaboration platform — a self-hosted web workspace for software development and office teamwork. Each member gets a dedicated, isolated DSH with file management, task management, and a split-screen workbench. Conversations, files, and tasks are shared across the team, so knowledge accumulates and efficiency grows. It supports multiple LLMs (DeepSeek, OpenAI, Claude, Kimi, and more) with a single shared API Key — easy to manage, easy to control, and cheaper to run!
 
@@ -19,7 +19,7 @@ TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user A
 - 🧩 **Survives upgrades** — a patch layer re-applies every customization after each DSH update.
 - 📦 **Cross-platform** — Windows / macOS / Linux, x64 & arm64, self-contained (bundles the runtime and Node).
 
-> 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDSH Team ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
+> 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDshTeam ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
 
 > 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
 

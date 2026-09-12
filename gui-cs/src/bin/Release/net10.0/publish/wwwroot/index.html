@@ -1,20 +1,21 @@
-<!--
-  TakeTopDSH Team — multi-user DeepSeek Harness platform
+﻿<!--
+  TakeTopDshTeam — multi-user DeepSeek Harness platform
   Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
   EMail: service@taketopits.com
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+  This software is licensed under the Business Source License 1.1 (BSL 1.1).
+  You may copy, modify, redistribute, and make non-production use; production
+  use is free for an organization with up to 10 users. Use by more than 10
+  users requires a commercial license. See LICENSE for the full terms and
+  LICENSE-COMMERCIAL.md for commercial licensing.
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  GNU General Public License for more details.
+  On the Change Date (2030-09-11) this version automatically converts to the
+  Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
+  WARRANTY OF ANY KIND.
 
-  You should have received a copy of the GNU General Public License
-  along with this program. If not, see <https://www.gnu.org/licenses/>.
+  This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
+  (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+  A commercial license is also available; see LICENSE-COMMERCIAL.md.
 -->
 
 <!DOCTYPE html>
@@ -22,11 +23,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TakeTopDSH Team Launcher</title>
+<title>TakeTopDshTeam Launcher</title>
 <!-- MIT-licensed libs for file viewer: highlight.js (code highlight), marked (Markdown) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<!-- Office preview libs bundled locally (permissive licenses — see /vendor/licenses).
+     jszip provides the global JSZip required by docx-preview. -->
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/docx-preview.min.js"></script>
+<script src="/vendor/exceljs.min.js"></script>
+<!-- .pptx uses an ES-module bundle; it sets window.TTPptx when ready. -->
+<script type="module" src="/vendor/pptx-loader.js"></script>
+<!-- Shared attachment preview (Office/images/text) used by task & feedback lists. -->
+<script src="/vendor/preview.js"></script>
 <style>
   body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #1c1e21; }
   .wrap { max-width: 860px; margin: 24px auto; padding: 0 16px; }
@@ -54,6 +64,7 @@
   .status { display: flex; gap: 10px; align-items: center; font-size: 14px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
   .dot.running { background: #16a34a; }
+  .dot.starting { background: #eab308; }
   .dot.stopped { background: #9ca3af; }
   #logs { background: #0f172a; color: #cbd5e1; font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; height: 240px; overflow-y: auto; white-space: pre-wrap; }
   .muted { color: #6b7280; font-size: 13px; }
@@ -67,6 +78,12 @@
   .fm-row:hover { background:#f5f7fa; }
   .fm-row.fm-dir { cursor:pointer; }
   .fm-row.fm-dir:hover { background:#eef4ff; }
+  .fm-row.fm-drop-target { background:#dcfce7 !important; outline:2px dashed #10b981; outline-offset:-2px; }
+  .fm-row.fm-root-row { background:#f8fafc; font-weight:600; color:#334155; border-bottom:2px solid #e2e8f0; }
+  .fm-xlsx { border-collapse:collapse; font-size:12px; }
+  .fm-xlsx td { border:1px solid #e5e7eb; padding:3px 7px; white-space:nowrap; vertical-align:top; }
+  .fm-xlsx tr:first-child td { background:#f1f5f9; font-weight:600; }
+  .fm-xlsx-wrap { overflow:auto; margin:0 0 14px; }
   .fm-glyph { display:inline-block; width:16px; height:16px; line-height:16px; text-align:center; margin-right:2px; border-radius:3px; color:#475569; font-weight:700; cursor:pointer; user-select:none; }
   .fm-glyph:hover { background:#dbe2ea; }
   .fm-row.fm-file .fm-glyph { cursor:default; color:#9aa4b2; }
@@ -77,6 +94,12 @@
   .fm-act:hover { background:#dbe2ea; }
   .fm-act:disabled { opacity:.4; cursor:not-allowed; background:#f1f3f6; color:#9aa4b2; }
   .fm-act.fm-danger { background:#fee2e2; color:#b91c1c; }
+  .fm-ctx { position:fixed; z-index:10060; background:#fff; border:1px solid #d5d9df; border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.18); padding:4px; min-width:150px; }
+  .fm-ctx button { display:block; width:100%; text-align:left; padding:7px 12px; border:0; background:transparent; color:#1c1e21; cursor:pointer; border-radius:5px; font-size:13px; font-family:inherit; }
+  .fm-ctx button:hover { background:#eef4ff; }
+  .fm-ctx button.danger { color:#b91c1c; }
+  .fm-ctx button.danger:hover { background:#fee2e2; }
+  .fm-ctx .sep { height:1px; background:#eef0f3; margin:4px 2px; }
   .fm-act.fm-danger:hover { background:#fecaca; }
   .fm-md { line-height:1.6; color:#1f2937; }
   .fm-md pre, .fm-md code { background:#f3f4f6; border-radius:4px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
@@ -106,7 +129,7 @@
 <div id="loginGate" style="position:fixed;inset:0;background:#f5f6f8;z-index:9999;display:flex;align-items:center;justify-content:center;">
   <div style="background:#fff;border:1px solid #e0e2e6;border-radius:12px;padding:28px 34px;width:340px;box-shadow:0 10px 30px rgba(0,0,0,.08);position:relative;">
     <select id="loginLangSel" style="position:absolute;top:14px;right:14px;padding:4px 8px;border:1px solid #c8ccd2;border-radius:6px;font-size:12px;background:#fff;"></select>
-    <h2 style="margin:0 0 4px;font-size:19px;" id="loginTitle">TakeTopDSH Team 登录</h2>
+    <h2 style="margin:0 0 4px;font-size:19px;" id="loginTitle">TakeTopDshTeam 登录</h2>
     <div style="color:#6b7280;font-size:13px;margin-bottom:16px;" id="loginSub">请输入用户名和密码</div>
     <div class="row" style="margin-bottom:10px;">
       <input id="loginUser" placeholder="用户名" style="width:100%;" />
@@ -134,7 +157,7 @@
   </div>
 
   <div class="card" data-admin>
-    <h1 data-i18n="title">TakeTopDSH Team 启动器</h1>
+    <h1 data-i18n="title">TakeTopDshTeam 启动器</h1>
     <div class="row">
       <label data-i18n="port">端口</label>
       <input id="port" type="number" value="46000" />
@@ -165,6 +188,7 @@
       <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
       <span id="wsSaved" class="muted"></span>
     </div>
+    <div id="wsDefaultWarn" data-i18n="wsDefaultWarn" style="display:none;margin:6px 0 2px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;white-space:pre-line"></div>
     <div class="row">
       <label data-i18n="defaultLang">缺省语言</label>
       <select id="defaultLangSel" style="width: 200px;"></select>
@@ -189,21 +213,25 @@
     <div id="instList" style="margin-top:8px;"></div>
   </div>
 
+  <!-- My Instance: non-admin users control their own instance -->
+  <div class="card" id="myInstanceCard" style="display:none;">
+    <h1 data-i18n="myInstTitle">My Instance</h1>
+    <div class="row">
+      <button id="myInstStartBtn" onclick="myInstStart()" data-i18n="instStart">▶ Start</button>
+      <button id="myInstStopBtn" class="danger" onclick="myInstStop()" data-i18n="instStop" style="display:none;">■ Stop</button>
+      <button id="myInstOpenBtn" class="secondary" onclick="myInstOpen()" data-i18n="instOpen" style="margin-left:42px;display:none;">Open DSH</button>
+    </div>
+    <div class="status"><span id="myInstDot" class="dot stopped"></span><span id="myInstState">Stopped</span></div>
+    <div id="myInstMsg" class="muted" style="min-height:18px;margin-top:6px;"></div>
+  </div>
+
   <!-- File manager: every logged-in user manages their own workspace -->
   <div class="card" id="fileManagerCard">
     <h2 data-i18n="fileTitle">文件管理</h2>
-    <div class="row-nowrap" style="margin-bottom:6px;">
-      <button id="fmUploadBtn" class="secondary" data-i18n="fileUpload">上传文件</button>
-      <button id="fmRefreshBtn" class="secondary" data-i18n="fileRefresh">刷新</button>
-      <button id="fmNewFolderBtn" class="secondary" data-i18n="fileNewFolder">新建文件夹</button>
-      <span id="fmMoveHint" class="muted" style="display:none;font-weight:600;"></span>
-      <button id="fmMovePickBtn" class="secondary" style="display:none;" data-i18n="filePickThisDir">选择此目录</button>
-      <button id="fmMoveCancelBtn" class="secondary" style="display:none;" data-i18n="fileCancel">取消</button>
-      <span id="fmPwd" class="muted" style="word-break:break-all;">/</span>
-    </div>
     <input type="file" id="fmFileInput" multiple style="display:none;" />
     <div id="fmList" style="border:1px solid #e0e2e6;border-radius:8px;overflow:auto;min-height:200px;max-height:50vh;padding:6px 8px;"></div>
     <div class="muted" style="margin-top:6px;min-height:18px;" id="fmMsg"></div>
+    <div id="fmHint" class="fm-drag-hint" style="margin-top:6px;padding:6px 10px;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;color:#64748b;font-size:12px;" data-i18n="fmHint">把文件名拖到右边的 AI 对话框中</div>
   </div>
 
   <!-- File viewer modal -->
@@ -221,6 +249,7 @@
     <h2 data-i18n="updateTitle">更新</h2>
     <div class="row">
       <button id="checkUpdateBtn" class="secondary" data-i18n="checkUpdate">Check Update</button>
+      <button id="applyUpdateBtn" style="display:none;" data-i18n="applyUpdate">升级</button>
       <span id="verInfo" class="muted" style="display:inline-flex;align-items:center;gap:6px;"></span>
     </div>
   </div>
@@ -301,6 +330,7 @@ let logCursor = 0;
 let isAdmin = false;
 let currentUser = '';
 let globalWorkspacePath = '';
+let workspaceIsDefault = false;
 
 // Wrap an async handler so the button shows a spinner + disables while the
 // request is in-flight, then restores it. `fn` may return a Promise; the button
@@ -328,16 +358,21 @@ async function withLoading(btn, fn, done) {
 // ---- i18n ----
 const I18N = {
   zh: {
-    title: "TakeTopDSH Team 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
-    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "启动", instStop: "停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDSH Team 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
+    title: "TakeTopDshTeam 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
+    wsDefaultWarn: "⚠ 尚未设置工作区：当前使用默认目录（发行版目录下的 WorkSpace）。升级/替换发行版时可能被覆盖，或与其它副本共用。请先设置专用工作区目录。",
+    wsDefaultWarnTitle: "请先设置工作区目录",
+    wsDefaultWarnBody: "检测到尚未设置工作区，当前使用默认路径：\n{path}\n\n该默认目录位于发行版目录内，升级或替换发行版时可能被覆盖而导致数据丢失。\n请点击“浏览”选择专用目录并“保存”后再开始使用（若保留默认，升级时务必保留 WorkSpace 文件夹）。",
+    wsDefaultOk: "去设置工作区",
     browse: "浏览", save: "保存", updateTitle: "更新", checkUpdate: "Check Update", checking: "检查中...", checkFail: "检查失败: ",
+    applyUpdate: "升级", upgrading: "升级中（会重启 DSH）...", upgradeOk: "已升级: ", upgradeFail: "升级失败", applyUpdateConfirm: "将停止并重启所有 DSH 实例，并升级到最新版本。确定继续？",
     logTitle: "日志", clear: "清空", dshRoot: "DSH Root: ",
     configHint: "工作区是 AI 读写文件、执行命令的根目录（服务器上的目录）。点\"浏览\"从服务器目录里选，或手动输入。留空则用 dsh 默认（安装目录）。更改后需重新启动 DSH Web 生效。外部访问地址填反向代理对外的地址（供 dsh 信任代理 Host），留空表示仅本机使用。",
     browseTitle: "选择服务器目录（工作区）", browsePathPh: "当前目录", upDir: "上一级", selectDir: "选定此目录", selfDirDeny: "不能选择 TakeTopDSH 自身的目录", selfDirDenyMsg: "不能以此为工作区（会修改 TakeTopDSH 自身）",
     loading: "加载中...", noRoots: "（没有可浏览的根目录）", noSub: "（此目录下没有子文件夹）", cannotRead: "无法读取该目录：",
-    stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
+    stateStarting: "启动中...", stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
     gettingAddr: "正在获取访问地址，请稍候...", readyOpen: "就绪，正在打开...",
     timeoutHint: "等待超时：未能获取访问地址，请确认 DSH Web 已启动（状态显示 Running）。",
     getAddrFail: "获取访问地址失败：", saved: "已保存", saveFail: "保存失败",
@@ -349,24 +384,34 @@ const I18N = {
 
     fmTabFiles: "文件管理", fmTabTasks: "我的任务",
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
+    myInstTitle: "我的实例", myInstStarting: "启动中...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "文件管理", fileUpload: "上传文件", fileRefresh: "刷新", fileNewFolder: "新建文件夹",
-    fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动",
+    fmHint: "右键文件/文件夹可操作；也可以拖动文件到另一位置或把文件名拖到右边的 AI 对话框中",
+    fileUploaded: "上传成功", fileDeleted: "已删除", fileRenamed: "已改名", fileMoved: "已移动", fileRefreshed: "已刷新",
     fileZipped: "已压缩", fileUnzipped: "已解压", fileCreated: "已创建", fileRenameTo: "重命名为",
     fileMoveTo: "移动到", filePickThisDir: "选择此目录", fileCancel: "取消", fileAskDownload: "该类型文件无法预览，是否下载", fileDownloaded: "已开始下载，请用本地应用打开",
-    fmOpen: "打开", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
-    fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败"
+    fmOpen: "打开", fmDownload: "下载", fmZip: "压缩", fmUnzip: "解压", fmRename: "改名", fmMove: "移动", fmDelete: "删除",
+    fileDeleteConfirm: "删除", noInstances: "(无实例)", fileError: "操作失败",
+    fmWorkspaceRoot: "工作区根目录", fmDropRootTip: "把文件拖到这里可移动到工作区根目录",
+    fileLoading: "加载中…", filePreviewFailed: "预览失败",
+    fileRenameConflict: "名称已存在，请换一个名字：", fileUnzipConflict: "同名文件/文件夹已存在，请输入新的解压文件夹名：", fileMoveConflict: "目标文件夹已有同名文件，请输入新名称：", fileUploadConflict: "目标已有同名文件，请输入新名称："
   },
   en: {
-    title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
-    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "Start", instStop: "Stop", instOpen: "Open", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDSH Team Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
+    title: "TakeTopDshTeam Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
+    wsDefaultWarn: "⚠ No workspace set: using the DEFAULT (the WorkSpace folder inside the release dir). It may be overwritten on upgrade or shared with other copies. Set a dedicated workspace directory first.",
+    wsDefaultWarnTitle: "Set a workspace directory first",
+    wsDefaultWarnBody: "No workspace is configured; the default is in use:\n{path}\n\nThis default lives inside the release folder and may be overwritten (data loss) when you upgrade or replace the release.\nClick \"Browse\" to pick a dedicated directory and \"Save\" before use (if you keep the default, always preserve the WorkSpace folder when upgrading).",
+    wsDefaultOk: "Set workspace now",
     browse: "Browse", save: "Save", updateTitle: "Update", checkUpdate: "Check Update", checking: "Checking...", checkFail: "Check failed: ",
+    applyUpdate: "Upgrade", upgrading: "Upgrading (DSH will restart)...", upgradeOk: "Upgraded: ", upgradeFail: "Upgrade failed", applyUpdateConfirm: "This stops and restarts all DSH instances and upgrades to the latest version. Continue?",
     logTitle: "Logs", clear: "Clear", dshRoot: "DSH Root: ",
     configHint: "Workspace is the server directory where AI reads/writes files and runs commands. Click Browse to pick a server folder, or type it. Leave empty to use the dsh default (install dir). Restart DSH Web after changing. External URL is the reverse-proxy public address (lets dsh trust the proxy Host); empty = local only.",
     browseTitle: "Choose a server directory (workspace)", browsePathPh: "Current directory", upDir: "Up", selectDir: "Select this directory", selfDirDeny: "Cannot choose TakeTopDSH's own directory", selfDirDenyMsg: "Cannot use this as workspace (would modify TakeTopDSH itself)",
     loading: "Loading...", noRoots: "(no browsable roots)", noSub: "(no subfolders here)", cannotRead: "Cannot read directory: ",
-    stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
+    stateStarting: "Starting...", stateRunning: "Running", stateStopped: "Stopped", stateRunningPid: "Running (PID ",
     gettingAddr: "Getting access URL, please wait...", readyOpen: "Ready, opening...",
     timeoutHint: "Timed out: could not get the access URL. Make sure DSH Web is running (status shows Running).",
     getAddrFail: "Failed to get access URL: ", saved: "Saved", saveFail: "Save failed",
@@ -378,12 +423,17 @@ const I18N = {
 
     fmTabFiles: "File Manager", fmTabTasks: "My Tasks",
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
+    myInstTitle: "My Instance", myInstStarting: "Starting...", myInstRunning: "Running", myInstStopped: "Stopped",
     fileTitle: "File Manager", fileUpload: "Upload", fileRefresh: "Refresh", fileNewFolder: "New Folder",
-    fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved",
+    fmHint: "right-click a file/folder for actions; you can also drag a file to another location or drag its name into the ai dialog on the right",
+    fileUploaded: "Uploaded", fileDeleted: "Deleted", fileRenamed: "Renamed", fileMoved: "Moved", fileRefreshed: "Refreshed",
     fileZipped: "Zipped", fileUnzipped: "Extracted", fileCreated: "Created", fileRenameTo: "Rename to",
     fileMoveTo: "Move to", filePickThisDir: "Pick this directory", fileCancel: "Cancel", fileAskDownload: "This file type can't be previewed. Download it?", fileDownloaded: "Download started; open with a local app",
-    fmOpen: "Open", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
-    fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed"
+    fmOpen: "Open", fmDownload: "Download", fmZip: "Zip", fmUnzip: "Unzip", fmRename: "Rename", fmMove: "Move", fmDelete: "Delete",
+    fileDeleteConfirm: "Delete", noInstances: "(none)", fileError: "Operation failed",
+    fmWorkspaceRoot: "Workspace root", fmDropRootTip: "Drop a file here to move it to the workspace root",
+    fileLoading: "Loading…", filePreviewFailed: "Preview failed",
+    fileRenameConflict: "Name already exists, enter another:", fileUnzipConflict: "A file/folder with this name exists; enter a new folder name:", fileMoveConflict: "A file with this name exists in the target folder; enter a new name:", fileUploadConflict: "A file with this name already exists; enter a new name:"
   }
 };
 
@@ -502,10 +552,11 @@ function applyLang(lang) {
 async function refresh() {
   const st = await (await fetch('/api/status')).json();
   const on = st.state === 'running';
-  $('#dot').className = 'dot ' + (on ? 'running' : 'stopped');
-  $('#stateText').textContent = on ? (st.pid ? (t('stateRunningPid') + st.pid + ')') : t('stateRunning')) : t('stateStopped');
-  $('#startBtn').disabled = on;
-  $('#stopBtn').disabled = !on;
+  const starting = st.state === 'starting';
+  $('#dot').className = 'dot ' + (on ? 'running' : starting ? 'starting' : 'stopped');
+  $('#stateText').textContent = on ? (st.pid ? (t('stateRunningPid') + st.pid + ')') : t('stateRunning')) : starting ? t('stateStarting') : t('stateStopped');
+  $('#startBtn').disabled = on || starting;
+  $('#stopBtn').disabled = !on && !starting;
 }
 
 async function loadLogs() {
@@ -537,7 +588,36 @@ async function loadConfig() {
     const w = await (await fetch('/api/workspace')).json();
     $('#workspace').value = w.workspace || '';
     globalWorkspacePath = w.workspace || '';
+    workspaceIsDefault = !!w.isDefault;
+    renderWsDefaultWarn();
+    if (workspaceIsDefault && location.pathname !== '/fm') showWsDefaultModal();
   } catch (e) { /* workspace endpoint optional */ }
+}
+
+// Warn while the admin has not chosen a dedicated workspace: the portable default
+// can be shared across clones/versions or overwritten on upgrade.
+function renderWsDefaultWarn() {
+  const el = document.getElementById('wsDefaultWarn');
+  if (el) el.style.display = workspaceIsDefault ? '' : 'none';
+}
+
+function showWsDefaultModal() {
+  if (document.getElementById('wsDefaultModal')) return;
+  const body = t('wsDefaultWarnBody').replace('{path}', globalWorkspacePath || '(default)');
+  const ov = document.createElement('div');
+  ov.id = 'wsDefaultModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML =
+    '<div style="background:#fff;max-width:540px;width:100%;border-radius:10px;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
+    + '<div style="font-size:16px;font-weight:600;color:#b91c1c;margin-bottom:8px">&#9888; ' + t('wsDefaultWarnTitle') + '</div>'
+    + '<div id="wsDefaultModalBody" style="font-size:13px;color:#334155;white-space:pre-line;line-height:1.7"></div>'
+    + '<div style="text-align:right;margin-top:14px"><button id="wsDefaultModalOk" style="padding:6px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px"></button></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('wsDefaultModalBody').textContent = body;
+  const ok = document.getElementById('wsDefaultModalOk');
+  ok.textContent = t('wsDefaultOk');
+  ok.onclick = () => { ov.remove(); const w = document.getElementById('workspace'); if (w) w.focus(); };
 }
 
 async function init() {
@@ -560,6 +640,7 @@ async function init() {
     }
     // Apply the saved language so the file-manager labels match the rest of the app.
     applyLang(preferredLang());
+    $('#myInstanceCard').style.display = 'none';
     try { await initFileManager(); } catch (e) {}
     return;
   }
@@ -584,6 +665,11 @@ async function init() {
       return;
     }
     const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: $('#workspace').value }) });
+    if (r.ok) {
+      workspaceIsDefault = !String(v || '').trim();
+      renderWsDefaultWarn();
+      if (!workspaceIsDefault) { const m = document.getElementById('wsDefaultModal'); if (m) m.remove(); }
+    }
     $('#wsSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
     setTimeout(() => $('#wsSaved').textContent = '', 1500);
   });
@@ -618,12 +704,36 @@ async function init() {
   $('#checkUpdateBtn').onclick = async () => {
     const btn = $('#checkUpdateBtn');
     const info = $('#verInfo');
+    const applyBtn = $('#applyUpdateBtn');
     btn.disabled = true;
+    applyBtn.style.display = 'none';
     info.innerHTML = '<span class="spinner"></span> ' + t('checking');  // show spinner + text
     try {
       const res = await fetch('/api/update', { method: 'GET' });
       const u = await res.json();
-      info.textContent = u.latest ? (t('verCur') + u.current + t('verLatest') + u.latest) : (t('verCur') + u.current + t('verNo'));
+      if (u.latest) {
+        info.textContent = t('verCur') + u.current + t('verLatest') + u.latest;
+        if (u.latest !== u.current) applyBtn.style.display = '';   // offer upgrade
+      } else {
+        info.textContent = t('verCur') + u.current + t('verNo');
+      }
+    } catch (e) {
+      info.textContent = t('checkFail') + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  $('#applyUpdateBtn').onclick = async () => {
+    if (!confirm(t('applyUpdateConfirm'))) return;
+    const btn = $('#applyUpdateBtn');
+    const info = $('#verInfo');
+    btn.disabled = true;
+    info.innerHTML = '<span class="spinner"></span> ' + t('upgrading');
+    try {
+      const res = await fetch('/api/update/apply', { method: 'POST' });
+      const u = await res.json();
+      if (u.ok) { info.textContent = t('upgradeOk') + (u.from || '') + ' -> ' + (u.to || ''); btn.style.display = 'none'; }
+      else { info.textContent = (t('upgradeFail') || 'Upgrade failed') + ': ' + (u.error || ''); }
     } catch (e) {
       info.textContent = t('checkFail') + e.message;
     } finally {
@@ -725,6 +835,11 @@ async function checkAuth() {
     document.querySelectorAll('[data-admin]').forEach(el => {
       el.style.display = me.admin ? '' : 'none';
     });
+    // "My Instance" card is only for non-admin users (admins use Instance Manager).
+    $('#myInstanceCard').style.display = me.admin ? 'none' : '';
+    if (!me.admin) {
+      loadMyInstance();
+    }
 
     applyLang(preferredLang());
   } else {
@@ -742,11 +857,81 @@ async function doLogin() {
   else { const j = await r.json(); $('#loginMsg').textContent = j.error || '登录失败'; }
 }
 
+// ================= My Instance (non-admin) =================
+async function loadMyInstance() {
+  try {
+    const r = await fetch('/api/instances');
+    if (!r.ok) return;
+    const d = await r.json();
+    const inst = (d.instances || [])[0];
+    if (!inst) { $('#myInstState').textContent = t('noInstances'); return; }
+    window._myInst = inst;
+    const running = inst.running;
+    $('#myInstDot').className = 'dot ' + (running ? 'running' : 'stopped');
+    $('#myInstState').textContent = running ? t('myInstRunning') : t('myInstStopped');
+    $('#myInstStartBtn').disabled = false;
+    $('#myInstStartBtn').style.display = running ? 'none' : '';
+    $('#myInstStopBtn').style.display = running ? '' : 'none';
+    $('#myInstOpenBtn').style.display = running ? '' : 'none';
+  } catch (e) {}
+}
+async function myInstStart() {
+  const inst = window._myInst;
+  if (!inst) return;
+  const btn = $('#myInstStartBtn');
+  await withLoading(btn, async () => {
+    $('#myInstMsg').textContent = '';
+    const r = await fetch('/api/instances/' + inst.id + '/start', { method: 'POST' });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); $('#myInstMsg').textContent = j.error || t('instError'); return; }
+    const j = await r.json().catch(() => ({}));
+    if (j.running) { loadMyInstance(); return; }
+    // Show a soft hint: the first start of a restricted-user instance can be slow.
+    const startHint = document.createElement('div');
+    startHint.setAttribute('data-start-hint', '1');
+    startHint.style.cssText = 'display:inline-block;background:#1c1e21;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;margin-left:10px;vertical-align:middle;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+    startHint.textContent = t('startHint');
+    if (btn && btn.parentNode) btn.insertAdjacentElement('afterend', startHint);
+    else document.body.appendChild(startHint);
+    const clearHint = () => { if (startHint && startHint.parentNode) startHint.parentNode.removeChild(startHint); };
+    // Accepted (async). Poll until running (max 120s) so the button stays loading.
+    const startMs = Date.now();
+    const matchId = (it) => (inst.id && it.id === inst.id) || it.id === currentUser;
+    while (Date.now() - startMs < 120000) {
+      await new Promise(res => setTimeout(res, 2000));
+      try {
+        const lr = await fetch('/api/instances');
+        if (lr.ok) {
+          const ld = await lr.json();
+          const it = (ld.instances || []).find(matchId);
+          if (it && it.running) { clearHint(); loadMyInstance(); return; }
+        }
+      } catch (e) { /* transient */ }
+    }
+    clearHint();
+    $('#myInstMsg').textContent = t('timeoutHint');
+    loadMyInstance();
+  });
+}
+async function myInstStop() {
+  const inst = window._myInst;
+  if (!inst) return;
+  await withLoading($('#myInstStopBtn'), async () => {
+    const r = await fetch('/api/instances/' + inst.id + '/stop', { method: 'POST' });
+    if (r.ok) loadMyInstance();
+    else { const j = await r.json().catch(() => ({})); $('#myInstMsg').textContent = j.error || t('instError'); }
+  });
+}
+function myInstOpen() {
+  const inst = window._myInst;
+  if (!inst) return;
+  window.location.href = '/work?inst=' + encodeURIComponent(inst.id);
+}
+
 // ================= File manager (per-user workspace) =================
 let fmRoot = '';
 let fmPath = '';
-let fmMoveSrc = null;   // { path, name } being moved (null = not in move mode)
-let fmMoveTarget = '';  // currently selected target directory in move mode
+let fmDragSource = null;  // { path, name } being dragged for drag-to-folder move
+let fmUploadTarget = '';  // workspace-relative dir that the next upload targets
 let fmExpanded = new Set();  // directories expanded inline (tree) by path
 let fmExpandCache = new Map();  // path -> entries[] for expanded dirs (avoids refetch)
 
@@ -817,8 +1002,7 @@ async function loadMyTasks(container) {
       tasks.forEach(function (task) {
         var filesHtml = (task.files||[]).map(function(f){
           var n = String(f).split('/').pop();
-          var dl = '/api/files/download?inst=' + encodeURIComponent(inst) + '&path=' + encodeURIComponent('TaskData/Doc/' + n);
-          return '<div><a href="' + dl + '" target="_blank" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + n + '</a></div>';
+          return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
         }).join('');
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + task.seq + '</td><td>' + (task.type||'') + '</td>'
@@ -829,8 +1013,20 @@ async function loadMyTasks(container) {
           + '<td><span class="fm-st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
           + '<td>' + filesHtml + '</td>';
         body.appendChild(tr);
+        tr.querySelectorAll('a.fm-task-file').forEach(function(a){
+          a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
+        });
       });
       tbl.appendChild(body);
+      // Hint: task names can be dragged into the AI dialog on the right.
+      var hint = container.querySelector('.fm-drag-hint');
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'fm-drag-hint';
+        hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;color:#64748b;font-size:12px;';
+        hint.textContent = en ? 'you can drag a task name into the ai dialog on the right' : '可以把任务名称拖动到右边 AI 会话框中';
+        container.appendChild(hint);
+      }
       container.querySelectorAll('a.fm-task-name-link').forEach(function (a) {
         a.onclick = function (ev) {
           ev.preventDefault();
@@ -913,61 +1109,11 @@ function showTaskView(task, en) {
 // Preview an image attachment full-screen, or prompt to download otherwise.
 function openTaskFile2(rel) {
   var name = String(rel).split('/').pop();
-  var ext = (name.split('.').pop() || '').toLowerCase();
-  var inst = currentUser || 'admin';
-  var dl = '/api/files/download?inst=' + encodeURIComponent(inst) + '&path=' + encodeURIComponent('TaskData/Doc/' + name) + '&inline=1';
-  var imgs = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
-  function showImg(url) {
-    var ov = document.getElementById('tcvImgView');
-    if (!ov) {
-      ov = document.createElement('div');
-      ov.id = 'tcvImgView';
-      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
-      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>';
-      document.body.appendChild(ov);
-      ov.addEventListener('click', function(){ ov.style.display = 'none'; });
-    }
-    ov.querySelector('img').src = url;
-    ov.style.display = 'flex';
-  }
-  function showRead() {
-    fetch('/api/files/read?inst=' + encodeURIComponent(inst), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path:'TaskData/Doc/' + name }) })
-      .then(function(r){ return r.json().catch(function(){ return {}; }); })
-      .then(function(d){
-        if (d && d.ok && d.type === 'image' && d.dataUri) showImg(d.dataUri);
-        else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + name + '?')) window.open(dl, '_blank');
-      });
-  }
-  if (imgs.indexOf(ext) >= 0) showRead();
-  else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + name + '?')) window.open(dl, '_blank');
+  TTPreview.open({ insts: [currentUser, 'admin'], path: 'TaskData/Doc/' + name, name: name });
 }
 
 function openFbFile(fn) {
-  var ext = (fn.split('.').pop() || '').toLowerCase();
-  var dl = '/api/files/download?inst=' + encodeURIComponent(fbInst) + '&path=' + encodeURIComponent('TaskData/Feedback/' + fbSeq + '/' + fn) + '&inline=1';
-  var imgs = ['png','jpg','jpeg','gif','bmp','webp','svg','ico','avif'];
-  function showImg(url) {
-    var ov = document.getElementById('fbImgView');
-    if (!ov) {
-      ov = document.createElement('div'); ov.id = 'fbImgView';
-      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10020;display:none;align-items:center;justify-content:center;';
-      ov.innerHTML = '<img style="max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);"/>';
-      document.body.appendChild(ov);
-      ov.addEventListener('click', function(){ ov.style.display = 'none'; });
-    }
-    ov.querySelector('img').src = url;
-    ov.style.display = 'flex';
-  }
-  function showRead() {
-    fetch('/api/files/read?inst=' + encodeURIComponent(fbInst), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ path:'TaskData/Feedback/' + fbSeq + '/' + fn }) })
-      .then(function(r){ return r.json().catch(function(){ return {}; }); })
-      .then(function(d){
-        if (d && d.ok && d.type === 'image' && d.dataUri) showImg(d.dataUri);
-        else if (confirm('该类型文件无法预览，是否下载：' + fn + '?')) window.open(dl, '_blank');
-      });
-  }
-  if (imgs.indexOf(ext) >= 0) showRead();
-  else if (confirm((preferredLang().indexOf('zh')===0 ? '该类型文件无法预览，是否下载：' : 'This file type can\'t be previewed. Download it?') + ' ' + fn + '?')) window.open(dl, '_blank');
+  TTPreview.open({ insts: [fbInst, currentUser, 'admin'], path: 'TaskData/Feedback/' + fbSeq + '/' + fn, name: fn });
 }
 
 // ---- Task feedback (one per user per day; same-day is editable) ----
@@ -1134,58 +1280,40 @@ async function saveFeedback() {
 }
 
 async function initFileManager() {
-  $('#fmUploadBtn').onclick = () => $('#fmFileInput').click();
+  // Upload target is chosen from the right-click menu (Upload here).
   $('#fmFileInput').onchange = async () => {
     const files = $('#fmFileInput').files;
     if (!files.length) return;
-    const fd = new FormData();
-    fd.append('path', fmPath);
-    for (const f of files) fd.append('file', f);
-    const res = await fmRequest('POST', '/api/files/upload', { body: fd });
-    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(); }
-    else fmNote(res.data.error || t('fileError'), true);
+    await fmUploadFiles(Array.from(files));
     $('#fmFileInput').value = '';
   };
-  $('#fmRefreshBtn').onclick = () => fmLoad();
-  $('#fmNewFolderBtn').onclick = () => {
-    const name = prompt(t('fileNewFolder') + ':');
-    if (!name) return;
-    fmRename('', name, true);
-  };
-  $('#fmMovePickBtn').onclick = () => fmMoveConfirm();
-  $('#fmMoveCancelBtn').onclick = () => fmMoveCancel();
   $('#viewerCloseBtn').onclick = () => fmViewerClose();
   await fmLoad();
 }
 
-// ---- Move-mode helpers (pick a destination directory) ----
-function fmMoveEnter(src) {
-  fmMoveSrc = src;
-  fmMoveTarget = '';
-  fmMoveEnterPath('');   // start from workspace root for a clean relative target
-  $('#fmMoveHint').style.display = '';
-  $('#fmMovePickBtn').style.display = '';
-  $('#fmMoveCancelBtn').style.display = '';
-}
-function fmMoveEnterPath(rel) {
-  fmPath = rel;
-  fmLoad();
-}
-function fmMoveCancel() {
-  fmMoveSrc = null;
-  fmMoveTarget = '';
-  fmPath = '';
-  $('#fmMoveHint').style.display = 'none';
-  $('#fmMovePickBtn').style.display = 'none';
-  $('#fmMoveCancelBtn').style.display = 'none';
-  fmLoad();
-}
-async function fmMoveConfirm() {
-  if (!fmMoveSrc) { fmMoveCancel(); return; }
-  const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: fmMoveSrc.path, toPath: fmMoveTarget || '' }) });
-  if (res.ok) { fmNote(t('fileMoved')); }
-  else fmNote(res.data.error || t('fileError'), true);
-  fmMoveCancel();
+// Upload files into the chosen folder. If a file name already exists there, ask
+// the user for a new name (rename map keyed by original name) and retry.
+async function fmUploadFiles(files) {
+  const renames = {};
+  while (true) {
+    const fd = new FormData();
+    fd.append('path', fmUploadTarget || '');
+    if (Object.keys(renames).length) fd.append('renames', JSON.stringify(renames));
+    files.forEach(function (f) { try { fd.append('file', f, f.name); } catch (e) { fd.append('file', f); } });
+    const res = await fmRequest('POST', '/api/files/upload', { body: fd });
+    if (res.ok) { fmNote(t('fileUploaded')); await fmLoad(true); return; }
+    const d = res.data || {};
+    if (d.conflict && Array.isArray(d.conflicts)) {
+      for (const c of d.conflicts) {
+        const input = prompt(t('fileUploadConflict'), c.suggestion || c.name);
+        if (input === null || !input.trim()) return;
+        renames[c.name] = input.trim();
+      }
+      continue;
+    }
+    fmNote(d.error || t('fileError'), true);
+    return;
+  }
 }
 
 // ---- File viewer ----
@@ -1204,6 +1332,11 @@ function fmGuessLang(ext) {
 async function fmOpenFile(path, name) {
   const extRaw = (name.split('.').pop() || '').toLowerCase();
   const ext = extRaw ? '.' + extRaw : '';
+  // PDF: use the browser's built-in PDF viewer (no third-party library).
+  if (extRaw === 'pdf') { fmOpenPdf(path, name); return; }
+  // Office documents: render with the bundled, permissively-licensed viewers.
+  const officeKind = fmOfficeKind(extRaw);
+  if (officeKind) { fmOpenOffice(path, name, officeKind); return; }
   // Files we can preview inline; everything else is downloaded to the OS app.
   if (!fmCanPreview(extRaw)) { fmDownloadFile(path, name); return; }
   const res = await fmRequest('POST', '/api/files/read', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
@@ -1227,6 +1360,95 @@ async function fmOpenFile(path, name) {
   try { hljs.highlightElement($('#viewerCode')); } catch (e) { }
 }
 
+// Office kinds handled by the bundled viewers.
+function fmOfficeKind(ext) {
+  if (ext === 'docx') return 'word';
+  if (ext === 'xlsx' || ext === 'xlsm') return 'excel';
+  if (ext === 'pptx') return 'ppt';
+  return '';
+}
+
+// Wait until a global (e.g. the async ES-module pptx renderer) is available.
+async function fmWaitGlobal(get, timeoutMs) {
+  const t0 = Date.now();
+  while (!get()) {
+    if (Date.now() - t0 > timeoutMs) return false;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return true;
+}
+
+// Render an Office document (docx/xlsx/pptx) inside the viewer modal.
+async function fmOpenOffice(path, name, kind) {
+  $('#viewerTitle').textContent = name;
+  const body = $('#viewerBody');
+  body.style.background = '#fff';
+  body.innerHTML = '<div class="muted" style="padding:20px;">' + escp(t('fileLoading') || 'Loading…') + '</div>';
+  fmViewerOpen();
+  let buf;
+  try {
+    const resp = await fetch('/api/files/download?inline=true&path=' + encodeURIComponent(path), { credentials: 'same-origin' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    buf = await resp.arrayBuffer();
+  } catch (e) {
+    body.innerHTML = '<div class="err" style="padding:20px;">' + escp(t('filePreviewFailed') || 'Preview failed') + ': ' + escp(String((e && e.message) || e)) + '</div>';
+    return;
+  }
+  try {
+    if (kind === 'word') {
+      if (!window.docx) throw new Error('docx-preview not loaded');
+      body.innerHTML = '';
+      await window.docx.renderAsync(buf, body, null, { inWrapper: true, className: 'docx-preview', breakPages: true });
+    } else if (kind === 'excel') {
+      if (!window.ExcelJS) throw new Error('exceljs not loaded');
+      const wb = new window.ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      body.innerHTML = fmRenderXlsx(wb);
+    } else if (kind === 'ppt') {
+      const ready = await fmWaitGlobal(function () { return !!window.TTPptx; }, 10000);
+      if (!ready) throw new Error('pptx renderer not loaded');
+      body.innerHTML = '';
+      await window.TTPptx.open(buf, body);
+    }
+  } catch (e) {
+    body.innerHTML = '<div class="err" style="padding:20px;">' + escp(t('filePreviewFailed') || 'Preview failed') + ': ' + escp(String((e && e.message) || e)) + '</div>';
+  }
+}
+
+// Render every worksheet of an ExcelJS workbook as an HTML table.
+function fmRenderXlsx(wb) {
+  let html = '';
+  try {
+    wb.eachSheet(function (ws) {
+      html += '<div style="margin:10px 0 4px;font-weight:600;font-size:13px;">' + escp(ws.name) + '</div>';
+      html += '<div class="fm-xlsx-wrap"><table class="fm-xlsx">';
+      ws.eachRow({ includeEmpty: false }, function (row) {
+        html += '<tr>';
+        row.eachCell({ includeEmpty: true }, function (cell) {
+          let v = '';
+          try { v = cell.text != null ? String(cell.text) : ''; } catch (e2) { v = ''; }
+          html += '<td>' + escp(v) + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</table></div>';
+    });
+  } catch (e) { }
+  return html || '<div class="muted" style="padding:20px;">(empty)</div>';
+}
+
+// Render a PDF inline using the browser's native PDF viewer (via an iframe on
+// the inline download URL). No PDF library is loaded, so no extra license.
+function fmOpenPdf(path, name) {
+  $('#viewerTitle').textContent = name;
+  const body = $('#viewerBody');
+  body.style.background = '#525659';
+  const inst = new URLSearchParams(location.search).get('inst') || '';
+  const url = '/api/files/download?inline=true&path=' + encodeURIComponent(path) + (inst ? '&inst=' + encodeURIComponent(inst) : '');
+  body.innerHTML = '<iframe src="' + escp(url) + '" style="width:100%;height:74vh;border:0;border-radius:6px;background:#fff;"></iframe>';
+  fmViewerOpen();
+}
+
 // Which extensions the built-in viewer can render inline.
 function fmCanPreview(ext) {
   if (!ext) return false;
@@ -1239,13 +1461,7 @@ function fmCanPreview(ext) {
 // Asks first, so clicking "打开" never downloads without explicit consent.
 function fmDownloadFile(path, name) {
   if (!confirm((t('fileAskDownload') || '下载') + ': ' + name + '?')) return;
-  const a = document.createElement('a');
-  a.href = '/api/files/download?path=' + encodeURIComponent(path);
-  a.download = name || '';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  fmNote(t('fileDownloaded'));
+  fmDownload(path, name);
 }
 
 function fmNote(text, isErr) {
@@ -1298,20 +1514,14 @@ function fmtSize(n) {
   return (n/1073741824).toFixed(1) + ' GB';
 }
 
-async function fmLoad() {
+async function fmLoad(force) {
   const box = $('#fmList');
-  const moving = !!fmMoveSrc;
-  // Move mode: show only the current directory's sub-dirs (navigate to pick a target).
-  if (moving) {
-    $('#fmMoveHint').textContent = (t('fileMoveTo') || '移动到') + ': ' + (fmMoveSrc.name || '') + ' → /' + fmPath;
-    const res = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(fmPath));
-    box.innerHTML = fmRenderMove(res.ok ? (res.data.entries || []) : []);
-    bindDirBehavior(box, true);
-    return;
-  }
-  // Non-move: render the FULL tree from the workspace root (Explorer-style).
+  // Render the FULL tree from the workspace root (Explorer-style).
   // Only `fmExpanded` dirs reveal their children; everything stays visible.
   fmRoot = null;
+  // Stale-cache guard: after any mutation (or an explicit Refresh) drop cached
+  // listings so expanded folders are re-read from disk instead of showing ghosts.
+  if (force) fmExpandCache.clear();
   // Ensure children for every expanded dir are cached so the tree renders fully.
   for (const key of fmExpanded) {
     if (!fmExpandCache.has(key)) await fmPrefetchNested(key);
@@ -1319,9 +1529,12 @@ async function fmLoad() {
   const rootRes = await fmRequest('GET', '/api/files/list?path=');
   if (!rootRes.ok) { fmNote(rootRes.data.error || t('fileError'), true); return; }
   fmRoot = rootRes.data.root;
-  $('#fmPwd').textContent = '/' + (fmPath || '');
-  box.innerHTML = fmRenderTree(rootRes.data.entries || [], '');
-  bindDirBehavior(box, false);
+  // A synthetic "workspace root" row at the top: a drop target so files can be
+  // moved back up to the workspace root (there is no parent folder row for it).
+  const rootRow = '<div class="fm-row fm-dir fm-root-row" data-root="1" data-path="" data-type="dir" title="' + escp(t('fmDropRootTip') || '') + '">'
+    + '<span class="fm-name">📁 / (' + escp(t('fmWorkspaceRoot') || 'workspace root') + ')</span></div>';
+  box.innerHTML = rootRow + fmRenderTree(rootRes.data.entries || [], '');
+  bindDirBehavior(box);
 }
 
 // Recursively render the full tree (dirs first), expanding only dirs in fmExpanded.
@@ -1351,23 +1564,17 @@ function fmRenderRow(e, fpath, parentPrefix) {
   const size = isDir ? '' : ' <span class="muted">' + fmtSize(e.size) + '</span>';
   const isExpanded = isDir && fmExpanded.has(fpath);
   const glyph = isDir ? (isExpanded ? '-' : '+') : '';   // +/- collapse toggle
-  const openAct = isDir
-    ? '<button class="fm-act" data-act="open" disabled title="' + t('fmOpen') + '">' + t('fmOpen') + '</button>'
-    : '<button class="fm-act" data-act="open" title="' + t('fmOpen') + '">' + t('fmOpen') + '</button>';
   const rowDepth = parentPrefix === '' ? 0 : parentPrefix.split('/').length;
   const pad = rowDepth > 0 ? 'padding-left:' + (rowDepth * 22) + 'px;' : '';
-  return rowHtml(icon, e.name, fpath, e.type, size,
-    { style: pad, glyph: glyph, actions: openAct
-      + '<button class="fm-act" data-act="zip" title="' + t('fmZip') + '">' + t('fmZip') + '</button>'
-      + (isDir ? '' : (/\.zip$/i.test(e.name) ? '<button class="fm-act" data-act="unzip" title="' + t('fmUnzip') + '">' + t('fmUnzip') + '</button>' : ''))
-      + '<button class="fm-act" data-act="rename" title="' + t('fmRename') + '">' + t('fmRename') + '</button>'
-      + '<button class="fm-act" data-act="move" title="' + t('fmMove') + '">' + t('fmMove') + '</button>'
-      + '<button class="fm-act fm-danger" data-act="delete" title="' + t('fmDelete') + '">' + t('fmDelete') + '</button>' });
+  // No inline action buttons: actions live in the right-click context menu.
+  return rowHtml(icon, e.name, fpath, e.type, size, { style: pad, glyph: glyph });
 }
 
-function bindDirBehavior(box, moving) {
-  box.querySelectorAll('.fm-row .fm-act').forEach(btn => {
-    btn.onclick = (ev) => { ev.stopPropagation(); fmAction(btn.dataset.act, btn.closest('.fm-row')); };
+function bindDirBehavior(box) {
+  // Right-click a file/folder row to open the action menu (Open/Download/Zip/...).
+  box.querySelectorAll('.fm-row').forEach(row => {
+    if (!row.dataset.type) return;   // skip empty placeholder rows
+    row.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); fmOpenRowMenu(ev, row); };
   });
   // Clicking the +/- glyph toggles expansion WITHOUT selecting the dir.
   box.querySelectorAll('.fm-row .fm-glyph').forEach(g => {
@@ -1376,23 +1583,101 @@ function bindDirBehavior(box, moving) {
       g.onclick = (ev) => { ev.stopPropagation(); fmAction('expand', row); };
     }
   });
+  box.querySelectorAll('.fm-row.fm-file').forEach(row => {
+    // Double-click a FILE: preview it if possible, otherwise prompt to download.
+    row.ondblclick = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      fmOpenFile(row.dataset.path, row.dataset.name);
+    };
+  });
   box.querySelectorAll('.fm-row.fm-dir').forEach(row => {
     row.onclick = () => {
       const path = row.dataset.path || '';
-      if (moving) { fmMoveEnterPath(path); return; }
       // Explorer-style: clicking a dir selects it (becomes the upload/current dir).
       fmPath = path;
-      $('#fmPwd').textContent = '/' + (fmPath || '');
     };
+    // Drag a file/folder row onto this directory row to move it here.
+    row.addEventListener('dragover', (ev) => fmDragOver(ev, row));
+    row.addEventListener('dragleave', (ev) => fmDragLeave(ev, row));
+    row.addEventListener('drop', (ev) => fmDrop(ev, row));
   });
 }
 
+// ---- Right-click context menu for file / folder rows ----
+var fmCtxMenu = null;
+function fmCloseRowMenu() {
+  if (fmCtxMenu) { try { fmCtxMenu.remove(); } catch (e) { } fmCtxMenu = null; }
+}
+function fmRowMenuItems(row) {
+  const type = row.dataset.type;
+  const name = row.dataset.name || '';
+  const isRoot = row.dataset.root === '1';
+  const items = [];
+  if (isRoot) {
+    items.push({ act: 'upload', label: t('fileUpload') });     // upload into workspace root
+    items.push({ act: 'mkdir', label: t('fileNewFolder') });
+    items.push({ sep: true });
+    items.push({ act: 'refresh', label: t('fileRefresh') });
+    return items;
+  }
+  if (type === 'file') {
+    items.push({ act: 'open', label: t('fmOpen') });
+    items.push({ act: 'download', label: t('fmDownload') });   // every file is downloadable
+    items.push({ act: 'zip', label: t('fmZip') });
+    if (/\.zip$/i.test(name)) items.push({ act: 'unzip', label: t('fmUnzip') });
+    items.push({ sep: true });
+    items.push({ act: 'rename', label: t('fmRename') });
+    items.push({ act: 'delete', label: t('fmDelete'), danger: true });
+    items.push({ sep: true });
+    items.push({ act: 'refresh', label: t('fileRefresh') });
+  } else {
+    items.push({ act: 'upload', label: t('fileUpload') });     // upload into this folder
+    items.push({ act: 'mkdir', label: t('fileNewFolder') });   // new subfolder inside this folder
+    items.push({ act: 'zip', label: t('fmZip') });
+    items.push({ sep: true });
+    items.push({ act: 'rename', label: t('fmRename') });
+    items.push({ act: 'delete', label: t('fmDelete'), danger: true });
+    items.push({ sep: true });
+    items.push({ act: 'refresh', label: t('fileRefresh') });
+  }
+  return items;
+}
+function fmOpenRowMenu(ev, row) {
+  fmCloseRowMenu();
+  const menu = document.createElement('div');
+  menu.className = 'fm-ctx';
+  fmRowMenuItems(row).forEach(function (it) {
+    if (it.sep) { const s = document.createElement('div'); s.className = 'sep'; menu.appendChild(s); return; }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
+    if (it.danger) b.className = 'danger';
+    b.onclick = function (e) { e.stopPropagation(); fmCloseRowMenu(); fmAction(it.act, row); };
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const r = menu.getBoundingClientRect();
+  let x = ev.clientX, y = ev.clientY;
+  if (x + r.width > vw - 4) x = vw - r.width - 4;
+  if (y + r.height > vh - 4) y = vh - r.height - 4;
+  menu.style.left = Math.max(4, x) + 'px';
+  menu.style.top = Math.max(4, y) + 'px';
+  fmCtxMenu = menu;
+}
+document.addEventListener('click', function () { fmCloseRowMenu(); });
+document.addEventListener('contextmenu', function (ev) { if (!ev.target.closest || !ev.target.closest('.fm-row')) fmCloseRowMenu(); });
+document.addEventListener('scroll', function () { fmCloseRowMenu(); }, true);
+document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fmCloseRowMenu(); });
+
 function rowHtml(icon, name, fpath, type, size, extra) {
   const glyph = extra && extra.glyph;
+  const acts = (extra && extra.actions) || '';
   return '<div class="fm-row fm-' + type + '" data-path="' + escp(fpath) + '" data-type="' + type + '" data-name="' + escp(name) + '"'
-       + ' draggable="true" ondragstart="fmDragStart(event)" style="' + (extra && extra.style || '') + '">'
+       + ' draggable="true" ondragstart="fmDragStart(event)" ondragend="fmDragEnd()" style="' + (extra && extra.style || '') + '">'
        + '<span class="fm-name"><span class="fm-glyph" data-glyph="1">' + (glyph || '\u00a0') + '</span>' + icon + ' ' + escp(name) + '</span>' + (size || '')
-       + '<span class="fm-actions">' + (extra && extra.actions || '') + '</span></div>';
+       + (acts ? '<span class="fm-actions">' + acts + '</span>' : '') + '</div>';
 }
 // Allow dragging a file row from the file-manager pane into the DSH composer,
 // transferring the file's path/name so the DSH prompt can reference it.
@@ -1401,10 +1686,63 @@ function fmDragStart(ev) {
   if (!row) return;
   const path = row.dataset.path || '';
   const name = row.dataset.name || '';
+  fmDragSource = { path: path, name: name };
   try { ev.dataTransfer.setData('text/plain', path); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-path', path); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
-  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copyMove'; } catch (e) {}
+}
+function fmDragEnd() {
+  fmDragSource = null;
+  document.querySelectorAll('.fm-drop-target').forEach(el => el.classList.remove('fm-drop-target'));
+}
+// Drag a file/folder row and drop it onto a directory row to move it there.
+function fmDragOver(ev, row) {
+  if (!fmDragSource) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  try { ev.dataTransfer.dropEffect = 'move'; } catch (e) {}
+  row.classList.add('fm-drop-target');
+}
+function fmDragLeave(ev, row) {
+  row.classList.remove('fm-drop-target');
+}
+async function fmDrop(ev, row) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const target = row.dataset.path || '';
+  const src = fmDragSource;
+  fmDragSource = null;
+  row.classList.remove('fm-drop-target');
+  if (!src || !src.path) return;
+  const srcParent = src.path.includes('/') ? src.path.substring(0, src.path.lastIndexOf('/')) : '';
+  if (srcParent === target) return;   // already in that folder
+  await fmMoveWithConflict(src.path, target);
+}
+
+// Move a file/folder into `toPath`. If a same-name item already exists there,
+// ask the user for a new name and retry (server returns conflict + suggestion).
+async function fmMoveWithConflict(srcPath, toPath) {
+  let newName = '';
+  while (true) {
+    const body = { path: srcPath, toPath: toPath };
+    if (newName) body.newName = newName;
+    const res = await fmRequest('POST', '/api/files/move', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) {
+      if (toPath) fmExpanded.add(toPath);   // reveal the destination so the moved item is visible
+      fmNote(t('fileMoved'));
+      await fmLoad(true);
+      return;
+    }
+    if (res.data && res.data.conflict) {
+      const input = prompt(t('fileMoveConflict'), res.data.suggestion || '');
+      if (!input || !input.trim()) return;
+      newName = input.trim();
+      continue;
+    }
+    fmNote(res.data.error || t('fileError'), true);
+    return;
+  }
 }
 // Allow dragging a task name from the "My Tasks" list into the DSH composer.
 function fmTaskDragStart(ev) {
@@ -1414,18 +1752,6 @@ function fmTaskDragStart(ev) {
   try { ev.dataTransfer.setData('text/plain', name); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
   try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
-}
-
-// Move mode: show current dir's sub-directories to pick a target.
-function fmRenderMove(entries) {
-  let html = '';
-  if (fmPath) html += '<div class="fm-row fm-dir" data-path="" data-type="dir"><span>📁 ..</span></div>';
-  for (const e of entries) {
-    if (e.type !== 'dir') continue;
-    html += '<div class="fm-row fm-dir" data-pick="1" data-path="' + escp(fmPath ? fmPath + '/' + e.name : e.name) + '" data-type="dir">'
-         + '<span class="fm-name">📁 ' + escp(e.name) + '</span></div>';
-  }
-  return html;
 }
 
 // Recursively prefetch children of any dir in fmExpanded (and their nested ones).
@@ -1443,43 +1769,112 @@ async function fmPrefetchNested(dirPath) {
   }
 }
 
+// Download a file straight to the browser (raw bytes from /api/files/download),
+// carrying the ?inst= param so a cross-instance view downloads the right file.
+function fmDownload(path, name) {
+  var inst = new URLSearchParams(location.search).get('inst') || '';
+  var url = '/api/files/download?path=' + encodeURIComponent(path) + (inst ? '&inst=' + encodeURIComponent(inst) : '');
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = name || '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  fmNote(t('fileDownloaded'));
+}
+
+// Create a new folder under `baseDir` (workspace-relative; '' = workspace root).
+// On a name conflict, ask the user for another name and retry.
+async function fmNewFolder(baseDir) {
+  let n = prompt(t('fileNewFolder') + ':');
+  if (!n || !n.trim()) return;
+  n = n.trim();
+  while (true) {
+    const target = baseDir ? baseDir + '/' + n : n;
+    const res = await fmRequest('POST', '/api/files/mkdir', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) });
+    if (res.ok) {
+      if (baseDir) fmExpanded.add(baseDir);   // reveal the parent so the new folder is visible
+      fmNote(t('fileCreated'));
+      await fmLoad(true);
+      return;
+    }
+    if (res.status === 409) { const again = prompt(t('fileRenameConflict'), n); if (!again) return; n = again.trim(); continue; }
+    fmNote(res.data.error || t('fileError'), true);
+    return;
+  }
+}
+
 async function fmAction(act, row) {
   const path = row.dataset.path;
   const name = row.dataset.name;
   const type = row.dataset.type;
   if (act === 'open' && type === 'file') { fmOpenFile(path, name); return; }
   if (act === 'expand' && type === 'dir') {
-    if (fmExpanded.has(path)) {
-      fmExpanded.delete(path);
-    } else {
-      fmExpanded.add(path);
-      // Prefetch children (and any nested expanded dirs) for the tree.
-      if (!fmExpandCache.has(path)) {
-        const rr = await fmRequest('GET', '/api/files/list?path=' + encodeURIComponent(path));
-        fmExpandCache.set(path, rr.ok ? (rr.data.entries || []) : []);
-      }
-      await fmPrefetchNested(path);
-    }
-    fmLoad(); return;
+    if (fmExpanded.has(path)) fmExpanded.delete(path);
+    else fmExpanded.add(path);
+    fmLoad(true); return;
   }
+  if (act === 'upload') {
+    // Upload into this folder (or, for a file, into its parent folder).
+    fmUploadTarget = (type === 'file')
+      ? (path && path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '')
+      : (path || '');
+    $('#fmFileInput').click();
+    return;
+  }
+  if (act === 'refresh') { fmLoad(true).then(function () { fmNote(t('fileRefreshed') || 'Refreshed'); }); return; }
+  if (act === 'mkdir') { fmNewFolder(path || ''); return; }
+  if (act === 'download') { fmDownload(path, name); return; }
   if (act === 'delete') {
     if (!confirm(t('fileDeleteConfirm') + ' ' + name + '?')) return;
     const res = await fmRequest('POST', '/api/files/delete', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileDeleted')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileDeleted')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'rename') {
-    const n = prompt(t('fileRenameTo'), name);
+    let n = prompt(t('fileRenameTo'), name);
     if (!n || n === name) return;
-    const parent = fmPath ? fmPath + '/' : '';
-    const res = await fmRequest('POST', '/api/files/rename', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, newPath: parent + n }) });
-    if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
-  } else if (act === 'move') {
-    fmMoveEnter({ path: path, name: name });
+    const lastSlash = path.lastIndexOf('/');
+    const parent = lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '';
+    while (true) {
+      const res = await fmRequest('POST', '/api/files/rename', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, newPath: parent + n }) });
+      if (res.ok) { fmNote(t('fileRenamed')); await fmLoad(true); return; }
+      if (res.status === 409) { const again = prompt(t('fileRenameConflict'), n); if (!again) return; n = again; continue; }
+      fmNote(res.data.error || t('fileError'), true);
+      return;
+    }
   } else if (act === 'zip') {
     const res = await fmRequest('POST', '/api/files/zip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileZipped')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileZipped')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   } else if (act === 'unzip') {
-    const res = await fmRequest('POST', '/api/files/unzip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-    if (res.ok) { fmNote(t('fileUnzipped')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    await fmUnzip(path);
+  }
+}
+
+// Unzip with conflict resolution: if the target folder name is already taken,
+// ask the user for a new name until it succeeds (or the user cancels).
+async function fmUnzip(path) {
+  let targetName = '';
+  while (true) {
+    const body = targetName ? { path: path, targetName: targetName } : { path: path };
+    const res = await fmRequest('POST', '/api/files/unzip', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) {
+      // Reveal the freshly created folder (which sits next to the .zip) and show
+      // its path so the user can see exactly where it went.
+      const slash = path.lastIndexOf('/');
+      const parentRel = slash >= 0 ? path.substring(0, slash) : '';
+      const folderRel = parentRel ? parentRel + '/' + res.data.name : res.data.name;
+      if (folderRel) fmExpanded.add(folderRel);
+      fmNote(t('fileUnzipped') + ': /' + folderRel);
+      await fmLoad(true);
+      return;
+    }
+    if (res.data && res.data.conflict) {
+      const input = prompt(t('fileUnzipConflict'), res.data.suggestion || '');
+      if (!input || !input.trim()) return;
+      targetName = input.trim();
+      continue;
+    }
+    fmNote(res.data.error || t('fileError'), true);
+    return;
   }
 }
 
@@ -1490,7 +1885,7 @@ async function fmRename(src, name, createDir) {
   if (createDir) {
     // create a placeholder file then delete it? Instead create dir via mkdir on server.
     const res = await fmRequest('POST', '/api/files/mkdir', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) });
-    if (res.ok) { fmNote(t('fileCreated')); await fmLoad(); } else fmNote(res.data.error || t('fileError'), true);
+    if (res.ok) { fmNote(t('fileCreated')); await fmLoad(true); } else fmNote(res.data.error || t('fileError'), true);
   }
 }
 
@@ -1684,7 +2079,11 @@ let DshSelfRoot = '';   // this app's own install dir; never allow selecting it.
 function normPath(p) { return (p || '').replace(/\\/g, '/').replace(/\/+$/, ''); }
 function isSelfDir(p) {
   if (!DshSelfRoot || !p) return false;
-  const t = normPath(p), s = normPath(DshSelfRoot);
+  const t = normPath(p).toLowerCase(), s = normPath(DshSelfRoot).toLowerCase();
+  // The dedicated data folder <root>/WorkSpace is allowed as a workspace; the rest
+  // of the install tree (app code, node, .dsh) must never be selected.
+  const data = normPath(DshSelfRoot + '/WorkSpace').toLowerCase();
+  if (t === data || t.startsWith(data + '/')) return false;
   return t === s || t.startsWith(s + '/');
 }
 
@@ -1752,6 +2151,17 @@ async function loadBrowseDir(path) {
     $('#browseList').textContent = t('cannotRead') + e.message;
   }
 }
+// Load the launcher's own app version and show it in the browser tab title.
+async function initVersion() {
+  try {
+    const r = await fetch('/api/version');
+    if (!r.ok) return;
+    const d = await r.json();
+    // "TakeTopDshTeam Launcher v1.0.0" in the tab title (not on the page).
+    document.title = (document.title || 'TakeTopDshTeam Launcher') + ' v' + (d.version || '1.0.0');
+  } catch (e) {}
+}
+initVersion();
 init();
 </script>
 </body>

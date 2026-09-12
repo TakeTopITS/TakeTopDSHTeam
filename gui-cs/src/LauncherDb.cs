@@ -1,4 +1,4 @@
-// TakeTopDSH Team 鈥?multi-user DeepSeek Harness platform
+﻿// TakeTopDshTeam 鈥?multi-user DeepSeek Harness platform
 // Copyright (C) 2026-2036 娉伴《鎷撻紟淇℃伅绉戞妧锛堜笂娴凤級鏈夐檺鍏徃
 // EMail: service@taketopits.com
 //

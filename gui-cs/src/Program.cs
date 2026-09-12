@@ -1,4 +1,4 @@
-// TakeTopDSH Team — multi-user DeepSeek Harness platform
+﻿// TakeTopDshTeam — multi-user DeepSeek Harness platform
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
@@ -181,7 +181,7 @@ app.MapGet("/api/version", () => new
         .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
         .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
         .FirstOrDefault()?.InformationalVersion ?? "1.0.0",
-    product = "TakeTopDSH Team",
+    product = "TakeTopDshTeam",
 });
 app.MapGet("/api/logs", (int? from, HttpContext ctx) =>
 {
@@ -1379,6 +1379,7 @@ app.Use(async (ctx, next) =>
         ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
         ctx.Response.Headers["Pragma"] = "no-cache";
         ctx.Response.Headers["Expires"] = "0";
+        ctx.Response.ContentType = "text/html; charset=utf-8";
         var adminIndex = wwwroot is null ? null : Path.Combine(wwwroot, "index.html");
         if (adminIndex is null || !System.IO.File.Exists(adminIndex))
         {
@@ -1401,6 +1402,7 @@ app.Use(async (ctx, next) =>
         ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
         ctx.Response.Headers["Pragma"] = "no-cache";
         ctx.Response.Headers["Expires"] = "0";
+        ctx.Response.ContentType = "text/html; charset=utf-8";
         var baseName = path.StartsWith("/fm", StringComparison.OrdinalIgnoreCase) ? "index.html"
             : path.StartsWith("/tasks", StringComparison.OrdinalIgnoreCase) ? "tasks.html"
             : "work.html";

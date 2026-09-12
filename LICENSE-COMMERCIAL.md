@@ -1,6 +1,6 @@
-# Licensing
+﻿# Licensing
 
-TakeTopDSH Team is released under the **Business Source License 1.1 (BSL 1.1)**
+TakeTopDshTeam is released under the **Business Source License 1.1 (BSL 1.1)**
 (see [LICENSE](LICENSE) / [COPYING](COPYING)). BSL 1.1 is a **source-available**
 license (it is not an OSI-approved open-source license) that automatically
 converts to the **Apache License, Version 2.0** on the Change Date.

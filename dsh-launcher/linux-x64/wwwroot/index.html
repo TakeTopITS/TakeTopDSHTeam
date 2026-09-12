@@ -1,5 +1,5 @@
-<!--
-  TakeTopDSH Team — multi-user DeepSeek Harness platform
+﻿<!--
+  TakeTopDshTeam — multi-user DeepSeek Harness platform
   Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
   EMail: service@taketopits.com
 
@@ -23,7 +23,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TakeTopDSH Team Launcher</title>
+<title>TakeTopDshTeam Launcher</title>
 <!-- MIT-licensed libs for file viewer: highlight.js (code highlight), marked (Markdown) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -129,7 +129,7 @@
 <div id="loginGate" style="position:fixed;inset:0;background:#f5f6f8;z-index:9999;display:flex;align-items:center;justify-content:center;">
   <div style="background:#fff;border:1px solid #e0e2e6;border-radius:12px;padding:28px 34px;width:340px;box-shadow:0 10px 30px rgba(0,0,0,.08);position:relative;">
     <select id="loginLangSel" style="position:absolute;top:14px;right:14px;padding:4px 8px;border:1px solid #c8ccd2;border-radius:6px;font-size:12px;background:#fff;"></select>
-    <h2 style="margin:0 0 4px;font-size:19px;" id="loginTitle">TakeTopDSH Team 登录</h2>
+    <h2 style="margin:0 0 4px;font-size:19px;" id="loginTitle">TakeTopDshTeam 登录</h2>
     <div style="color:#6b7280;font-size:13px;margin-bottom:16px;" id="loginSub">请输入用户名和密码</div>
     <div class="row" style="margin-bottom:10px;">
       <input id="loginUser" placeholder="用户名" style="width:100%;" />
@@ -157,7 +157,7 @@
   </div>
 
   <div class="card" data-admin>
-    <h1 data-i18n="title">TakeTopDSH Team 启动器</h1>
+    <h1 data-i18n="title">TakeTopDshTeam 启动器</h1>
     <div class="row">
       <label data-i18n="port">端口</label>
       <input id="port" type="number" value="46000" />
@@ -358,8 +358,8 @@ async function withLoading(btn, fn, done) {
 // ---- i18n ----
 const I18N = {
   zh: {
-    title: "TakeTopDSH Team 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
-    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDSH Team 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
+    title: "TakeTopDshTeam 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
     wsDefaultWarn: "⚠ 尚未设置工作区：当前使用默认目录（发行版目录下的 WorkSpace）。升级/替换发行版时可能被覆盖，或与其它副本共用。请先设置专用工作区目录。",
@@ -397,8 +397,8 @@ const I18N = {
     fileRenameConflict: "名称已存在，请换一个名字：", fileUnzipConflict: "同名文件/文件夹已存在，请输入新的解压文件夹名：", fileMoveConflict: "目标文件夹已有同名文件，请输入新名称：", fileUploadConflict: "目标已有同名文件，请输入新名称："
   },
   en: {
-    title: "TakeTopDSH Team Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
-    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDSH Team Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
+    title: "TakeTopDshTeam Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
     wsDefaultWarn: "⚠ No workspace set: using the DEFAULT (the WorkSpace folder inside the release dir). It may be overwritten on upgrade or shared with other copies. Set a dedicated workspace directory first.",
@@ -2157,8 +2157,8 @@ async function initVersion() {
     const r = await fetch('/api/version');
     if (!r.ok) return;
     const d = await r.json();
-    // "TakeTopDSH Team Launcher v1.0.0" in the tab title (not on the page).
-    document.title = (document.title || 'TakeTopDSH Team Launcher') + ' v' + (d.version || '1.0.0');
+    // "TakeTopDshTeam Launcher v1.0.0" in the tab title (not on the page).
+    document.title = (document.title || 'TakeTopDshTeam Launcher') + ' v' + (d.version || '1.0.0');
   } catch (e) {}
 }
 initVersion();
