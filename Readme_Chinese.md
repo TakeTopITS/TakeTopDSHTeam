@@ -39,7 +39,7 @@ Linux   : bash start.sh
 
 打开 `http://127.0.0.1:46001` → 登录 → 点击 **Open DSH**。
 
-安装与使用说明见 [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf)。
+安装与使用说明见 [USER_GUIDE_Chinese.pdf](USER_GUIDE_Chinese.pdf)。
 
 > 📦 **安装包为什么有 700 多 MB？** 这是为了方便用户一键安装：发行包**打包了在三大操作系统（Windows、macOS、Linux）上安装所需的全部文件**——各平台自包含的启动器、Node.js 运行时，以及离线的 `@deepseek-ai/dsh` 依赖包。下载一次，即可在任一系统上**离线一键安装**，无需再下载、无需在目标机器上编译。
 
