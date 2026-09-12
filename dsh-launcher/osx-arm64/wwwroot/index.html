@@ -44,15 +44,16 @@
   h1 { font-size: 20px; margin: 0 0 14px; }
   h2 { font-size: 15px; margin: 10px 0 6px; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  .row-nowrap { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; margin-bottom: 8px; }
+  .row-nowrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
   .row-nowrap input { flex: none; }
+  .row-nowrap button, .row-nowrap label { flex: 0 0 auto; white-space: nowrap; }
   label { font-weight: 600; font-size: 14px; }
   .rich-toolbar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; border: 1px solid #d5d9df; border-radius: 7px; padding: 4px; background: #f8fafc; }
   .rich-toolbar button { padding: 5px 9px; background: #fff; border: 1px solid #d5d9df; border-radius: 5px; color: #334155; font-size: 13px; cursor: pointer; line-height: 1; }
   .rich-toolbar button:hover { background: #eef4ff; border-color: #2563eb; }
   .rich-toolbar button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
   input { padding: 6px 8px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 14px; width: 120px; }
-  button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; transition: background-color .15s ease, transform .05s ease; }
+  button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; white-space: nowrap; transition: background-color .15s ease, transform .05s ease; }
   button:hover { filter: brightness(0.92); }
   button:active { transform: translateY(1px); }
   button.secondary { background: #64748b; }
@@ -118,6 +119,13 @@
   .fm-task-table { width:99%; min-width:max-content; border-collapse:collapse; font-size:13px; white-space:nowrap; }
   .fm-task-table th, .fm-task-table td { padding:8px 10px; border-bottom:1px solid #eef0f3; text-align:left; vertical-align:top; }
   #fmList, #fmTasksView, .fm-tasks { overflow-x:auto; }
+  /* Instance Manager: auto columns that fit the card. The workspace cell wraps;
+     the action buttons stay together in their left-aligned cell. */
+  #instList { overflow-x: auto; }
+  #instList table { width: 100%; border-collapse: collapse; }
+  #instList td:nth-child(3) { word-break: break-all; }
+  #instList td:nth-child(5) { white-space: nowrap; text-align: left; }
+  #instList button { padding: 5px 10px; font-size: 13px; }
   .fm-task-table th { background:#f8fafc; color:#475569; font-weight:700; }
   .fm-st { font-weight:600; }
   .fm-st.processing { color:#d97706; } .fm-st.done { color:#16a34a; } .fm-st.cancelled { color:#9ca3af; } .fm-st.pending { color:#64748b; }
@@ -169,7 +177,7 @@
     <div id="tokenHint" class="muted" style="min-height:18px;margin-top:6px;"></div>
   </div>
 
-  <div class="card" data-admin style="padding:0;overflow:hidden;">
+  <div class="card" data-admin style="padding:0;">
     <div id="adminTabs" style="display:flex;border-bottom:2px solid #e5e7eb;background:#f8fafc;">
       <button class="admin-tab active" data-tab="config" data-i18n="configTitle" style="flex:1;padding:12px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;font-weight:600;color:#334155;border-bottom:2px solid #2563eb;margin-bottom:-2px;">配置</button>
       <button class="admin-tab" data-tab="instances" data-i18n="instTitle" style="flex:1;padding:12px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;font-weight:600;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;">实例管理</button>
@@ -2229,22 +2237,22 @@ async function loadInstances() {
         const stateColor = i.running ? '#16a34a' : '#6b7280';
         var tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid #eee';
+        var ops = '';
+        if (i.running) {
+          ops += '<button class="secondary" onclick="instOpen(\'' + esc(i.id) + '\')">' + t('instOpen') + '</button> ';
+          ops += '<button class="secondary" onclick="instStop(this,\'' + esc(i.id) + '\')">' + t('instStop') + '</button> ';
+        } else {
+          ops += '<button onclick="instStart(this,\'' + esc(i.id) + '\')">' + t('instStart') + '</button> ';
+        }
+        if (isAdmin) {
+          ops += '<button class="danger" onclick="instDelete(this,\'' + esc(i.id) + '\')">' + t('instDelete') + '</button> ';
+          ops += '<button class="secondary" onclick="showResetPassModal(\'' + esc(i.id) + '\')">' + t('resetPass') + '</button>';
+        }
         tr.innerHTML = '<td style="padding:6px 8px;font-weight:600;">' + esc(i.id) + '</td>'
              + '<td style="padding:6px 8px;">' + i.dshPort + '</td>'
              + '<td style="padding:6px 8px;">' + esc(i.workspace) + '</td>'
              + '<td style="padding:6px 8px;color:' + stateColor + ';">' + (i.running ? t('instRunning') : t('instStopped')) + '</td>'
-             + '<td style="padding:6px 8px;white-space:nowrap;">';
-        if (i.running) {
-          tr.innerHTML += '<button class="secondary" onclick="instOpen(\'' + esc(i.id) + '\')">' + t('instOpen') + '</button> ';
-          tr.innerHTML += '<button class="secondary" onclick="instStop(this,\'' + esc(i.id) + '\')">' + t('instStop') + '</button> ';
-        } else {
-          tr.innerHTML += '<button onclick="instStart(this,\'' + esc(i.id) + '\')">' + t('instStart') + '</button> ';
-        }
-        if (isAdmin) {
-          tr.innerHTML += '<button class="danger" onclick="instDelete(this,\'' + esc(i.id) + '\')">' + t('instDelete') + '</button>';
-          tr.innerHTML += ' <button class="secondary" onclick="showResetPassModal(\'' + esc(i.id) + '\')">' + t('resetPass') + '</button>';
-        }
-        tr.innerHTML += '</td>';
+             + '<td style="padding:6px 8px;white-space:nowrap;text-align:left;">' + ops + '</td>';
         body.appendChild(tr);
       }
       tbl.appendChild(body);
