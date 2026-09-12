@@ -1842,7 +1842,9 @@ async function fmOpenOffice(path, name, kind) {
   fmViewerOpen();
   let buf;
   try {
-    const resp = await fetch('/api/files/download?inline=true&path=' + encodeURIComponent(path), { credentials: 'same-origin' });
+    const inst = new URLSearchParams(location.search).get('inst') || '';
+    const dlUrl = '/api/files/download?inline=true&path=' + encodeURIComponent(path) + (inst ? '&inst=' + encodeURIComponent(inst) : '');
+    const resp = await fetch(dlUrl, { credentials: 'same-origin' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     buf = await resp.arrayBuffer();
   } catch (e) {
