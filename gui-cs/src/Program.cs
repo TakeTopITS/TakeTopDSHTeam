@@ -667,6 +667,25 @@ static string SuggestName(string parentDir, string name)
     return stem + " (" + Guid.NewGuid().ToString("N")[..6] + ")" + ext;
 }
 
+// Build a unique sibling name by inserting a short random token before the
+// extension (e.g. "报告_a1b2c3d4.pdf"). Loops until the name is free on disk and
+// not already taken within the current upload batch, so a same-name upload never
+// fails and two files in one batch can't collide.
+static string UniqueRandomName(string dir, string name, HashSet<string>? taken = null)
+{
+    var ext = Path.GetExtension(name);
+    var stem = Path.GetFileNameWithoutExtension(name);
+    if (string.IsNullOrEmpty(stem)) stem = name;
+    for (var i = 0; i < 1000; i++)
+    {
+        var cand = stem + "~" + Guid.NewGuid().ToString("N")[..8] + ext;
+        if (!File.Exists(Path.Combine(dir, cand)) && !Directory.Exists(Path.Combine(dir, cand)) &&
+            (taken == null || !taken.Contains(cand)))
+            return cand;
+    }
+    return stem + "~" + Guid.NewGuid().ToString("N") + ext;
+}
+
 // True when an upload path is one of the attachment folders a task/feedback form
 // writes to. Used to allow a member to upload attachments into ANOTHER member's
 // workspace without opening up general cross-member writes.
@@ -839,7 +858,11 @@ app.MapPost("/api/files/upload", (HttpContext ctx) =>
             catch { }
         }
         // Detect conflicts first; nothing is written until every name is resolved.
+        // With ?uniq=1 (attachment uploads) a same-name file is auto-renamed with a
+        // random token instead of failing, so uploads always succeed.
+        var autoUnique = string.Equals(ctx.Request.Query["uniq"].FirstOrDefault(), "1", StringComparison.OrdinalIgnoreCase);
         var conflicts = new List<object>();
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var plan = new List<(IFormFile file, string dest)>();
         foreach (var f in ctx.Request.Form.Files)
         {
@@ -849,11 +872,20 @@ app.MapPost("/api/files/upload", (HttpContext ctx) =>
             if (destName.IndexOfAny(new[] { '/', '\\' }) >= 0 || destName is "." or "..")
                 return Results.Json(new { ok = false, error = L(ctx, "名称非法: ") + destName }, statusCode: 400);
             var dest = Path.Combine(targetDir, destName);
-            if (File.Exists(dest) || Directory.Exists(dest))
+            if (taken.Contains(destName) || File.Exists(dest) || Directory.Exists(dest))
             {
-                conflicts.Add(new { name = origName, target = destName, suggestion = SuggestName(targetDir, destName) });
-                continue;
+                if (autoUnique)
+                {
+                    destName = UniqueRandomName(targetDir, destName, taken);
+                    dest = Path.Combine(targetDir, destName);
+                }
+                else
+                {
+                    conflicts.Add(new { name = origName, target = destName, suggestion = SuggestName(targetDir, destName) });
+                    continue;
+                }
             }
+            taken.Add(destName);
             plan.Add((f, dest));
         }
         if (conflicts.Count > 0)

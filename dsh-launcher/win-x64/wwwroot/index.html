@@ -378,6 +378,66 @@
   if (document.body) ready(); else document.addEventListener('DOMContentLoaded', ready);
 })();
 const $ = s => document.querySelector(s);
+// Display name: strip the "~xxxxxxxx" random token the uploader may have added
+// to keep filenames unique; the stored path keeps it.
+function dispName(n){ return String(n==null?'':n).replace(/~[0-9a-f]{8}(\.[^.\\/\\\\]*)?$/i, '$1'); }
+
+// ---- picker: choose files already in the user's OWN server workspace ----
+function __wpIsEn() {
+  try { var m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/); if (m) return /^en/i.test(decodeURIComponent(m[1])); var l = localStorage.getItem('tt_lang'); if (l) return /^en/i.test(l); } catch (e) {}
+  return false;
+}
+var __wp = null;
+function __wpEnsure() {
+  if (__wp) return __wp;
+  var d = document.createElement('div');
+  d.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10080;align-items:center;justify-content:center;';
+  d.innerHTML = '<div style="background:#fff;border-radius:10px;width:min(620px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.25);">'
+    + '<div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;"><strong id="__wpTitle" style="flex:1;">' + (__wpIsEn() ? 'Select from workspace' : '从工作区选择文件') + '</strong><button type="button" class="secondary" id="__wpClose">' + (__wpIsEn() ? 'Cancel' : '取消') + '</button></div>'
+    + '<div id="__wpPath" style="padding:6px 16px;font-size:12px;color:#64748b;word-break:break-all;border-bottom:1px solid #f0f0f0;"></div>'
+    + '<div id="__wpList" style="flex:1;overflow:auto;padding:6px 10px;min-height:220px;max-height:52vh;font-size:14px;"></div>'
+    + '<div style="padding:10px 16px;border-top:1px solid #eee;display:flex;gap:8px;align-items:center;"><span id="__wpSel" style="flex:1;font-size:12px;color:#64748b;"></span><button type="button" class="secondary" id="__wpUp">' + (__wpIsEn() ? 'Up' : '上一级') + '</button><button type="button" id="__wpOk">' + (__wpIsEn() ? 'Add selected' : '添加所选') + '</button></div></div>';
+  document.body.appendChild(d);
+  __wp = { root: d, rel: '', sel: {}, onPick: null, list: d.querySelector('#__wpList'), pathEl: d.querySelector('#__wpPath'), selEl: d.querySelector('#__wpSel') };
+  d.querySelector('#__wpClose').onclick = function () { d.style.display = 'none'; };
+  d.querySelector('#__wpUp').onclick = function () { var p = String(__wp.rel || '').replace(/\/+$/, ''); var i = p.lastIndexOf('/'); __wpLoad(i < 0 ? '' : p.slice(0, i)); };
+  d.querySelector('#__wpOk').onclick = __wpOk;
+  return __wp;
+}
+function __wpLoad(rel) {
+  var w = __wpEnsure(); w.rel = rel || ''; w.sel = {};
+  fetch('/api/files/list?path=' + encodeURIComponent(w.rel)).then(function (r) { return r.json(); }).then(function (d2) {
+    var es = (d2 && d2.entries) || [];
+    w.pathEl.textContent = '/' + w.rel;
+    w.list.innerHTML = es.length ? es.map(function (e) {
+      var icon = e.type === 'dir' ? '📁' : '📄';
+      return '<div class="__wpr" data-n="' + String(e.name).replace(/"/g, '&quot;') + '" data-t="' + e.type + '" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;"><span>' + icon + '</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + dispName(String(e.name)).replace(/</g, '&lt;') + '</span><span class="__wpk" style="color:#2563eb;font-weight:700;"></span></div>';
+    }).join('') : '<div style="padding:16px;color:#9ca3af;">(empty)</div>';
+    w.selEl.textContent = '';
+    w.list.querySelectorAll('.__wpr').forEach(function (r) {
+      r.onclick = function () {
+        var n = r.getAttribute('data-n'), t2 = r.getAttribute('data-t');
+        if (t2 === 'dir') { __wpLoad(w.rel ? w.rel + '/' + n : n); return; }
+        var key = (w.rel ? w.rel + '/' : '') + n;
+        if (w.sel[key]) { delete w.sel[key]; r.querySelector('.__wpk').textContent = ''; r.style.background = ''; }
+        else { w.sel[key] = true; r.querySelector('.__wpk').textContent = '✓'; r.style.background = '#eff6ff'; }
+        var c = Object.keys(w.sel).length; w.selEl.textContent = c ? (c + ' ' + (__wpIsEn() ? 'selected' : '已选')) : '';
+      };
+    });
+  }).catch(function () { w.list.innerHTML = '<div style="padding:16px;color:#dc2626;">load error</div>'; });
+}
+function __wpOk() {
+  var w = __wpEnsure(); var keys = Object.keys(w.sel);
+  if (!keys.length) { w.root.style.display = 'none'; return; }
+  Promise.all(keys.map(function (rel) {
+    return fetch('/api/files/download?path=' + encodeURIComponent(rel), { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('download ' + r.status); return r.blob(); })
+      .then(function (b) { var nm = rel.split('/').pop(); return new File([b], nm, { type: b.type || 'application/octet-stream' }); });
+  })).then(function (files) { w.root.style.display = 'none'; if (w.onPick) w.onPick(files); })
+    .catch(function (e) { alert((__wpIsEn() ? 'Load failed: ' : '加载失败：') + e.message); });
+}
+function openWsPicker(onPick) { var w = __wpEnsure(); w.onPick = onPick;
+  try { w.root.querySelector('#__wpTitle').textContent = (__wpIsEn() ? 'Select from workspace' : '从工作区选择文件'); w.root.querySelector('#__wpClose').textContent = (__wpIsEn() ? 'Cancel' : '取消'); w.root.querySelector('#__wpUp').textContent = (__wpIsEn() ? 'Up' : '上一级'); w.root.querySelector('#__wpOk').textContent = (__wpIsEn() ? 'Add selected' : '添加所选'); } catch (e) {}
+  w.root.style.display = 'flex'; __wpLoad(''); }
 let logCursor = 0;
 let isAdmin = false;
 let currentUser = '';
@@ -1077,7 +1137,7 @@ async function loadMyTasks(container) {
 
     function buildRow(task, depth) {
       var filesHtml = (task.files||[]).map(function(f){
-        var n = String(f).split('/').pop();
+        var n = dispName(String(f).split('/').pop());
         return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
       }).join('');
       var tr = document.createElement('tr');
@@ -1107,7 +1167,7 @@ async function loadMyTasks(container) {
         + '<td>' + filesHtml + '</td>'
         + '<td class="fm-ops" style="white-space:nowrap;">' + opsHtml + '</td>';
       tr.querySelectorAll('a.fm-task-file').forEach(function(a){
-        a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: a.getAttribute('data-file') }); };
+        a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: dispName(a.getAttribute('data-file')) }); };
       });
       tr.querySelector('a.fm-task-name-link').onclick = function(ev){
         ev.preventDefault();
@@ -1251,7 +1311,7 @@ function showTaskView(task, en) {
   else {
     var fhtml = '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px;">' + (en?'Attachments':'附件文件') + '</div>';
     files.forEach(function(f){
-      var name = String(f).split('/').pop();
+      var name = dispName(String(f).split('/').pop());
       fhtml += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="tcv-file" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + name + '</a></div>';
     });
     fbox.innerHTML = fhtml;
@@ -1265,7 +1325,7 @@ function showTaskView(task, en) {
 // Preview an image attachment full-screen, or prompt to download otherwise.
 function openTaskFile2(rel) {
   var name = String(rel).split('/').pop();
-  TTPreview.open({ insts: [currentUser, 'admin'], path: 'TaskData/Doc/' + name, name: name });
+  TTPreview.open({ insts: [currentUser, 'admin'], path: 'TaskData/Doc/' + name, name: dispName(name) });
 }
 
 // ---- "Continue Assign": create a child task assigned to a team member ----
@@ -1313,7 +1373,7 @@ function ensureAsgModal() {
     +   '<div id="asgContent" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:90px;max-height:34vh;font-size:14px;line-height:1.5;overflow:auto;"></div></div>'
     + '<div style="margin-bottom:12px;"><label id="asgLblAssigned" style="' + lbl + '"></label><input type="datetime-local" id="asgAssigned" style="' + inp + '"/></div>'
     + '<div style="margin-bottom:12px;"><label id="asgLblStatus" style="' + lbl + '"></label><select id="asgStatus" style="' + inp + '"></select></div>'
-    + '<div style="margin-bottom:12px;"><label id="asgLblFiles" style="' + lbl + '"></label><label for="asgFiles" id="asgFileBtn" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer;font-size:13px;"></label><input type="file" id="asgFiles" multiple style="position:absolute;left:-9999px;clip:rect(0,0,0,0);"/><div id="asgFileChips" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div></div>'
+    + '<div style="margin-bottom:12px;"><label id="asgLblFiles" style="' + lbl + '"></label><label for="asgFiles" id="asgFileBtn" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer;font-size:13px;"></label><button type="button" id="asgWsBtn" class="secondary" style="margin-left:6px;font-size:13px;"></button><input type="file" id="asgFiles" multiple style="position:absolute;left:-9999px;clip:rect(0,0,0,0);"/><div id="asgFileChips" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div></div>'
     + '<div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:8px;"><span id="asgMsg" style="margin-right:auto;font-size:13px;color:#16a34a;display:none;"></span><button id="asgCancel" style="padding:7px 16px;border:0;border-radius:6px;background:#64748b;color:#fff;font-size:14px;cursor:pointer;"></button><button id="asgSave" style="padding:7px 16px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:14px;cursor:pointer;"></button></div>'
     + '</div>';
   document.body.appendChild(m);
@@ -1322,6 +1382,7 @@ function ensureAsgModal() {
   m.addEventListener('click', function (ev) { if (ev.target === m) m.style.display = 'none'; });
   m.querySelector('#asgSave').onclick = saveAssign;
   m.querySelector('#asgFiles').addEventListener('change', asgOnFiles);
+  m.querySelector('#asgWsBtn').onclick = function () { openWsPicker(function (files) { asgUploadFiles(files); }); };
   m.querySelectorAll('#asgToolbar button[data-cmd]').forEach(function (b) {
     b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
     b.addEventListener('click', function () { var ed = m.querySelector('#asgContent'); ed.focus(); document.execCommand(b.getAttribute('data-cmd'), false, null); });
@@ -1347,22 +1408,26 @@ function ensureAsgModal() {
 function asgOnFiles() {
   var inp = asgModal.querySelector('#asgFiles');
   if (!inp.files || !inp.files.length) return;
+  asgUploadFiles(inp.files);
+  inp.value = '';
+}
+function asgUploadFiles(files) {
+  if (!files || !files.length) return;
   var assignee = asgModal.querySelector('#asgAssignee').value || currentUser;
   var fd = new FormData();
   fd.append('path', 'TaskData/Doc');
-  for (var i = 0; i < inp.files.length; i++) fd.append('file', inp.files[i]);
-  fetch('/api/files/upload?inst=' + encodeURIComponent(assignee), { method: 'POST', body: fd })
+  for (var i = 0; i < files.length; i++) fd.append('file', files[i]);
+  fetch('/api/files/upload?inst=' + encodeURIComponent(assignee) + '&uniq=1', { method: 'POST', body: fd })
     .then(function (r) { return r.json(); })
     .then(function (d) { (d.saved || []).forEach(function (n) { asgPendingFiles.push('Doc/' + n); }); asgRenderChips(); })
     .catch(function () {});
-  inp.value = '';
 }
 function asgRenderChips() {
   var box = asgModal.querySelector('#asgFileChips'); box.innerHTML = '';
   asgPendingFiles.forEach(function (f, i) {
     var s = document.createElement('span');
     s.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:#e0e7ff;color:#1e40af;padding:3px 9px;border-radius:14px;font-size:12px;';
-    s.textContent = String(f).split('/').pop();
+    s.textContent = dispName(String(f).split('/').pop());
     var x = document.createElement('b'); x.textContent = '\u00d7'; x.style.cursor = 'pointer';
     x.onclick = function () { asgPendingFiles.splice(i, 1); asgRenderChips(); };
     s.appendChild(x); box.appendChild(s);
@@ -1401,7 +1466,8 @@ function asgSetLabels(en) {
   q('asgLblAssigned').textContent = en ? 'Assigned At' : '\u5206\u6d3e\u65f6\u95f4';
   q('asgLblStatus').textContent = en ? 'Status' : '\u72b6\u6001';
   q('asgLblFiles').textContent = en ? 'Files (multi-select)' : '\u76f8\u5173\u6587\u4ef6\uff08\u53ef\u591a\u9009\uff09';
-  q('asgFileBtn').textContent = en ? 'Choose files' : '\u9009\u62e9\u6587\u4ef6';
+    q('asgFileBtn').textContent = en ? 'Choose files' : '\u9009\u62e9\u6587\u4ef6';
+    q('asgWsBtn').textContent = en ? 'From workspace' : '\u4ece\u5de5\u4f5c\u533a\u9009\u62e9';
   q('asgCancel').textContent = en ? 'Cancel' : '\u53d6\u6d88';
   q('asgSave').textContent = en ? 'Save' : '\u4fdd\u5b58';
   var st = { processing: en?'Processing':'\u5904\u7406\u4e2d', done: en?'Done':'\u5b8c\u6210', cancelled: en?'Cancelled':'\u53d6\u6d88', pending: en?'Pending':'\u5f85\u5904\u7406' };
@@ -1468,7 +1534,7 @@ async function saveAssign() {
 }
 
 function openFbFile(fn) {
-  TTPreview.open({ insts: [fbInst, currentUser, 'admin'], path: 'TaskData/Feedback/' + fbSeq + '/' + fn, name: fn });
+  TTPreview.open({ insts: [fbInst, currentUser, 'admin'], path: 'TaskData/Feedback/' + fbSeq + '/' + fn, name: dispName(fn) });
 }
 
 // ---- Task feedback (one per user per day; same-day is editable) ----
@@ -1498,7 +1564,7 @@ function ensureFbModal(en) {
     +   '<button type="button" data-cmd="removeFormat" title="Clear">⌫</button>'
     + '</div>'
     + '<div id="fbEditor" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:80px;max-height:240px;font-size:14px;line-height:1.5;overflow:auto;"></div>'
-    + '<div style="margin-top:6px;"><label for="fbFileInput" style="display:inline-block;padding:5px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">📎 ' + (en?'Attach file':'添加附件') + '</label><input type="file" id="fbFileInput" multiple accept="*/*" style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" /><div id="fbFileChips" style="margin-top:4px;"></div></div>'
+    + '<div style="margin-top:6px;"><label for="fbFileInput" style="display:inline-block;padding:5px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">📎 ' + (en?'Attach file':'添加附件') + '</label><button type="button" id="fbWsBtn" class="secondary" style="margin-left:6px;font-size:13px;">' + (en?'From workspace':'从工作区选择') + '</button><input type="file" id="fbFileInput" multiple accept="*/*" style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" /><div id="fbFileChips" style="margin-top:4px;"></div></div>'
     + '<div style="margin:10px 0 6px;font-weight:600;font-size:13px;" id="fbRecTitle">' + (en?'Feedback records':'反馈记录') + '</div>'
     + '<div style="flex:1;overflow:auto;border:1px solid #eef0f3;border-radius:6px;">'
     +   '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
@@ -1518,10 +1584,17 @@ function ensureFbModal(en) {
     fbPendingFiles = [];
     Array.from(this.files).forEach(function(f){ fbPendingFiles.push(f); var s = document.createElement('span'); s.style.cssText = 'display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;'; s.textContent = f.name; chips.appendChild(s); });
   });
+  fbModal.querySelector('#fbWsBtn').onclick = function(){
+    openWsPicker(function(files){
+      files.forEach(function(f){ fbPendingFiles.push(f); });
+      var chips = fbModal.querySelector('#fbFileChips'); chips.innerHTML = '';
+      fbPendingFiles.forEach(function(f){ var s = document.createElement('span'); s.style.cssText = 'display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;'; s.textContent = f.name; chips.appendChild(s); });
+    });
+  };
   fbModal.querySelector('#fbImage').addEventListener('click', function(){
     var inp = fbModal.querySelector('#fbFileInput'); inp.accept = 'image/*';
     inp.onchange = function(){ var file = inp.files[0]; if (!file) { inp.accept = '*/*'; return; } var fd = new FormData(); fd.append('path','TaskData/Feedback'); fd.append('file',file,'img_'+Date.now()+'_'+(file.name||'image.png'));
-      fetch('/api/files/upload?inst=' + encodeURIComponent(fbInst), {method:'POST', body:fd}).then(function(r){return r.json();}).then(function(d){
+      fetch('/api/files/upload?inst=' + encodeURIComponent(fbInst) + '&uniq=1', {method:'POST', body:fd}).then(function(r){return r.json();}).then(function(d){
         if(d.ok && d.saved && d.saved.length){ var downPath = 'TaskData/Feedback/' + fbSeq + '/' + d.saved[0]; var editor = fbModal.querySelector('#fbEditor'); var img = document.createElement('img'); img.src = '/api/files/download?inst=' + encodeURIComponent(fbInst) + '&path=' + encodeURIComponent(downPath); img.style.cssText = 'display:block;margin:6px 0;max-width:100%;'; editor.appendChild(img); var p = document.createElement('div'); p.appendChild(document.createElement('br')); editor.appendChild(p); }
       }).catch(function(){}).finally(function(){ inp.accept = '*/*'; inp.onchange = null; }); };
     inp.click();
@@ -1583,7 +1656,7 @@ function pagFb(wrap, entries, today) {
     body.innerHTML = '';
     slice.forEach(function(e, i){
       var filesHtml = '';
-      if (e.files) { e.files.split(',').filter(Boolean).forEach(function(fn){ filesHtml += '<div><a href="javascript:void(0)" onclick="openFbFile(\'' + fn.replace(/'/g, "\\'") + '\')" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">' + fn + '</a></div>'; }); }
+      if (e.files) { e.files.split(',').filter(Boolean).forEach(function(fn){ filesHtml += '<div><a href="javascript:void(0)" onclick="openFbFile(\'' + fn.replace(/'/g, "\\'") + '\')" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">' + fn.replace(/~[0-9a-f]{8}(\.[^.]*)?$/i,'$1') + '</a></div>'; }); }
       var tr = document.createElement('tr');
       tr.innerHTML = '<td style="padding:8px;">' + (total - (s + i)) + '</td><td style="padding:8px;">' + (e.content||'') + '</td><td style="padding:8px;">' + (e.by||'') + '</td><td style="padding:8px;">' + (e.time||'') + '</td><td style="padding:8px;">' + filesHtml + '</td>';
       body.appendChild(tr);

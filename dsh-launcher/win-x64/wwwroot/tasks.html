@@ -174,6 +174,7 @@
       </div>
       <div class="field"><label id="lblFiles">相关文件（可多选，上传至 TaskData/Doc）</label>
         <label for="fFiles" id="fFileBtn" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">选择文件</label>
+        <button type="button" id="fFileWsBtn" class="secondary" style="margin-left:6px;font-size:13px;">从工作区选择</button>
         <input type="file" id="fFiles" multiple style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" />
         <span id="fFilesLabel" style="margin-left:8px;font-size:13px;color:#6b7280;"></span>
         <div class="chips" id="fileChips"></div>
@@ -239,6 +240,9 @@
   };
   var lang = 'zh';
   var launcherToken = (function(){ try { return new URLSearchParams(location.search).get('launcher_token'); } catch(e){ return null; } })();
+  // Display name: strip the "~xxxxxxxx" random token the uploader may have added
+  // to keep filenames unique; the stored path keeps it.
+  function dispName(n){ return String(n==null?'':n).replace(/~[0-9a-f]{8}(\.[^.\\/\\\\]*)?$/i, '$1'); }
   function withToken(u){ if(launcherToken && /\/api\/(files|feedback)/.test(u)){ u += (u.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(launcherToken); } return u; }
   // Stored content keeps clean attachment URLs (server strips any token on save);
   // when opened with a launcher_token, add it to stored <img> attachment srcs so
@@ -288,7 +292,7 @@
     $('#thSeq').textContent = t('thSeq'); $('#thType').textContent = t('thType'); $('#thName').textContent = t('thName'); $('#thCreator').textContent = t('thCreator'); $('#thAssigned').textContent = t('thAssigned');
     $('#thStatus').textContent = t('thStatus'); $('#thFiles').textContent = t('thFiles'); $('#thFeedback').textContent = t('feedback'); $('#thAssign').textContent = t('thAssign'); $('#thAssignee').textContent = t('thAssignee'); $('#thOps').textContent = t('thOps');
     $('#modalTitle').textContent = ''; // set on open
-    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles'); $('#lblAssignee').textContent = t('lblAssignee'); $('#fFileBtn').textContent = t('chooseFiles');
+    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles'); $('#lblAssignee').textContent = t('lblAssignee');   $('#fFileBtn').textContent = t('chooseFiles'); try { $('#fFileWsBtn').textContent = (lang==='en'?'From workspace':'从工作区选择'); } catch(e){}
     $('#modalCancel').textContent = t('cancel'); $('#modalSave').textContent = t('save');
     $('#viewClose').textContent = t('close');
     document.getElementById('curMember').textContent = t('cur') + (curMember || '-');
@@ -429,7 +433,7 @@
       + '<td>' + (task.assignedAt || '') + '</td>'
       + '<td><span class="st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
       + '<td><ul class="files-list">' + (task.files||[]).map(function(f){
-          var name = String(f).split('/').pop();
+          var name = dispName(String(f).split('/').pop());
           return '<li><a href="javascript:void(0)" class="task-file-link" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a></li>';
         }).join('') + '</ul></td>'
       + '<td class="row-ops">'
@@ -716,7 +720,7 @@ function ensureFb2(){ if(fbModal2) return;
       '<button type="button" data-cmd="removeFormat" title="Clear">⌫</button>'+
     '</div>'+
     '<div id="fb2Editor" contenteditable="true" style="border:1px solid #c8ccd2;border-radius:6px;padding:8px;min-height:80px;max-height:240px;font-size:14px;line-height:1.5;overflow:auto;"></div>'+
-    '<div style="margin-top:6px;"><label for="fb2FileInput" style="display:inline-block;padding:5px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">📎 '+(lang==='en'?'Attach file':'添加附件')+'</label><input type="file" id="fb2FileInput" multiple accept="*/*" style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" /><div id="fb2FileChips" style="margin-top:4px;"></div></div>'+
+    '<div style="margin-top:6px;"><label for="fb2FileInput" style="display:inline-block;padding:5px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">📎 '+(lang==='en'?'Attach file':'添加附件')+'</label><button type="button" id="fb2WsBtn" class="secondary" style="margin-left:6px;font-size:13px;">从工作区选择</button><input type="file" id="fb2FileInput" multiple accept="*/*" style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" /><div id="fb2FileChips" style="margin-top:4px;"></div></div>'+
     '<div style="margin:10px 0 6px;font-weight:600;font-size:13px;">'+t("fbRecord")+'</div>'+
     '<div style="max-height:220px;overflow:auto;border:1px solid #eef0f3;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbNo")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbContent")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbBy")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbTime")+'</th><th style="text-align:left;padding:8px;background:#f8fafc;">'+t("fbFiles")+'</th></tr></thead><tbody id="fb2Body"></tbody></table></div>'+
     '<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;"><span id="fb2Msg" style="font-size:13px;color:#16a34a;display:none;margin-right:auto;"></span><button id="fb2Save" style="padding:7px 16px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:90px;"><span id="fb2SaveSpin" style="display:none;width:14px;height:14px;border:2px solid #ffffff;border-top-color:transparent;border-radius:50%;animation:fb2spin 0.7s linear infinite;"></span><span id="fb2SaveTxt">'+t("save")+'</span></button></div>'+
@@ -730,10 +734,12 @@ function ensureFb2(){ if(fbModal2) return;
     fb2PendingFiles=[];
     Array.from(this.files).forEach(function(f,i){ fb2PendingFiles.push(f); var s=document.createElement("span"); s.style.cssText="display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;"; s.textContent=f.name; chips.appendChild(s); });
   });
+  fbModal2.querySelector("#fb2WsBtn").textContent=(lang==='en'?'From workspace':'从工作区选择');
+  fbModal2.querySelector("#fb2WsBtn").onclick=function(){ openWsPicker(function(files){ files.forEach(function(f){ fb2PendingFiles.push(f); }); renderFb2Chips(); }); };
   fbModal2.querySelector("#fb2Image").addEventListener("click",function(){
     var inp=fbModal2.querySelector("#fb2FileInput"); inp.accept="image/*";
     inp.onchange=function(){ var file=inp.files[0]; if(!file) {inp.accept="*/*";return;} var fd=new FormData(); fd.append("path","TaskData/Feedback"); fd.append("file",file,"img_"+Date.now()+"_"+(file.name||"image.png"));
-      fetch("/api/files/upload?inst="+encodeURIComponent(fb2Inst),{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(d){
+      fetch("/api/files/upload?inst="+encodeURIComponent(fb2Inst)+"&uniq=1",{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(d){
         if(d.ok&&d.saved&&d.saved.length){ var downPath="TaskData/Feedback/"+fb2Seq+"/"+d.saved[0]; var editor=fbModal2.querySelector("#fb2Editor"); var img=document.createElement("img"); img.src="/api/files/download?inst="+encodeURIComponent(fb2Inst)+"&path="+encodeURIComponent(downPath)+"&inline=1"; img.style.cssText="display:block;margin:6px 0;max-width:100%;"; editor.appendChild(img); var p=document.createElement("div"); p.appendChild(document.createElement("br")); editor.appendChild(p); }
       }).catch(function(){}).finally(function(){inp.accept="*/*";inp.onchange=null;}); };
     inp.click();
@@ -762,7 +768,7 @@ if(!es.length){ body.innerHTML='<tr><td colspan="5" style="text-align:center;col
 var now=new Date(); var today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0'); var mine=es.find(function(e){ var byMatch=(e.by||'').toLowerCase()===myName; if(!byMatch)return false; if(e.date&&e.date===today)return true; if(e.time&&e.time.slice(0,10)===today)return true; return false; }); if(mine){fbModal2.querySelector("#fb2Editor").innerHTML=mine.content||"";} 
 pagFb2(wrap, es);
 } }catch(e){} }
-function pagFb2(wrap, es){ var pg={page:1,data:es}; function render(){ var total=pg.data.length; var pages=Math.max(1,Math.ceil(total/PAGE_SIZE)); if(pg.page>pages)pg.page=pages; var s=(pg.page-1)*PAGE_SIZE; var slice=pg.data.slice(s,s+PAGE_SIZE); var b=fbModal2.querySelector("#fb2Body"); b.innerHTML=""; slice.forEach(function(e,i){ var filesHtml=""; if(e.files){ e.files.split(",").filter(Boolean).forEach(function(fn){ var esc=String(fn).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); filesHtml+='<div><a href="javascript:void(0)" class="fb2-file-link" data-f="'+esc+'" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">'+esc+'</a></div>'; }); } var tr=document.createElement("tr"); tr.innerHTML='<td style="padding:8px;">'+(total-(s+i))+'</td><td style="padding:8px;">'+(e.content||"")+'</td><td style="padding:8px;">'+(e.by||"")+'</td><td style="padding:8px;">'+(e.time||"")+'</td><td style="padding:8px;">'+filesHtml+'</td>'; b.appendChild(tr); }); b.querySelectorAll("a.fb2-file-link").forEach(function(a){ a.onclick=function(){ openFbFile(a.getAttribute("data-f")); }; }); var pag=wrap.querySelector(".tt-pager2"); if(!pag){pag=document.createElement("div");pag.className="tt-pager2";pag.style.cssText="display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;";wrap.appendChild(pag);} if(total<=PAGE_SIZE){pag.innerHTML="";return;} var html='<span style="font-size:12px;color:#6b7280;margin-right:8px;">'+total+' items</span><button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> '; for(var p=1;p<=pages;p++){html+='<button data-p="'+p+'" style="padding:3px 10px;border:1px solid '+(p===pg.page?'#2563eb':'#d5d9df')+';border-radius:5px;background:'+(p===pg.page?'#2563eb':'#fff')+';color:'+(p===pg.page?'#fff':'#334155')+';font-size:12px;cursor:pointer;margin:0 1px;">'+p+'</button> ';} html+='<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>'; pag.innerHTML=html; pag.querySelectorAll("button[data-p]").forEach(function(btn){ btn.onclick=function(){ var v=btn.getAttribute("data-p"); if(v==="prev")pg.page=Math.max(1,pg.page-1); else if(v==="next")pg.page=Math.min(pages,pg.page+1); else pg.page=parseInt(v,10); render(); }; }); }
+function pagFb2(wrap, es){ var pg={page:1,data:es}; function render(){ var total=pg.data.length; var pages=Math.max(1,Math.ceil(total/PAGE_SIZE)); if(pg.page>pages)pg.page=pages; var s=(pg.page-1)*PAGE_SIZE; var slice=pg.data.slice(s,s+PAGE_SIZE); var b=fbModal2.querySelector("#fb2Body"); b.innerHTML=""; slice.forEach(function(e,i){ var filesHtml=""; if(e.files){ e.files.split(",").filter(Boolean).forEach(function(fn){ var esc=String(fn).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); filesHtml+='<div><a href="javascript:void(0)" class="fb2-file-link" data-f="'+esc+'" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">'+esc.replace(/~[0-9a-f]{8}(\.[^.]*)?$/i,'$1')+'</a></div>'; }); } var tr=document.createElement("tr"); tr.innerHTML='<td style="padding:8px;">'+(total-(s+i))+'</td><td style="padding:8px;">'+(e.content||"")+'</td><td style="padding:8px;">'+(e.by||"")+'</td><td style="padding:8px;">'+(e.time||"")+'</td><td style="padding:8px;">'+filesHtml+'</td>'; b.appendChild(tr); }); b.querySelectorAll("a.fb2-file-link").forEach(function(a){ a.onclick=function(){ openFbFile(a.getAttribute("data-f")); }; }); var pag=wrap.querySelector(".tt-pager2"); if(!pag){pag=document.createElement("div");pag.className="tt-pager2";pag.style.cssText="display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;";wrap.appendChild(pag);} if(total<=PAGE_SIZE){pag.innerHTML="";return;} var html='<span style="font-size:12px;color:#6b7280;margin-right:8px;">'+total+' items</span><button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> '; for(var p=1;p<=pages;p++){html+='<button data-p="'+p+'" style="padding:3px 10px;border:1px solid '+(p===pg.page?'#2563eb':'#d5d9df')+';border-radius:5px;background:'+(p===pg.page?'#2563eb':'#fff')+';color:'+(p===pg.page?'#fff':'#334155')+';font-size:12px;cursor:pointer;margin:0 1px;">'+p+'</button> ';} html+='<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>'; pag.innerHTML=html; pag.querySelectorAll("button[data-p]").forEach(function(btn){ btn.onclick=function(){ var v=btn.getAttribute("data-p"); if(v==="prev")pg.page=Math.max(1,pg.page-1); else if(v==="next")pg.page=Math.min(pages,pg.page+1); else pg.page=parseInt(v,10); render(); }; }); }
   render();
 }
 async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor"); var html=editor.innerHTML.trim(); if(!html||html==="<br>"||html==="<div><br></div>"){ alert(t("fbRequired")); return; } var btn=fbModal2.querySelector("#fb2Save"); var spin=fbModal2.querySelector("#fb2SaveSpin"); var txt=fbModal2.querySelector("#fb2SaveTxt"); var msg=fbModal2.querySelector("#fb2Msg"); btn.disabled=true; btn.style.opacity="0.75"; btn.style.cursor="wait"; spin.style.display="inline-block"; txt.textContent=t("saveDone"); msg.style.display="none"; var fd=new FormData(); fd.append("inst",fb2Inst); fd.append("uid",fb2Uid); fd.append("content",html); for(var i=0;i<fb2PendingFiles.length;i++){ fd.append("files",fb2PendingFiles[i]); } var r=await fetch("/api/feedback",{method:"POST",body:fd}); var d=await r.json().catch(function(){return{};}); if(!d.ok){ spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; alert(d.error||"Failed"); return; } fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; await loadFeedback2(); spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; msg.textContent=t("saveOk"); msg.style.color="#16a34a"; msg.style.display="inline-block"; setTimeout(function(){msg.style.display="none";},3000); }
@@ -777,7 +783,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
       .then(function(r){ return r.json().catch(function(){ return {}; }); });
   }
   function openFbFile(fn) {
-    TTPreview.open({ insts: [fb2Inst, curMember, 'admin'], path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: fn, token: launcherToken });
+    TTPreview.open({ insts: [fb2Inst, curMember, 'admin'], path: 'TaskData/Feedback/' + fb2Seq + '/' + fn, name: dispName(fn), token: launcherToken });
   }
   function fileUrl(f, member, creator, inline) {
     var name = String(f).split('/').pop();
@@ -786,11 +792,11 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   }
   function openTaskFile(f, member, creator) {
     var name = String(f).split('/').pop();
-    TTPreview.open({ insts: [member, creator, curMember, 'admin'], path: 'TaskData/Doc/' + name, name: name, token: launcherToken });
+    TTPreview.open({ insts: [member, creator, curMember, 'admin'], path: 'TaskData/Doc/' + name, name: dispName(name), token: launcherToken });
   }
   function renderChips(){
     $('#fileChips').innerHTML = pendingFiles.map(function(f, i){
-      var name = String(f).split('/').pop();
+      var name = dispName(String(f).split('/').pop());
       return '<span class="chip"><a href="javascript:void(0)" class="chip-file" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a> <b data-i="'+i+'">×</b></span>';
     }).join('');
     $('#fileChips').querySelectorAll('a.chip-file').forEach(function(a){
@@ -806,7 +812,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     var fd = new FormData();
     fd.append('path', 'TaskData/Doc');
     for (var i=0;i<files.length;i++) fd.append('file', files[i]);
-    var r = await fetch('/api/files/upload?inst=' + encodeURIComponent(curMember), { method:'POST', body: fd });
+    var r = await fetch('/api/files/upload?inst=' + encodeURIComponent(curMember) + '&uniq=1', { method:'POST', body: fd });
     var d = await r.json().catch(function(){return{};});
     if (!d.ok) { alert(t('errUpload')); return; }
     (d.saved || []).forEach(function(name){ pendingFiles.push('Doc/' + name); });
@@ -851,7 +857,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
       var fd = new FormData();
       fd.append('path', 'TaskData/Doc');
       fd.append('file', file, 'pasted_' + Date.now() + '_' + (file.name || 'image.png'));
-      fetch('/api/files/upload?inst=' + encodeURIComponent(curMember), { method: 'POST', body: fd })
+      fetch('/api/files/upload?inst=' + encodeURIComponent(curMember) + '&uniq=1', { method: 'POST', body: fd })
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (d.ok && d.saved && d.saved.length) {
@@ -946,6 +952,60 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     var names=[]; for(var i=0;i<this.files.length;i++) names.push(this.files[i].name);
     $('#fFilesLabel').textContent=names.join(', ');
     uploadFiles(this.files).then(function(){ var i=$('#fFiles'); i.value=''; $('#fFilesLabel').textContent=''; }); };
+  $('#fFileWsBtn').onclick = function(){ openWsPicker(function(files){ uploadFiles(files); }); };
+
+  // ---- picker: choose files already in the user's OWN server workspace ----
+  var __wp = null;
+  function __wpEnsure(){
+    if (__wp) return __wp;
+    var d = document.createElement('div');
+    d.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10080;align-items:center;justify-content:center;';
+    d.innerHTML = '<div style="background:#fff;border-radius:10px;width:min(620px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.25);">'
+      + '<div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;"><strong id="__wpTitle" style="flex:1;">' + (lang==='en'?'Select from workspace':'从工作区选择文件') + '</strong><button type="button" class="secondary" id="__wpClose">' + (lang==='en'?'Cancel':'取消') + '</button></div>'
+      + '<div id="__wpPath" style="padding:6px 16px;font-size:12px;color:#64748b;word-break:break-all;border-bottom:1px solid #f0f0f0;"></div>'
+      + '<div id="__wpList" style="flex:1;overflow:auto;padding:6px 10px;min-height:220px;max-height:52vh;font-size:14px;"></div>'
+      + '<div style="padding:10px 16px;border-top:1px solid #eee;display:flex;gap:8px;align-items:center;"><span id="__wpSel" style="flex:1;font-size:12px;color:#64748b;"></span><button type="button" class="secondary" id="__wpUp">' + (lang==='en'?'Up':'上一级') + '</button><button type="button" id="__wpOk">' + (lang==='en'?'Add selected':'添加所选') + '</button></div></div>';
+    document.body.appendChild(d);
+    __wp = { root:d, rel:'', sel:{}, onPick:null, list:d.querySelector('#__wpList'), pathEl:d.querySelector('#__wpPath'), selEl:d.querySelector('#__wpSel') };
+    d.querySelector('#__wpClose').onclick=function(){ d.style.display='none'; };
+    d.querySelector('#__wpUp').onclick=function(){ var p=String(__wp.rel||'').replace(/\/+$/,''); var i=p.lastIndexOf('/'); __wpLoad(i<0?'':p.slice(0,i)); };
+    d.querySelector('#__wpOk').onclick=__wpOk;
+    return __wp;
+  }
+  function __wpLoad(rel){
+    var w=__wpEnsure(); w.rel=rel||''; w.sel={};
+    fetch('/api/files/list?path='+encodeURIComponent(w.rel)).then(function(r){return r.json();}).then(function(d2){
+      var es=(d2 && d2.entries)||[];
+      w.pathEl.textContent='/'+w.rel;
+      w.list.innerHTML = es.length ? es.map(function(e){
+        var icon = e.type==='dir'?'📁':'📄';
+        return '<div class="__wpr" data-n="'+String(e.name).replace(/"/g,'&quot;')+'" data-t="'+e.type+'" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;"><span>'+icon+'</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+dispName(String(e.name)).replace(/</g,'&lt;')+'</span><span class="__wpk" style="color:#2563eb;font-weight:700;"></span></div>';
+      }).join('') : '<div style="padding:16px;color:#9ca3af;">(empty)</div>';
+      w.selEl.textContent='';
+      w.list.querySelectorAll('.__wpr').forEach(function(r){
+        r.onclick=function(){
+          var n=r.getAttribute('data-n'), t2=r.getAttribute('data-t');
+          if(t2==='dir'){ __wpLoad(w.rel?w.rel+'/'+n:n); return; }
+          var key=(w.rel?w.rel+'/':'')+n;
+          if(w.sel[key]){ delete w.sel[key]; r.querySelector('.__wpk').textContent=''; r.style.background=''; }
+          else { w.sel[key]=true; r.querySelector('.__wpk').textContent='✓'; r.style.background='#eff6ff'; }
+          var c=Object.keys(w.sel).length; w.selEl.textContent = c?(c+' '+(lang==='en'?'selected':'已选')):'';
+        };
+      });
+    }).catch(function(){ w.list.innerHTML='<div style="padding:16px;color:#dc2626;">load error</div>'; });
+  }
+  function __wpOk(){
+    var w=__wpEnsure(); var keys=Object.keys(w.sel);
+    if(!keys.length){ w.root.style.display='none'; return; }
+    Promise.all(keys.map(function(rel){
+      return fetch('/api/files/download?path='+encodeURIComponent(rel),{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('download '+r.status); return r.blob(); })
+        .then(function(b){ var nm=rel.split('/').pop(); return new File([b], nm, {type:b.type||'application/octet-stream'}); });
+    })).then(function(files){ w.root.style.display='none'; if(w.onPick) w.onPick(files); })
+      .catch(function(e){ alert((lang==='en'?'Load failed: ':'加载失败：')+e.message); });
+  }
+  function openWsPicker(onPick){ var w=__wpEnsure(); w.onPick=onPick;
+    try { w.root.querySelector('#__wpTitle').textContent=(lang==='en'?'Select from workspace':'从工作区选择文件'); w.root.querySelector('#__wpClose').textContent=(lang==='en'?'Cancel':'取消'); w.root.querySelector('#__wpUp').textContent=(lang==='en'?'Up':'上一级'); w.root.querySelector('#__wpOk').textContent=(lang==='en'?'Add selected':'添加所选'); } catch(e){}
+    w.root.style.display='flex'; __wpLoad(''); }
   $('#langSel').onchange = function(){
     lang = norm(this.value);
     try{ localStorage.setItem('tt_lang', lang); document.cookie='tt_lang='+lang+'; path=/; max-age=31536000; SameSite=Lax'; }catch(e){}
