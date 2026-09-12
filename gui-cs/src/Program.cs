@@ -553,6 +553,14 @@ string? ResolveUserWorkspace(string username)
     return inst == null ? null : inst.Workspace;
 }
 
+// A valid task owner/assignee: a real instance, or the special "admin" owner
+// (the default/global instance, which is NOT in instances.json). Without this,
+// assigning a task to admin from a member account failed the authorization check.
+bool IsAssignableTarget(string id)
+{
+    return string.Equals(id, "admin", StringComparison.OrdinalIgnoreCase) || instMgr.Get(id) != null;
+}
+
 // Resolve the workspace a file-manager request should operate on. Supports an
 // optional ?inst=<id> target (used by the /work split page): admins may view any
 // user's workspace; non-admins are confined to their own. `allowCrossMemberRead`
@@ -565,9 +573,14 @@ string? ResolveFileWorkspace(HttpContext ctx, bool allowCrossMemberRead = false)
     var instParam = ctx.Request.Query["inst"].FirstOrDefault();
     if (!string.IsNullOrEmpty(instParam))
     {
-        // "admin" always resolves to the global workspace (admin is not in instances.json).
+        // "admin" resolves to the global workspace. Only an admin may WRITE there;
+        // any authenticated user may READ it (read endpoints pass allowCrossMemberRead)
+        // so they can open attachments on tasks assigned to admin.
         if (string.Equals(instParam, "admin", StringComparison.OrdinalIgnoreCase))
-            return dsh.ReadWorkspacePath();
+        {
+            var callerAdmin = auth.Find(username);
+            return (callerAdmin?.Admin == true || allowCrossMemberRead) ? dsh.ReadWorkspacePath() : null;
+        }
         // Admin (or the user themself) may view any instance workspace.
         if (string.Equals(instParam, username, StringComparison.OrdinalIgnoreCase))
         {
@@ -621,6 +634,37 @@ static bool IsAttachmentUploadPath(string? rel)
     return r == "taskdata/doc" || r.StartsWith("taskdata/feedback/");
 }
 
+// Rewrite the "inst=<old>" workspace id embedded in pasted-attachment URLs inside
+// task/feedback HTML to "inst=<new>". Inline <img> srcs capture the member id at
+// paste time, so when a task (and its files) moves to another member the stored
+// URLs must be repointed or the images 404.
+static string RewriteInst(string? html, string fromInst, string toInst)
+{
+    if (string.IsNullOrEmpty(html)) return html ?? "";
+    if (string.IsNullOrEmpty(fromInst) || string.Equals(fromInst, toInst, StringComparison.OrdinalIgnoreCase)) return html;
+    var fromEnc = Uri.EscapeDataString(fromInst);
+    var toEnc = Uri.EscapeDataString(toInst);
+    foreach (var pair in new[] { (fromEnc, toEnc), (fromInst, toInst) })
+    {
+        var a = pair.Item1; var b = pair.Item2;
+        if (string.IsNullOrEmpty(a) || a == b) continue;
+        html = html.Replace("inst=" + a + "&", "inst=" + b + "&")
+                   .Replace("inst=" + a + "\"", "inst=" + b + "\"")
+                   .Replace("inst=" + a + "'", "inst=" + b + "'");
+    }
+    return html;
+}
+
+// Drop any "launcher_token=..." query param from persisted HTML. The token is a
+// per-launcher-session value added for iframe requests (no session cookie); it
+// must NOT be baked into stored task/feedback content or it goes stale. The UI
+// re-adds the current token at render time.
+static string StripLauncherToken(string? html)
+{
+    if (string.IsNullOrEmpty(html)) return html ?? "";
+    return System.Text.RegularExpressions.Regex.Replace(html, @"[?&]launcher_token=[^&""'<>\s]+", "");
+}
+
 // Move a task's referenced files (TaskData/Doc/...) and its feedback folder
 // (TaskData/Feedback/<oldSeq>) from the old owner's workspace to the new owner's
 // when the task is reassigned, so the new assignee's browser AND their sandboxed
@@ -666,6 +710,9 @@ void MoveTaskAttachments(string fromInst, string toInst, int oldSeq, TaskRecord 
         }
         try { if (!Directory.EnumerateFileSystemEntries(fromFb).Any()) Directory.Delete(fromFb); } catch { }
     }
+
+    // Repoint inline attachment URLs in the task content at the new owner.
+    t.Content = RewriteInst(t.Content, fromInst, toInst);
 }
 
 // Return top-level entries (dirs first, then files, both sorted) for a listing.
@@ -725,7 +772,9 @@ app.MapPost("/api/files/upload", (HttpContext ctx) =>
         var relPath = ctx.Request.Form["path"].ToString();
         var caller = auth.Find((string)ctx.Items["username"]!);
         if (!string.IsNullOrEmpty(instParam) && caller?.Admin != true && IsAttachmentUploadPath(relPath))
-            ws = instMgr.Get(instParam)?.Workspace;
+            ws = string.Equals(instParam, "admin", StringComparison.OrdinalIgnoreCase)
+                ? dsh.ReadWorkspacePath()
+                : instMgr.Get(instParam)?.Workspace;
     }
     if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
@@ -1281,7 +1330,7 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         var bound = auth.Find(username)?.InstanceId ?? username;
         // A member may create tasks for themselves OR assign to any known team
         // member (used by the "Continue Assign" flow on the My Tasks page).
-        var knownMember = instMgr.Get(req.Inst!) != null;
+        var knownMember = IsAssignableTarget(req.Inst!);
         if (!string.Equals(req.Inst, bound, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(req.Inst, username, StringComparison.OrdinalIgnoreCase) &&
             !knownMember)
@@ -1292,7 +1341,7 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         var list = ReadTaskList(req.Inst);
         var seq = (list.Count == 0 ? 0 : list.Max(t => t.Seq)) + 1;
         var uid = LauncherDb.NewTaskUid();
-        list.Add(new TaskRecord { Uid = uid, Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = req.Content ?? "", Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentUid = req.ParentUid ?? "", Files = req.Files ?? new List<string>() });
+        list.Add(new TaskRecord { Uid = uid, Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = StripLauncherToken(req.Content), Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentUid = req.ParentUid ?? "", Files = req.Files ?? new List<string>() });
         WriteTaskList(req.Inst, list);
         return Results.Ok(new { ok = true, uid, seq });
     }
@@ -1315,7 +1364,7 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
             return Results.Json(new { ok = false, error = L(ctx, "仅可编辑自己建立的任务") }, statusCode: 403);
         t.Name = req.Name ?? t.Name;
         t.Type = req.Type ?? t.Type;
-        t.Content = req.Content ?? t.Content;
+        if (req.Content != null) t.Content = StripLauncherToken(req.Content);
         t.Status = req.Status ?? t.Status;
         t.AssignedAt = req.AssignedAt ?? t.AssignedAt;
         if (req.ParentUid != null) t.ParentUid = req.ParentUid;
@@ -1331,7 +1380,7 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
             if (!isAdmin)
             {
                 var bound = auth.Find(username)?.InstanceId ?? username;
-                var knownMember = instMgr.Get(target!) != null;
+                var knownMember = IsAssignableTarget(target!);
                 if (!string.Equals(target, bound, StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(target, username, StringComparison.OrdinalIgnoreCase) &&
                     !knownMember)
@@ -1357,6 +1406,8 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
                     oldFb.Remove(t.Uid);
                     WriteFeedback(req.Inst, oldFb);
                     var newFb = ReadFeedback(target!);
+                    // Repoint inline feedback-attachment URLs at the new owner.
+                    foreach (var e in entries) e.Content = RewriteInst(e.Content, req.Inst, target!);
                     newFb[t.Uid] = entries;
                     WriteFeedback(target!, newFb);
                 }
@@ -1553,7 +1604,7 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
             entry = new FeedbackEntry { Date = today, By = username };
             list.Add(entry);
         }
-        entry.Content = content;
+        entry.Content = StripLauncherToken(content);
         entry.Time = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
         // Save uploaded files under the task's per-owner ordinal folder (kept for
         // forward-compatible file paths); fall back to the uid if the task is gone.

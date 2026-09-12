@@ -340,6 +340,43 @@
     return orig(u, opts || {});
   };
 })();
+// Stored task/feedback content keeps clean attachment URLs (the server strips any
+// launcher_token when saving). When this page runs inside the /fm iframe (no
+// session cookie) add the current token to stored <img> attachment srcs so they
+// load. Idempotent; never written back (the server strips on save).
+(function () {
+  var lt = new URLSearchParams(location.search).get('launcher_token');
+  if (!lt) return;
+  function fix(root) {
+    var list = (root && root.querySelectorAll) ? root.querySelectorAll('img[src]') : [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i].getAttribute('src') || '';
+      if (s.indexOf('/api/files/') < 0) continue;
+      if (/[?&]launcher_token=/.test(s)) {
+        s = s.replace(/([?&]launcher_token=)[^&]*/, '$1' + encodeURIComponent(lt));
+      } else {
+        s += (s.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(lt);
+      }
+      list[i].setAttribute('src', s);
+    }
+  }
+  function ready() {
+    fix(document.body);
+    new MutationObserver(function (muts) {
+      for (var m = 0; m < muts.length; m++) {
+        var ns = muts[m].addedNodes;
+        for (var j = 0; j < ns.length; j++) {
+          var n = ns[j];
+          if (n && n.nodeType === 1) {
+            if (n.tagName === 'IMG') fix({ querySelectorAll: function () { return [n]; } });
+            else fix(n);
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.body) ready(); else document.addEventListener('DOMContentLoaded', ready);
+})();
 const $ = s => document.querySelector(s);
 let logCursor = 0;
 let isAdmin = false;

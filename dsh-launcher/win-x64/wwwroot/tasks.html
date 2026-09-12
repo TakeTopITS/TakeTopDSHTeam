@@ -240,6 +240,42 @@
   var lang = 'zh';
   var launcherToken = (function(){ try { return new URLSearchParams(location.search).get('launcher_token'); } catch(e){ return null; } })();
   function withToken(u){ if(launcherToken && /\/api\/(files|feedback)/.test(u)){ u += (u.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(launcherToken); } return u; }
+  // Stored content keeps clean attachment URLs (server strips any token on save);
+  // when opened with a launcher_token, add it to stored <img> attachment srcs so
+  // they load even without a session cookie. Idempotent; stripped again on save.
+  if (launcherToken) {
+    (function () {
+      function fix(root) {
+        var list = (root && root.querySelectorAll) ? root.querySelectorAll('img[src]') : [];
+        for (var i = 0; i < list.length; i++) {
+          var s = list[i].getAttribute('src') || '';
+          if (s.indexOf('/api/files/') < 0) continue;
+          if (/[?&]launcher_token=/.test(s)) {
+            s = s.replace(/([?&]launcher_token=)[^&]*/, '$1' + encodeURIComponent(launcherToken));
+          } else {
+            s += (s.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(launcherToken);
+          }
+          list[i].setAttribute('src', s);
+        }
+      }
+      function ready() {
+        fix(document.body);
+        new MutationObserver(function (muts) {
+          for (var m = 0; m < muts.length; m++) {
+            var ns = muts[m].addedNodes;
+            for (var j = 0; j < ns.length; j++) {
+              var n = ns[j];
+              if (n && n.nodeType === 1) {
+                if (n.tagName === 'IMG') fix({ querySelectorAll: function () { return [n]; } });
+                else fix(n);
+              }
+            }
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      }
+      if (document.body) ready(); else document.addEventListener('DOMContentLoaded', ready);
+    })();
+  }
   function norm(c){var x=String(c||'').toLowerCase();return (x==='en'||x==='en-us'||x==='en-gb'||x==='us')?'en':'zh';}
   function curLang(){try{var m=document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);if(m)return decodeURIComponent(m[1]);}catch(e){}try{var l=localStorage.getItem('tt_lang');if(l)return l;}catch(e){}return 'zh';}
   lang = norm(curLang());
@@ -698,7 +734,7 @@ function ensureFb2(){ if(fbModal2) return;
     var inp=fbModal2.querySelector("#fb2FileInput"); inp.accept="image/*";
     inp.onchange=function(){ var file=inp.files[0]; if(!file) {inp.accept="*/*";return;} var fd=new FormData(); fd.append("path","TaskData/Feedback"); fd.append("file",file,"img_"+Date.now()+"_"+(file.name||"image.png"));
       fetch("/api/files/upload?inst="+encodeURIComponent(fb2Inst),{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(d){
-        if(d.ok&&d.saved&&d.saved.length){ var downPath="TaskData/Feedback/"+fb2Seq+"/"+d.saved[0]; var editor=fbModal2.querySelector("#fb2Editor"); var img=document.createElement("img"); img.src=withToken("/api/files/download?inst="+encodeURIComponent(fb2Inst)+"&path="+encodeURIComponent(downPath)+"&inline=1"); img.style.cssText="display:block;margin:6px 0;max-width:100%;"; editor.appendChild(img); var p=document.createElement("div"); p.appendChild(document.createElement("br")); editor.appendChild(p); }
+        if(d.ok&&d.saved&&d.saved.length){ var downPath="TaskData/Feedback/"+fb2Seq+"/"+d.saved[0]; var editor=fbModal2.querySelector("#fb2Editor"); var img=document.createElement("img"); img.src="/api/files/download?inst="+encodeURIComponent(fb2Inst)+"&path="+encodeURIComponent(downPath)+"&inline=1"; img.style.cssText="display:block;margin:6px 0;max-width:100%;"; editor.appendChild(img); var p=document.createElement("div"); p.appendChild(document.createElement("br")); editor.appendChild(p); }
       }).catch(function(){}).finally(function(){inp.accept="*/*";inp.onchange=null;}); };
     inp.click();
   });
@@ -841,7 +877,7 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     // must include the TaskData/ prefix.
     var downPath = String(rel).replace(/^\/+/, '');
     if (downPath.indexOf('TaskData') !== 0) downPath = 'TaskData/' + downPath;
-    img.src = withToken('/api/files/download?inst=' + encodeURIComponent(curMember) + '&path=' + encodeURIComponent(downPath) + '&inline=1');
+    img.src = '/api/files/download?inst=' + encodeURIComponent(curMember) + '&path=' + encodeURIComponent(downPath) + '&inline=1';
     img.style.display = 'block';
     img.style.margin = '6px 0';
     editor.appendChild(img);
