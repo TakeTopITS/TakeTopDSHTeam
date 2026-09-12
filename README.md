@@ -99,6 +99,8 @@ Each user sees tasks assigned to them:
 ### 6. Language
 Full **English / Chinese** toggle across the console, workbench, file manager, task assignment, and task form. The login page prefers the configured default language.
 
+![Login page — language selector (English / 中文)](assets/Login.png)
+
 ---
 
 ## Architecture
