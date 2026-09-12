@@ -1039,7 +1039,7 @@ void WriteTaskList(string instId, List<TaskRecord> tasks)
 // member. Admin may read any member (and "admin" for its own); a normal user may
 // only read its own. Supports backend pagination (page/pageSize); omitting them
 // returns the full list (backwards compatible).
-app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, int? page, int? pageSize, HttpContext ctx) =>
+app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, string? prefix, int? page, int? pageSize, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
@@ -1131,53 +1131,44 @@ app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, int? p
         CountChildren(ReadTaskList("admin"));
 
         // Hierarchical display number ("1", "1-1", "1-2-1", ...) computed over the
-        // WHOLE task forest, so it is unique even when the "All" view merges many
-        // members' lists. A task's number is its parent's number plus its 1-based
-        // position among its siblings; roots are numbered 1..N in the same order
-        // the API returns them.
+        // tasks VISIBLE in this response, so numbering always starts at 1 for the
+        // top-most visible tasks: a task whose parent is not part of this view is
+        // treated as a root. Sibling order matches the API's display order
+        // (seq DESC, owner ASC). For a subtask-expansion request (parentUid set)
+        // the returned children continue the parent's number via `prefix`.
         var hierMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(parentUid))
         {
-            var forest = new List<(string Owner, TaskRecord Task)>();
-            foreach (var m in instMgr.List())
-                foreach (var t in ReadTaskList(m.Id)) forest.Add((m.Id, t));
-            foreach (var t in ReadTaskList("admin"))
-                if (!forest.Any(x => x.Owner == "admin" && x.Task.Uid == t.Uid)) forest.Add(("admin", t));
-
-            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var x in forest) present.Add(x.Task.Uid);
-            var kidsOf = new Dictionary<string, List<(string Owner, TaskRecord Task)>>(StringComparer.OrdinalIgnoreCase);
-            var roots = new List<(string Owner, TaskRecord Task)>();
-            foreach (var x in forest)
+            var pfx = string.IsNullOrWhiteSpace(prefix) ? "1" : prefix!;
+            for (var i = 0; i < ordered.Count; i++)
+                hierMap[ordered[i].Task.Uid] = pfx + "-" + (i + 1);
+        }
+        else
+        {
+            var present = new HashSet<string>(ordered.Select(x => x.Task.Uid), StringComparer.OrdinalIgnoreCase);
+            var kidsOf = new Dictionary<string, List<(TaskRecord Task, string Member)>>(StringComparer.OrdinalIgnoreCase);
+            var roots = new List<(TaskRecord Task, string Member)>();
+            foreach (var x in ordered)
             {
                 var pu = x.Task.ParentUid ?? "";
                 if (!string.IsNullOrWhiteSpace(pu) && present.Contains(pu))
                 {
-                    if (!kidsOf.TryGetValue(pu, out var lst)) { lst = new List<(string, TaskRecord)>(); kidsOf[pu] = lst; }
+                    if (!kidsOf.TryGetValue(pu, out var lst)) { lst = new List<(TaskRecord, string)>(); kidsOf[pu] = lst; }
                     lst.Add(x);
                 }
                 else roots.Add(x);
             }
-            int Cmp((string Owner, TaskRecord Task) a, (string Owner, TaskRecord Task) b)
-            {
-                var c = b.Task.Seq.CompareTo(a.Task.Seq);
-                return c != 0 ? c : string.Compare(a.Owner, b.Owner, StringComparison.OrdinalIgnoreCase);
-            }
-            roots.Sort(Cmp);
-            void Walk(List<(string Owner, TaskRecord Task)> list, string prefix)
+            void WalkView(List<(TaskRecord Task, string Member)> list, string path2)
             {
                 for (var i = 0; i < list.Count; i++)
                 {
                     var x = list[i];
-                    var path = prefix.Length == 0 ? (i + 1).ToString() : prefix + "-" + (i + 1);
+                    var path = path2.Length == 0 ? (i + 1).ToString() : path2 + "-" + (i + 1);
                     hierMap[x.Task.Uid] = path;
-                    if (kidsOf.TryGetValue(x.Task.Uid, out var kids))
-                    {
-                        kids.Sort(Cmp);
-                        Walk(kids, path);
-                    }
+                    if (kidsOf.TryGetValue(x.Task.Uid, out var kids)) WalkView(kids, path);
                 }
             }
-            Walk(roots, "");
+            WalkView(roots, "");
         }
 
         // A task may only be deleted while it is still "private" to its creator:

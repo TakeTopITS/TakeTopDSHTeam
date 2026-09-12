@@ -1099,7 +1099,7 @@ async function loadMyTasks(container) {
     function expandRow(tr, task, depth) {
       var btn = tr.querySelector('button.fm-sub-toggle');
       if (btn) { btn.setAttribute('data-open', '1'); btn.textContent = '\u2212'; }
-      return fetch('/api/tasks?parentUid=' + encodeURIComponent(task.uid) + '&page=1&pageSize=100&_=' + Date.now())
+      return fetch('/api/tasks?parentUid=' + encodeURIComponent(task.uid) + '&prefix=' + encodeURIComponent(task.hier != null && task.hier !== '' ? task.hier : task.seq) + '&page=1&pageSize=100&_=' + Date.now())
         .then(function(r){ return r.json(); })
         .then(function(d){
           var kids = d.tasks || [];

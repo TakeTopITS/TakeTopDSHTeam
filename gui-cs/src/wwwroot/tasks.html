@@ -462,7 +462,7 @@
     var btn = tr.querySelector('button.sub-toggle');
     if (btn) { btn.textContent = '−'; btn.title = t('collapse'); }
     var member = task.member || curMember || '';
-    return fetch('/api/tasks?parentUid=' + encodeURIComponent(task.uid || '') + '&page=1&pageSize=100&_=' + Date.now())
+    return fetch('/api/tasks?parentUid=' + encodeURIComponent(task.uid || '') + '&prefix=' + encodeURIComponent(task.hier != null && task.hier !== '' ? task.hier : task.seq) + '&page=1&pageSize=100&_=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
         var kids = d.tasks || [];
