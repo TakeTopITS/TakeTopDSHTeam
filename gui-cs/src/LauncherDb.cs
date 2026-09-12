@@ -162,36 +162,35 @@ CREATE TABLE IF NOT EXISTS instances(
   running     INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS tasks(
+  uid         TEXT NOT NULL,
   owner       TEXT NOT NULL,
-  seq         INTEGER NOT NULL,
+  seq         INTEGER NOT NULL DEFAULT 0,
   name        TEXT NOT NULL DEFAULT '',
   type        TEXT NOT NULL DEFAULT '',
   content     TEXT NOT NULL DEFAULT '',
   status      TEXT NOT NULL DEFAULT 'pending',
   assigned_at TEXT NOT NULL DEFAULT '',
   created_by  TEXT NOT NULL DEFAULT '',
-  parent_task INTEGER NOT NULL DEFAULT 0,
-  parent_owner TEXT NOT NULL DEFAULT '',
-  PRIMARY KEY(owner, seq)
+  parent_uid  TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(uid)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ix_tasks_owner_seq ON tasks(owner, seq);
 CREATE TABLE IF NOT EXISTS task_files(
-  owner TEXT NOT NULL,
-  seq   INTEGER NOT NULL,
+  uid   TEXT NOT NULL,
   idx   INTEGER NOT NULL,
   rel   TEXT NOT NULL,
-  PRIMARY KEY(owner, seq, idx)
+  PRIMARY KEY(uid, idx)
 );
 CREATE TABLE IF NOT EXISTS feedback(
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  owner   TEXT NOT NULL,
-  seq     INTEGER NOT NULL,
-  date    TEXT NOT NULL DEFAULT '',
-  by_user TEXT NOT NULL DEFAULT '',
-  content TEXT NOT NULL DEFAULT '',
-  time    TEXT NOT NULL DEFAULT '',
-  files   TEXT NOT NULL DEFAULT ''
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner    TEXT NOT NULL,
+  task_uid TEXT NOT NULL DEFAULT '',
+  date     TEXT NOT NULL DEFAULT '',
+  by_user  TEXT NOT NULL DEFAULT '',
+  content  TEXT NOT NULL DEFAULT '',
+  time     TEXT NOT NULL DEFAULT '',
+  files    TEXT NOT NULL DEFAULT ''
 );
-CREATE INDEX IF NOT EXISTS ix_feedback_owner ON feedback(owner, seq);
 CREATE TABLE IF NOT EXISTS feedback_files(
   fid  INTEGER NOT NULL,
   idx  INTEGER NOT NULL,
@@ -204,12 +203,200 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         // guarded by a pragma_table_info check so it is safe to run every open.
         try
         {
-            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_task';") == 0)
-                Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_task INTEGER NOT NULL DEFAULT 0;");
-            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_owner';") == 0)
-                Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_owner TEXT NOT NULL DEFAULT '';");
+            // Databases created before task ids moved to a random string: add the
+            // legacy parent columns (if an even older schema) and rebuild the task
+            // tables keyed by uid. Fresh databases already have `uid` and skip this.
+            // Ensure feedback.task_uid exists BEFORE the task migration so the
+            // migration can fill it in on the same pass (older databases have only
+            // the per-owner seq column).
+            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('feedback') WHERE name='task_uid';") == 0)
+                Exec(conn, "ALTER TABLE feedback ADD COLUMN task_uid TEXT NOT NULL DEFAULT '';");
+            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='uid';") == 0)
+            {
+                // Take a consistent snapshot of the whole database before the
+                // destructive rebuild (tasks/task_files are dropped and recreated),
+                // so an interrupted upgrade can always be recovered by hand.
+                BackupBeforeMigration(conn);
+                if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_task';") == 0)
+                    Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_task INTEGER NOT NULL DEFAULT 0;");
+                if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_owner';") == 0)
+                    Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_owner TEXT NOT NULL DEFAULT '';");
+                MigrateTasksToUid(conn);
+            }
+            // Back-fill feedback.task_uid for rows imported before the column
+            // existed (works while the legacy `seq` column is still present).
+            try
+            {
+                Exec(conn, @"UPDATE feedback SET task_uid = (SELECT t.uid FROM tasks t WHERE t.owner=feedback.owner AND t.seq=feedback.seq)
+                             WHERE (task_uid IS NULL OR task_uid='')
+                               AND EXISTS (SELECT 1 FROM tasks t WHERE t.owner=feedback.owner AND t.seq=feedback.seq);");
+            }
+            catch { }
+            // Legacy databases keep a `seq INTEGER NOT NULL` column on feedback that
+            // has no default. The new writer inserts by task_uid only, so that stale
+            // column would make every feedback save fail with a NOT NULL error.
+            // Rebuild the table without it (ids are preserved for feedback_files).
+            RebuildFeedbackWithoutLegacySeq(conn);
+            // Created here (not in the schema script) because on an old database the
+            // feedback table exists without task_uid until the ALTER above runs.
+            Exec(conn, "CREATE INDEX IF NOT EXISTS ix_feedback_owner ON feedback(owner, task_uid);");
+        }
+        catch (Exception ex) { Console.WriteLine("[launcherdb] migrate: " + ex.Message); }
+    }
+
+    // Best-effort consistent snapshot taken right before a destructive schema
+    // migration. VACUUM INTO includes any data still sitting in the WAL, unlike a
+    // plain file copy, and never overwrites an existing file.
+    private static void BackupBeforeMigration(SqliteConnection conn)
+    {
+        try
+        {
+            var dbPath = conn.DataSource;
+            if (string.IsNullOrWhiteSpace(dbPath) || !File.Exists(dbPath)) return;
+            var dir = System.IO.Path.GetDirectoryName(dbPath);
+            if (string.IsNullOrWhiteSpace(dir)) return;
+            var name = System.IO.Path.GetFileNameWithoutExtension(dbPath);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var bak = System.IO.Path.Combine(dir!, name + ".preupgrade-" + stamp + ".db");
+            Exec(conn, "VACUUM INTO '" + bak.Replace("'", "''") + "';");
+            Console.WriteLine("[launcherdb] pre-migration backup -> " + bak);
+        }
+        catch (Exception ex) { Console.WriteLine("[launcherdb] pre-migration backup failed: " + ex.Message); }
+    }
+
+    // Drop the legacy feedback.seq column (NOT NULL, no default) by rebuilding the
+    // table. Safe to call on every open: it no-ops once `seq` is gone.
+    private static void RebuildFeedbackWithoutLegacySeq(SqliteConnection conn)
+    {
+        if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('feedback') WHERE name='seq';") == 0) return;
+        Exec(conn, "DROP TABLE IF EXISTS feedback_uid_new;");
+        Exec(conn, @"CREATE TABLE feedback_uid_new(
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner    TEXT NOT NULL,
+  task_uid TEXT NOT NULL DEFAULT '',
+  date     TEXT NOT NULL DEFAULT '',
+  by_user  TEXT NOT NULL DEFAULT '',
+  content  TEXT NOT NULL DEFAULT '',
+  time     TEXT NOT NULL DEFAULT '',
+  files    TEXT NOT NULL DEFAULT '');");
+        Exec(conn, @"INSERT INTO feedback_uid_new(id,owner,task_uid,date,by_user,content,time,files)
+                     SELECT id, owner, COALESCE(task_uid,''), date, by_user, content, time, files FROM feedback;");
+        Exec(conn, "DROP TABLE feedback;");
+        Exec(conn, "ALTER TABLE feedback_uid_new RENAME TO feedback;");
+        // Keep AUTOINCREMENT in step with the copied ids.
+        Exec(conn, "DELETE FROM sqlite_sequence WHERE name='feedback';");
+        try
+        {
+            Exec(conn, "INSERT INTO sqlite_sequence(name,seq) SELECT 'feedback', COALESCE(MAX(id),0) FROM feedback;");
         }
         catch { }
+        Console.WriteLine("[launcherdb] rebuilt feedback table without legacy seq column");
+    }
+
+    // A new globally-unique task id: 16 random bytes as 32 lowercase hex chars.
+    // Fixed length, no meaning, effectively collision-free (so it can serve as the
+    // primary key and survive a database-engine change, e.g. to PostgreSQL).
+    public static string NewTaskUid()
+    {
+        Span<byte> buf = stackalloc byte[16];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(buf);
+        return Convert.ToHexString(buf).ToLowerInvariant();
+    }
+
+    // One-time rebuild of the legacy (owner, seq)-keyed task tables into the
+    // uid-keyed schema, mapping old parent links and feedback to the new ids.
+    private static void MigrateTasksToUid(SqliteConnection conn)
+    {
+        var rows = new List<(string Owner, int Seq, string Name, string Type, string Content, string Status, string At, string By, int PT, string PO)>();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT owner,seq,name,type,content,status,assigned_at,created_by,parent_task,parent_owner FROM tasks;";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                rows.Add((r.GetString(0), r.GetInt32(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetString(5),
+                    r.GetString(6), r.GetString(7), r.IsDBNull(8) ? 0 : r.GetInt32(8), r.IsDBNull(9) ? "" : r.GetString(9)));
+        }
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in rows) map[t.Owner + "#" + t.Seq] = NewTaskUid();
+
+        var files = new List<(string Owner, int Seq, int Idx, string Rel)>();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT owner,seq,idx,rel FROM task_files;";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) files.Add((r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
+        }
+
+        var fbs = new List<(long Id, string Owner, int Seq)>();
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id,owner,seq FROM feedback;";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) fbs.Add((r.GetInt64(0), r.GetString(1), r.GetInt32(2)));
+        }
+        catch { }
+
+        Exec(conn, "DROP TABLE IF EXISTS tasks_uid_new;");
+        Exec(conn, @"CREATE TABLE tasks_uid_new(
+  uid         TEXT NOT NULL,
+  owner       TEXT NOT NULL,
+  seq         INTEGER NOT NULL DEFAULT 0,
+  name        TEXT NOT NULL DEFAULT '',
+  type        TEXT NOT NULL DEFAULT '',
+  content     TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'pending',
+  assigned_at TEXT NOT NULL DEFAULT '',
+  created_by  TEXT NOT NULL DEFAULT '',
+  parent_uid  TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(uid));");
+        foreach (var t in rows)
+        {
+            var uid = map[t.Owner + "#" + t.Seq];
+            var parentUid = (t.PT > 0 && map.TryGetValue(t.PO + "#" + t.PT, out var p)) ? p : "";
+            Exec(conn, "INSERT INTO tasks_uid_new(uid,owner,seq,name,type,content,status,assigned_at,created_by,parent_uid) VALUES($u,$o,$s,$n,$ty,$c,$st,$a,$b,$p);", c =>
+            {
+                c.Parameters.AddWithValue("$u", uid);
+                c.Parameters.AddWithValue("$o", t.Owner);
+                c.Parameters.AddWithValue("$s", t.Seq);
+                c.Parameters.AddWithValue("$n", t.Name);
+                c.Parameters.AddWithValue("$ty", t.Type);
+                c.Parameters.AddWithValue("$c", t.Content);
+                c.Parameters.AddWithValue("$st", string.IsNullOrWhiteSpace(t.Status) ? "pending" : t.Status);
+                c.Parameters.AddWithValue("$a", t.At);
+                c.Parameters.AddWithValue("$b", t.By);
+                c.Parameters.AddWithValue("$p", parentUid);
+            });
+        }
+        Exec(conn, "DROP TABLE tasks;");
+        Exec(conn, "ALTER TABLE tasks_uid_new RENAME TO tasks;");
+        Exec(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_tasks_owner_seq ON tasks(owner, seq);");
+
+        Exec(conn, "DROP TABLE IF EXISTS task_files_uid_new;");
+        Exec(conn, "CREATE TABLE task_files_uid_new(uid TEXT NOT NULL, idx INTEGER NOT NULL, rel TEXT NOT NULL, PRIMARY KEY(uid, idx));");
+        foreach (var f in files)
+        {
+            if (!map.TryGetValue(f.Owner + "#" + f.Seq, out var uid)) continue;
+            Exec(conn, "INSERT INTO task_files_uid_new(uid,idx,rel) VALUES($u,$i,$r);", c =>
+            {
+                c.Parameters.AddWithValue("$u", uid);
+                c.Parameters.AddWithValue("$i", f.Idx);
+                c.Parameters.AddWithValue("$r", f.Rel);
+            });
+        }
+        Exec(conn, "DROP TABLE task_files;");
+        Exec(conn, "ALTER TABLE task_files_uid_new RENAME TO task_files;");
+
+        foreach (var fb in fbs)
+        {
+            if (!map.TryGetValue(fb.Owner + "#" + fb.Seq, out var uid)) continue;
+            Exec(conn, "UPDATE feedback SET task_uid=$u WHERE id=$id;", c =>
+            {
+                c.Parameters.AddWithValue("$u", uid);
+                c.Parameters.AddWithValue("$id", fb.Id);
+            });
+        }
+        Console.WriteLine($"[launcherdb] migrated {rows.Count} tasks to uid primary keys");
     }
 
     // ================= Users =================
@@ -346,39 +533,39 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     private static List<TaskRecord> ReadTasks(SqliteConnection conn, string owner)
     {
         var list = new List<TaskRecord>();
-        var filesBySeq = new Dictionary<int, List<string>>();
+        var filesByUid = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         using (var fcmd = conn.CreateCommand())
         {
-            fcmd.CommandText = "SELECT seq, rel FROM task_files WHERE owner=$o ORDER BY seq, idx;";
+            fcmd.CommandText = "SELECT tf.uid, tf.rel FROM task_files tf JOIN tasks t ON t.uid = tf.uid WHERE t.owner=$o ORDER BY tf.uid, tf.idx;";
             fcmd.Parameters.AddWithValue("$o", owner);
             using var fr = fcmd.ExecuteReader();
             while (fr.Read())
             {
-                var s = fr.GetInt32(0);
-                if (!filesBySeq.TryGetValue(s, out var fl)) { fl = new List<string>(); filesBySeq[s] = fl; }
+                var u = fr.GetString(0);
+                if (!filesByUid.TryGetValue(u, out var fl)) { fl = new List<string>(); filesByUid[u] = fl; }
                 fl.Add(fr.GetString(1));
             }
         }
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT seq,name,type,content,status,assigned_at,created_by,parent_task,parent_owner FROM tasks WHERE owner=$o ORDER BY seq DESC;";
+            cmd.CommandText = "SELECT uid,seq,name,type,content,status,assigned_at,created_by,parent_uid FROM tasks WHERE owner=$o ORDER BY seq DESC;";
             cmd.Parameters.AddWithValue("$o", owner);
             using var r = cmd.ExecuteReader();
             while (r.Read())
             {
-                var seq = r.GetInt32(0);
+                var uid = r.GetString(0);
                 list.Add(new TaskRecord
                 {
-                    Seq = seq,
-                    Name = r.GetString(1),
-                    Type = r.GetString(2),
-                    Content = r.GetString(3),
-                    Status = r.GetString(4),
-                    AssignedAt = r.GetString(5),
-                    CreatedBy = r.GetString(6),
-                    ParentTask = r.FieldCount > 7 && !r.IsDBNull(7) ? r.GetInt32(7) : 0,
-                    ParentOwner = r.FieldCount > 8 && !r.IsDBNull(8) ? r.GetString(8) : "",
-                    Files = filesBySeq.TryGetValue(seq, out var fl) ? fl : new List<string>(),
+                    Uid = uid,
+                    Seq = r.GetInt32(1),
+                    Name = r.GetString(2),
+                    Type = r.GetString(3),
+                    Content = r.GetString(4),
+                    Status = r.GetString(5),
+                    AssignedAt = r.GetString(6),
+                    CreatedBy = r.GetString(7),
+                    ParentUid = r.FieldCount > 8 && !r.IsDBNull(8) ? r.GetString(8) : "",
+                    Files = filesByUid.TryGetValue(uid, out var fl) ? fl : new List<string>(),
                 });
             }
         }
@@ -391,16 +578,19 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         using (var del = conn.CreateCommand())
         {
             del.Transaction = tx;
-            del.CommandText = "DELETE FROM tasks WHERE owner=$o; DELETE FROM task_files WHERE owner=$o;";
+            // Remove this owner's tasks and their files (files are keyed by task uid).
+            del.CommandText = "DELETE FROM task_files WHERE uid IN (SELECT uid FROM tasks WHERE owner=$o); DELETE FROM tasks WHERE owner=$o;";
             del.Parameters.AddWithValue("$o", owner);
             del.ExecuteNonQuery();
         }
         foreach (var t in tasks ?? new List<TaskRecord>())
         {
+            if (string.IsNullOrWhiteSpace(t.Uid)) t.Uid = NewTaskUid();
             using (var ins = conn.CreateCommand())
             {
                 ins.Transaction = tx;
-                ins.CommandText = "INSERT INTO tasks(owner,seq,name,type,content,status,assigned_at,created_by,parent_task,parent_owner) VALUES($o,$seq,$name,$type,$content,$status,$at,$by,$parent,$parentOwner);";
+                ins.CommandText = "INSERT INTO tasks(uid,owner,seq,name,type,content,status,assigned_at,created_by,parent_uid) VALUES($uid,$o,$seq,$name,$type,$content,$status,$at,$by,$parentUid);";
+                ins.Parameters.AddWithValue("$uid", t.Uid);
                 ins.Parameters.AddWithValue("$o", owner);
                 ins.Parameters.AddWithValue("$seq", t.Seq);
                 ins.Parameters.AddWithValue("$name", t.Name ?? "");
@@ -409,8 +599,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 ins.Parameters.AddWithValue("$status", string.IsNullOrWhiteSpace(t.Status) ? "pending" : t.Status!);
                 ins.Parameters.AddWithValue("$at", t.AssignedAt ?? "");
                 ins.Parameters.AddWithValue("$by", t.CreatedBy ?? "");
-                ins.Parameters.AddWithValue("$parent", t.ParentTask);
-                ins.Parameters.AddWithValue("$parentOwner", t.ParentOwner ?? "");
+                ins.Parameters.AddWithValue("$parentUid", t.ParentUid ?? "");
                 ins.ExecuteNonQuery();
             }
             var idx = 0;
@@ -418,9 +607,8 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             {
                 using var inf = conn.CreateCommand();
                 inf.Transaction = tx;
-                inf.CommandText = "INSERT INTO task_files(owner,seq,idx,rel) VALUES($o,$seq,$idx,$rel);";
-                inf.Parameters.AddWithValue("$o", owner);
-                inf.Parameters.AddWithValue("$seq", t.Seq);
+                inf.CommandText = "INSERT INTO task_files(uid,idx,rel) VALUES($uid,$idx,$rel);";
+                inf.Parameters.AddWithValue("$uid", t.Uid);
                 inf.Parameters.AddWithValue("$idx", idx++);
                 inf.Parameters.AddWithValue("$rel", f ?? "");
                 inf.ExecuteNonQuery();
@@ -431,22 +619,22 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
 
     // ================= Feedback (owner-scoped) =================
 
-    internal static Dictionary<int, List<FeedbackEntry>> LoadFeedback(string root, string owner, string legacyDbPath, string legacyTasksXmlPath, string legacyFeedbackXmlPath)
+    internal static Dictionary<string, List<FeedbackEntry>> LoadFeedback(string root, string owner, string legacyDbPath, string legacyTasksXmlPath, string legacyFeedbackXmlPath)
     {
         using var conn = Open(PathFor(root));
         EnsureLegacyImported(conn, owner, legacyDbPath, legacyTasksXmlPath, legacyFeedbackXmlPath);
         return ReadFeedback(conn, owner);
     }
 
-    internal static void SaveFeedback(string root, string owner, Dictionary<int, List<FeedbackEntry>> dict)
+    internal static void SaveFeedback(string root, string owner, Dictionary<string, List<FeedbackEntry>> dict)
     {
         using var conn = Open(PathFor(root));
         WriteFeedback(conn, owner, dict);
     }
 
-    private static Dictionary<int, List<FeedbackEntry>> ReadFeedback(SqliteConnection conn, string owner)
+    private static Dictionary<string, List<FeedbackEntry>> ReadFeedback(SqliteConnection conn, string owner)
     {
-        var dict = new Dictionary<int, List<FeedbackEntry>>();
+        var dict = new Dictionary<string, List<FeedbackEntry>>(StringComparer.OrdinalIgnoreCase);
         var filesByFid = new Dictionary<long, List<string>>();
         using (var fcmd = conn.CreateCommand())
         {
@@ -462,13 +650,14 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         }
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT id,seq,date,by_user,content,time,files FROM feedback WHERE owner=$o ORDER BY seq, time;";
+            cmd.CommandText = "SELECT id,task_uid,date,by_user,content,time,files FROM feedback WHERE owner=$o ORDER BY task_uid, time;";
             cmd.Parameters.AddWithValue("$o", owner);
             using var r = cmd.ExecuteReader();
             while (r.Read())
             {
                 var fid = r.GetInt64(0);
-                var seq = r.GetInt32(1);
+                var uid = r.IsDBNull(1) ? "" : r.GetString(1);
+                if (string.IsNullOrWhiteSpace(uid)) continue; // orphaned: task no longer exists
                 if (!filesByFid.TryGetValue(fid, out var files))
                 {
                     var legacy = r.GetString(6);
@@ -476,7 +665,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                         ? new List<string>()
                         : legacy.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
                 }
-                if (!dict.TryGetValue(seq, out var list)) { list = new List<FeedbackEntry>(); dict[seq] = list; }
+                if (!dict.TryGetValue(uid, out var list)) { list = new List<FeedbackEntry>(); dict[uid] = list; }
                 list.Add(new FeedbackEntry
                 {
                     Date = r.GetString(2),
@@ -490,7 +679,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         return dict;
     }
 
-    private static void WriteFeedback(SqliteConnection conn, string owner, Dictionary<int, List<FeedbackEntry>> dict)
+    private static void WriteFeedback(SqliteConnection conn, string owner, Dictionary<string, List<FeedbackEntry>> dict)
     {
         // Rebuild this owner's feedback: capture the row ids first so their
         // normalized feedback_files rows can be removed too.
@@ -513,7 +702,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         }
         using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM feedback WHERE owner=$o;"; del.Parameters.AddWithValue("$o", owner); del.ExecuteNonQuery(); }
 
-        foreach (var kv in dict ?? new Dictionary<int, List<FeedbackEntry>>())
+        foreach (var kv in dict ?? new Dictionary<string, List<FeedbackEntry>>())
         {
             foreach (var e in kv.Value ?? new List<FeedbackEntry>())
             {
@@ -521,9 +710,9 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 using (var ins = conn.CreateCommand())
                 {
                     ins.Transaction = tx;
-                    ins.CommandText = "INSERT INTO feedback(owner,seq,date,by_user,content,time,files) VALUES($o,$seq,$date,$by,$content,$time,$files);";
+                    ins.CommandText = "INSERT INTO feedback(owner,task_uid,date,by_user,content,time,files) VALUES($o,$uid,$date,$by,$content,$time,$files);";
                     ins.Parameters.AddWithValue("$o", owner);
-                    ins.Parameters.AddWithValue("$seq", kv.Key);
+                    ins.Parameters.AddWithValue("$uid", kv.Key ?? "");
                     ins.Parameters.AddWithValue("$date", e.Date ?? "");
                     ins.Parameters.AddWithValue("$by", e.By ?? "");
                     ins.Parameters.AddWithValue("$content", e.Content ?? "");
@@ -568,7 +757,16 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         if (Scalar(conn, "SELECT COUNT(*) FROM feedback WHERE owner=$o;", c => c.Parameters.AddWithValue("$o", owner)) == 0)
         {
             var fb = ReadLegacyFeedback(legacyDbPath, legacyFeedbackXml);
-            if (fb.Count > 0) WriteFeedback(conn, owner, fb);
+            if (fb.Count > 0)
+            {
+                // Legacy feedback is keyed by the old per-owner seq; map it onto the
+                // newly-generated task uids before writing.
+                var seqToUid = ReadTasks(conn, owner).ToDictionary(t => t.Seq, t => t.Uid);
+                var byUid = new Dictionary<string, List<FeedbackEntry>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kv in fb)
+                    if (seqToUid.TryGetValue(kv.Key, out var uid)) byUid[uid] = kv.Value;
+                if (byUid.Count > 0) WriteFeedback(conn, owner, byUid);
+            }
         }
         MetaSet(conn, key);
         ArchiveLegacy(legacyDbPath, legacyTasksXml, legacyFeedbackXml);

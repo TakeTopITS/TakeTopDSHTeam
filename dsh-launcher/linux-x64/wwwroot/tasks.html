@@ -113,11 +113,13 @@
         <table>
           <thead>
             <tr>
-              <th id="thSeq" style="width:60px;">序号</th>
+              <th id="thSeq" style="width:90px;white-space:nowrap;">序号</th>
               <th id="thType" style="width:120px;">任务类型</th>
               <th id="thName" style="width:34%;min-width:240px;">任务名称</th>
               <th id="thSub" style="width:24px;padding:9px 2px;"></th>
               <th id="thFeedback" style="width:90px;">反馈</th>
+              <th id="thAssign" style="width:100px;">继续分派</th>
+              <th id="thAssignee" style="width:100px;">受理人</th>
               <th id="thCreator" style="width:100px;">创建者</th>
               <th id="thAssigned" style="width:140px;">分派时间</th>
               <th id="thStatus" style="width:90px;">状态</th>
@@ -211,7 +213,7 @@
   var I18N = {
     zh: {
       back:"← 返回", title:"任务分配", members:"成员", add:"添加任务", cur:"当前成员：",
-      thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thOps:"操作",
+      thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thAssign:"继续分派", thAssignee:"受理人", thOps:"操作",
       edit:"编辑", del:"删除", feedback:"反馈", fbContent:"反馈内容", fbRecord:"反馈记录", fbNo:"序号", fbBy:"反馈人", fbTime:"时间", fbFiles:"附件", fbEmpty:"暂无反馈", fbRequired:"请填写反馈内容", empty:"暂无任务", modalAdd:"添加任务", modalEdit:"编辑任务",
       lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）", lblAssignee:"受理人",
       selectType:"-- 选择类型 --", addTypeTip:"输入新类型名称：",
@@ -219,12 +221,11 @@
       save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
       saveOk:"保存成功", saveFail:"保存失败", saveDone:"正在保存...",
       st:{processing:"处理中", done:"完成", cancelled:"取消", pending:"待处理"},
-      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败",
-      pickMember:"请先在左侧选择一个成员（不要选“全部”）再添加任务"
+      errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败"
     },
     en: {
       back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
-      thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thOps:"Actions",
+      thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thAssign:"Continue Assign", thAssignee:"Assignee", thOps:"Actions",
       edit:"Edit", del:"Delete", feedback:"Feedback", fbContent:"Content", fbRecord:"Feedback records", fbNo:"No.", fbBy:"By", fbTime:"Time", fbFiles:"Files", fbEmpty:"No feedback yet", fbRequired:"Please enter feedback", empty:"No tasks", modalAdd:"Add Task", modalEdit:"Edit Task",
       lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)", lblAssignee:"Assignee",
       selectType:"-- Select type --", addTypeTip:"Enter new type name:",
@@ -232,8 +233,7 @@
       save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
       saveOk:"Saved successfully", saveFail:"Save failed", saveDone:"Saving...",
       st:{processing:"Processing", done:"Done", cancelled:"Cancelled", pending:"Pending"},
-      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed",
-      pickMember:"Please select a member on the left first (not \"All\") before adding a task"
+      errLoad:"Load failed: ", errSave:"Save failed", errUpload:"Upload failed"
     }
   };
   var lang = 'zh';
@@ -249,7 +249,7 @@
     $('#memberTitle').textContent = t('members');
     $('#addTaskBtn').textContent = t('add');
     $('#thSeq').textContent = t('thSeq'); $('#thType').textContent = t('thType'); $('#thName').textContent = t('thName'); $('#thCreator').textContent = t('thCreator'); $('#thAssigned').textContent = t('thAssigned');
-    $('#thStatus').textContent = t('thStatus'); $('#thFiles').textContent = t('thFiles'); $('#thFeedback').textContent = t('feedback'); $('#thOps').textContent = t('thOps');
+    $('#thStatus').textContent = t('thStatus'); $('#thFiles').textContent = t('thFiles'); $('#thFeedback').textContent = t('feedback'); $('#thAssign').textContent = t('thAssign'); $('#thAssignee').textContent = t('thAssignee'); $('#thOps').textContent = t('thOps');
     $('#modalTitle').textContent = ''; // set on open
     $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles'); $('#lblAssignee').textContent = t('lblAssignee');
     $('#modalCancel').textContent = t('cancel'); $('#modalSave').textContent = t('save');
@@ -266,11 +266,10 @@
   }
   var $ = function(s){ return document.querySelector(s); };
   var members = [], curMember = '', tasks = [];
-  var editing = 0; // seq being edited (0 = new)
+  var editing = ''; // task uid being edited ('' = new)
   var editingMember = ''; // member the editing task belongs to
   var editingCreator = ''; // creator of the editing task
-  var pendingParent = 0;        // parent task seq for the next new task (0 = none)
-  var pendingParentOwner = '';  // owner/member of that parent task
+  var pendingParentUid = '';    // parent task uid for the next new task ('' = none)
   var pendingAssignee = '';     // default assignee for the next new task
   var pendingFiles = []; // [{name, rel}]
   var myName = '';
@@ -315,7 +314,7 @@
     }
     render();
   }
-  fetch('/api/auth/me').then(function(r){return r.json()}).then(function(d){myName=(d.username||'').toLowerCase();}).catch(function(){});
+  fetch('/api/auth/me').then(function(r){return r.json()}).then(function(d){myName=(d.username||'').toLowerCase(); if (tasks && tasks.length) renderTasks();}).catch(function(){});
 
   function req(method, url, body) {
     var opt = { method: method, headers: { 'Content-Type': 'application/json' } };
@@ -349,27 +348,46 @@
   function refreshAssigneeOptions(selected) {
     var sel = $('#fAssignee'); if (!sel) return;
     var prev = (selected !== undefined) ? selected : sel.value;
-    sel.innerHTML = members.filter(function(m){ return m.id !== ''; }).map(function(m){
+    var opts = members.filter(function(m){ return m.id !== ''; });
+    sel.innerHTML = opts.map(function(m){
       return '<option value="' + m.id + '">' + m.name + '</option>';
     }).join('');
+    // Keep the current owner selectable even when it is not in the member list
+    // (e.g. a deleted instance), so saving never silently re-assigns the task.
+    if (prev && !opts.some(function(m){ return m.id === prev; })) {
+      var o = document.createElement('option');
+      o.value = prev; o.textContent = prev;
+      sel.insertBefore(o, sel.firstChild);
+    }
     if (prev) sel.value = prev;
     if (!sel.value && curMember) sel.value = curMember;
   }
 
-  var expandedKeys = {}; // "member#seq" -> true when its subtasks are shown
+  var expandedKeys = {}; // task uid -> true when its subtasks are shown
 
-  function taskRowKey(task) { return (task.member || '') + '#' + task.seq; }
+  function taskRowKey(task) { return task.uid || ((task.member || '') + '#' + task.seq); }
 
   function buildTaskRow(task, depth) {
     var st = t('st');
     var tr = document.createElement('tr');
     tr.setAttribute('data-key', taskRowKey(task));
     var indent = depth ? 'padding-left:' + (14 + depth * 18) + 'px;' : '';
-    tr.innerHTML = '<td style="' + indent + '">' + task.seq + '</td>'
+    // Edit/Delete are only for tasks the current user created AND that have no
+    // sub-tasks. A parent task (childCount > 0) hides them so delegating work
+    // can't be broken by editing/deleting the parent; a sub-task derived from
+    // one of your tasks (created by someone else) is still shown, but without
+    // these action buttons.
+    // Delete additionally disappears once ANYONE ELSE has left feedback on the
+    // task (hasOtherFeedback), so a co-worker's record can never be destroyed.
+    var canEdit = !!myName && String(task.createdBy || '').toLowerCase() === myName && !(task.childCount > 0);
+    var canDelete = canEdit && !task.hasOtherFeedback;
+    tr.innerHTML = '<td style="white-space:nowrap;' + indent + '">' + (task.hier != null && task.hier !== '' ? task.hier : task.seq) + '</td>'
       + '<td>' + (task.type || '') + '</td>'
       + '<td><a href="javascript:void(0)" class="task-name-link">' + (task.name || '') + '</a></td>'
       + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button type="button" class="sub-toggle" title="' + t('expand') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
       + '<td><button class="fb-btn" style="padding:3px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:11px;cursor:pointer;">' + t('feedback') + '</button></td>'
+      + '<td><button class="asg-btn" data-task="' + (task.uid || '') + '" style="padding:3px 10px;border:0;border-radius:5px;background:#0ea5e9;color:#fff;font-size:11px;cursor:pointer;">' + t('thAssign') + '</button></td>'
+      + '<td>' + (task.member || '') + '</td>'
       + '<td>' + (task.createdBy || '') + '</td>'
       + '<td>' + (task.assignedAt || '') + '</td>'
       + '<td><span class="st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
@@ -378,16 +396,21 @@
           return '<li><a href="javascript:void(0)" class="task-file-link" data-file="' + String(f).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;">' + name + '</a></li>';
         }).join('') + '</ul></td>'
       + '<td class="row-ops">'
-      +   '<button class="secondary">' + t('edit') + '</button> '
-      +   '<button class="danger">' + t('del') + '</button>'
+      +   (canEdit ? '<button class="secondary">' + t('edit') + '</button>' : '')
+      +   (canDelete ? ' <button class="danger">' + t('del') + '</button>' : '')
       + '</td>';
     tr.querySelector('a.task-name-link').onclick = function(){ openView(task); };
     tr.querySelectorAll('a.task-file-link').forEach(function(a){
       a.onclick = function(){ openTaskFile(a.getAttribute('data-file'), task.member, task.createdBy); };
     });
-    tr.querySelector('button.secondary').onclick = function(){ openModal(task); };
-    tr.querySelector('button.danger').onclick = function(){ delTask(task); };
+    if (canEdit) {
+      tr.querySelector('button.secondary').onclick = function(){ openModal(task); };
+    }
+    if (canDelete) {
+      tr.querySelector('button.danger').onclick = function(){ delTask(task); };
+    }
     tr.querySelector('button.fb-btn').onclick = function(){ openFeedback(task); };
+    tr.querySelector('button.asg-btn').onclick = function(){ openContinueAssign(task); };
     var stb = tr.querySelector('button.sub-toggle');
     if (stb) stb.onclick = function(){ toggleSubtasks(tr, task, depth || 0); };
     return tr;
@@ -404,13 +427,12 @@
     var body = tableWrap.querySelector('tbody');
     body.innerHTML = '';
     var present = {};
-    tasks.forEach(function(x){ present[(x.member || '') + '#' + x.seq] = true; });
+    tasks.forEach(function(x){ present[x.uid] = true; });
     tasks.forEach(function(task){
       // A subtask whose parent is shown in this list is rendered inline instead
       // (after expanding the parent); otherwise it stays a normal top-level row.
-      if (task.parentTask) {
-        var pkey = (task.parentOwner || '') + '#' + task.parentTask;
-        if (present[pkey]) return;
+      if (task.parentUid) {
+        if (present[task.parentUid]) return;
       }
       var tr = buildTaskRow(task, 0);
       body.appendChild(tr);
@@ -439,7 +461,7 @@
     var btn = tr.querySelector('button.sub-toggle');
     if (btn) { btn.textContent = '−'; btn.title = t('collapse'); }
     var member = task.member || curMember || '';
-    return fetch('/api/tasks?parent=' + task.seq + '&parentOwner=' + encodeURIComponent(member) + '&page=1&pageSize=100&_=' + Date.now())
+    return fetch('/api/tasks?parentUid=' + encodeURIComponent(task.uid || '') + '&page=1&pageSize=100&_=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
         var kids = d.tasks || [];
@@ -447,7 +469,7 @@
           var ph = document.createElement('tr');
           ph.className = 'sub-child';
           ph.setAttribute('data-for', key);
-          ph.innerHTML = '<td></td><td colspan="8" style="color:#9ca3af;font-size:12px;padding:6px 12px;">' + t('noSubTasks') + '</td><td></td>';
+          ph.innerHTML = '<td></td><td colspan="10" style="color:#9ca3af;font-size:12px;padding:6px 12px;">' + t('noSubTasks') + '</td><td></td>';
           tr.parentNode.insertBefore(ph, tr.nextSibling);
           return ph;
         }
@@ -515,12 +537,12 @@
 
   async function delTask(task) {
     if (!confirm(t('confirmDel'))) return;
-    await req('DELETE', '/api/tasks?inst=' + encodeURIComponent(task.member || curMember) + '&seq=' + task.seq);
+    await req('DELETE', '/api/tasks?inst=' + encodeURIComponent(task.member || curMember) + '&uid=' + encodeURIComponent(task.uid));
     loadTasks();
   }
 
   function openModal(task) {
-    editing = task ? task.seq : 0;
+    editing = task ? task.uid : '';
     editingMember = task ? (task.member || curMember) : '';
     editingCreator = task ? (task.createdBy || '') : '';
     $('#modalTitle').textContent = editing ? t('modalEdit') : t('modalAdd');
@@ -540,23 +562,31 @@
       $('#fAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     }
     $('#fStatus').value = task ? (task.status||'processing') : 'processing';
-    // Assignee (owner of a new task). When editing, show the current owner and
-    // lock it (moving a task between members is not supported here).
+    // Assignee (owner of the task). Always editable so an existing task can be
+    // re-assigned to another member.
     var asg = task ? (task.member || editingMember || curMember) : (pendingAssignee || curMember);
     refreshAssigneeOptions(asg);
-    $('#fAssignee').disabled = !!editing;
+    $('#fAssignee').disabled = false;
     pendingFiles = (task && task.files) ? task.files.slice() : [];
     $('#fFilesLabel').textContent = '';
     renderChips();
     $('#modal').classList.add('show');
   }
-  function closeModal(){ $('#modal').classList.remove('show'); pendingParent = 0; pendingParentOwner = ''; pendingAssignee = ''; }
+  function closeModal(){ $('#modal').classList.remove('show'); pendingParentUid = ''; pendingAssignee = ''; }
   // Open the add-task form pre-linked to a parent task (used by "Continue Assign").
-  function openContinueAssign(parentSeq, parentOwner, assignee) {
-    pendingParent = parseInt(parentSeq, 10) || 0;
-    pendingParentOwner = parentOwner || '';
-    pendingAssignee = assignee || '';
+  // Mirrors the "My Tasks" continue-assign flow: prefill type/name, default the
+  // assignee to a different member, and expand the parent after saving.
+  function openContinueAssign(task) {
+    if (!task || !task.uid) return;
+    pendingParentUid = task.uid;
+    var others = (members || []).filter(function(m){ return m.id && m.id !== (task.member || curMember); });
+    pendingAssignee = (others[0] && others[0].id) || task.member || curMember || '';
+    // Auto-expand the parent once the subtask is saved and the list reloads.
+    expandedKeys[taskRowKey(task)] = true;
     openModal(null);
+    if (task.type) { $('#fType').value = task.type; refreshTypeDropdown(task.type); }
+    $('#fName').value = (task.name || '') + (lang === 'en' ? ' - follow-up' : ' - 后续');
+    $('#fAssignee').value = pendingAssignee || $('#fAssignee').value;
   }
   window.openContinueAssign = openContinueAssign;
 
@@ -631,7 +661,7 @@
   function closeView(){ $('#viewModal').classList.remove('show'); }function closeView(){ $('#viewModal').classList.remove('show'); }
 var fbModal2=null;
 var fb2PendingFiles=[];
-var fb2Inst=''; var fb2Seq=0;
+var fb2Inst=''; var fb2Uid=''; var fb2Seq=0;
 function ensureFb2(){ if(fbModal2) return;
   fbModal2=document.createElement("div"); fbModal2.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10001;display:none;align-items:center;justify-content:center;";
   fbModal2.innerHTML='<div style="background:#fff;border-radius:10px;width:min(760px,96vw);max-height:90vh;padding:20px 24px;display:flex;flex-direction:column;overflow-y:auto;">'+
@@ -688,8 +718,8 @@ function ensureFb2(){ if(fbModal2) return;
   });
 }
 function renderFb2Chips(){var c=fbModal2.querySelector("#fb2FileChips"); c.innerHTML=""; fb2PendingFiles.forEach(function(f,i){var s=document.createElement("span"); s.style.cssText="display:inline-block;background:#e0e7ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px 4px 2px 0;"; s.textContent=f.name; c.appendChild(s);});}
-function openFeedback(task){ task=task||{}; fb2Inst=(task.member||curMember||''); fb2Seq=task.seq||0; ensureFb2(); fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; fbModal2.querySelector("#fb2Title").textContent=(task.name||"")+" (#"+task.seq+")"; fbModal2.querySelector("#fb2Editor").innerHTML=""; fbModal2.style.display="flex"; loadFeedback2(); }
-async function loadFeedback2(){ try{ var r=await fetch("/api/feedback?inst="+encodeURIComponent(fb2Inst)+"&seq="+fb2Seq); var d=await r.json().catch(function(){return{};}); var es=d.entries||[]; var body=fbModal2.querySelector("#fb2Body"); var wrap=body.closest("div[style]");
+function openFeedback(task){ task=task||{}; fb2Inst=(task.member||curMember||''); fb2Uid=task.uid||''; fb2Seq=task.seq||0; ensureFb2(); fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; fbModal2.querySelector("#fb2Title").textContent=(task.name||"")+" ("+(task.hier||task.seq)+")"; fbModal2.querySelector("#fb2Editor").innerHTML=""; fbModal2.style.display="flex"; loadFeedback2(); }
+async function loadFeedback2(){ try{ var r=await fetch("/api/feedback?inst="+encodeURIComponent(fb2Inst)+"&uid="+encodeURIComponent(fb2Uid)); var d=await r.json().catch(function(){return{};}); var es=d.entries||[]; var body=fbModal2.querySelector("#fb2Body"); var wrap=body.closest("div[style]");
 var oldPag2=wrap.querySelector(".tt-pager2"); if(oldPag2)oldPag2.remove();
 if(!es.length){ body.innerHTML='<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:14px;">'+t("fbEmpty")+'</td></tr>'; } else {
 var now=new Date(); var today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0'); var mine=es.find(function(e){ var byMatch=(e.by||'').toLowerCase()===myName; if(!byMatch)return false; if(e.date&&e.date===today)return true; if(e.time&&e.time.slice(0,10)===today)return true; return false; }); if(mine){fbModal2.querySelector("#fb2Editor").innerHTML=mine.content||"";} 
@@ -698,7 +728,7 @@ pagFb2(wrap, es);
 function pagFb2(wrap, es){ var pg={page:1,data:es}; function render(){ var total=pg.data.length; var pages=Math.max(1,Math.ceil(total/PAGE_SIZE)); if(pg.page>pages)pg.page=pages; var s=(pg.page-1)*PAGE_SIZE; var slice=pg.data.slice(s,s+PAGE_SIZE); var b=fbModal2.querySelector("#fb2Body"); b.innerHTML=""; slice.forEach(function(e,i){ var filesHtml=""; if(e.files){ e.files.split(",").filter(Boolean).forEach(function(fn){ var esc=String(fn).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); filesHtml+='<div><a href="javascript:void(0)" class="fb2-file-link" data-f="'+esc+'" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">'+esc+'</a></div>'; }); } var tr=document.createElement("tr"); tr.innerHTML='<td style="padding:8px;">'+(total-(s+i))+'</td><td style="padding:8px;">'+(e.content||"")+'</td><td style="padding:8px;">'+(e.by||"")+'</td><td style="padding:8px;">'+(e.time||"")+'</td><td style="padding:8px;">'+filesHtml+'</td>'; b.appendChild(tr); }); b.querySelectorAll("a.fb2-file-link").forEach(function(a){ a.onclick=function(){ openFbFile(a.getAttribute("data-f")); }; }); var pag=wrap.querySelector(".tt-pager2"); if(!pag){pag=document.createElement("div");pag.className="tt-pager2";pag.style.cssText="display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;";wrap.appendChild(pag);} if(total<=PAGE_SIZE){pag.innerHTML="";return;} var html='<span style="font-size:12px;color:#6b7280;margin-right:8px;">'+total+' items</span><button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> '; for(var p=1;p<=pages;p++){html+='<button data-p="'+p+'" style="padding:3px 10px;border:1px solid '+(p===pg.page?'#2563eb':'#d5d9df')+';border-radius:5px;background:'+(p===pg.page?'#2563eb':'#fff')+';color:'+(p===pg.page?'#fff':'#334155')+';font-size:12px;cursor:pointer;margin:0 1px;">'+p+'</button> ';} html+='<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>'; pag.innerHTML=html; pag.querySelectorAll("button[data-p]").forEach(function(btn){ btn.onclick=function(){ var v=btn.getAttribute("data-p"); if(v==="prev")pg.page=Math.max(1,pg.page-1); else if(v==="next")pg.page=Math.min(pages,pg.page+1); else pg.page=parseInt(v,10); render(); }; }); }
   render();
 }
-async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor"); var html=editor.innerHTML.trim(); if(!html||html==="<br>"||html==="<div><br></div>"){ alert(t("fbRequired")); return; } var btn=fbModal2.querySelector("#fb2Save"); var spin=fbModal2.querySelector("#fb2SaveSpin"); var txt=fbModal2.querySelector("#fb2SaveTxt"); var msg=fbModal2.querySelector("#fb2Msg"); btn.disabled=true; btn.style.opacity="0.75"; btn.style.cursor="wait"; spin.style.display="inline-block"; txt.textContent=t("saveDone"); msg.style.display="none"; var fd=new FormData(); fd.append("inst",fb2Inst); fd.append("seq",fb2Seq); fd.append("content",html); for(var i=0;i<fb2PendingFiles.length;i++){ fd.append("files",fb2PendingFiles[i]); } var r=await fetch("/api/feedback",{method:"POST",body:fd}); var d=await r.json().catch(function(){return{};}); if(!d.ok){ spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; alert(d.error||"Failed"); return; } fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; await loadFeedback2(); spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; msg.textContent=t("saveOk"); msg.style.color="#16a34a"; msg.style.display="inline-block"; setTimeout(function(){msg.style.display="none";},3000); }
+async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor"); var html=editor.innerHTML.trim(); if(!html||html==="<br>"||html==="<div><br></div>"){ alert(t("fbRequired")); return; } var btn=fbModal2.querySelector("#fb2Save"); var spin=fbModal2.querySelector("#fb2SaveSpin"); var txt=fbModal2.querySelector("#fb2SaveTxt"); var msg=fbModal2.querySelector("#fb2Msg"); btn.disabled=true; btn.style.opacity="0.75"; btn.style.cursor="wait"; spin.style.display="inline-block"; txt.textContent=t("saveDone"); msg.style.display="none"; var fd=new FormData(); fd.append("inst",fb2Inst); fd.append("uid",fb2Uid); fd.append("content",html); for(var i=0;i<fb2PendingFiles.length;i++){ fd.append("files",fb2PendingFiles[i]); } var r=await fetch("/api/feedback",{method:"POST",body:fd}); var d=await r.json().catch(function(){return{};}); if(!d.ok){ spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; alert(d.error||"Failed"); return; } fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; await loadFeedback2(); spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; msg.textContent=t("saveOk"); msg.style.color="#16a34a"; msg.style.display="inline-block"; setTimeout(function(){msg.style.display="none";},3000); }
   function closeImgPreview(){ $('#imgPreview').classList.remove('show'); }
 
   // Preview a file via /api/files/read (returns a base64 dataUri for images),
@@ -748,17 +778,17 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
 
   async function saveTask() {
     var assignee = ($('#fAssignee') && $('#fAssignee').value) || curMember || '';
-    if (!editing && !assignee) { alert(t('pickMember')); return; }
+    if (!assignee) { alert(t('errSave')); return; }
     var payload = {
-      inst: editing ? editingMember : assignee, seq: editing,
+      inst: editing ? editingMember : assignee, uid: editing || undefined,
+      newInst: editing ? assignee : undefined,
       name: $('#fName').value.trim(),
       type: $('#fType').value.trim(),
       content: $('#fContent').innerHTML,
       status: $('#fStatus').value,
       assignedAt: ($('#fAssigned').value || '').replace('T', ' '),
       files: pendingFiles,
-      parentTask: editing ? undefined : (pendingParent || 0),
-      parentOwner: editing ? undefined : (pendingParentOwner || '')
+      parentUid: editing ? undefined : (pendingParentUid || '')
     };
     var method = editing ? 'PUT' : 'POST';
     var d = await req(method, '/api/tasks', payload);
@@ -868,7 +898,6 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   });
 
   $('#addTaskBtn').onclick = function(){
-    if (!curMember) { alert(t('pickMember')); return; }
     openModal(null);
   };
   $('#modalCancel').onclick = closeModal;

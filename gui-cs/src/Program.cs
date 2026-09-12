@@ -986,33 +986,32 @@ void WriteTaskList(string instId, List<TaskRecord> tasks)
 // member. Admin may read any member (and "admin" for its own); a normal user may
 // only read its own. Supports backend pagination (page/pageSize); omitting them
 // returns the full list (backwards compatible).
-app.MapGet("/api/tasks", (string? inst, string? scope, int? parent, string? parentOwner, int? page, int? pageSize, HttpContext ctx) =>
+app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, int? page, int? pageSize, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
     ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
     ctx.Response.Headers["Pragma"] = "no-cache";
     ctx.Response.Headers["Expires"] = "0";
-    Console.WriteLine($"[tasks] user={username} admin={isAdmin} inst={inst} scope={scope} parent={parent} parentOwner={parentOwner} page={page} pageSize={pageSize} ip={ctx.Connection.RemoteIpAddress}");
+    Console.WriteLine($"[tasks] user={username} admin={isAdmin} inst={inst} scope={scope} parentUid={parentUid} page={page} pageSize={pageSize} ip={ctx.Connection.RemoteIpAddress}");
     try
     {
         List<(TaskRecord Task, string Member)> all;
-        if (parent.HasValue)
+        if (!string.IsNullOrWhiteSpace(parentUid))
         {
-            // Subtask lookup: find the direct children of a parent task, scanning
-            // every member list (a child lives in the ASSIGNEE's list, which may
-            // differ from the parent's owner). Non-admins only see tasks they
-            // created. parentOwner disambiguates seq collisions across members.
+            // Subtask lookup: find the direct children of a parent task by its
+            // globally-unique uid, scanning every member list (a child lives in
+            // the ASSIGNEE's list, which may differ from the parent's owner).
+            // Non-admins only see tasks they created.
             all = new List<(TaskRecord Task, string Member)>();
             foreach (var m in instMgr.List())
                 foreach (var t in ReadTaskList(m.Id))
                     all.Add((t, m.Id));
             foreach (var t in ReadTaskList("admin"))
-                if (!all.Any(x => x.Member == "admin" && x.Task.Seq == t.Seq))
+                if (!all.Any(x => x.Member == "admin" && x.Task.Uid == t.Uid))
                     all.Add((t, "admin"));
             if (!isAdmin) all = all.Where(x => string.Equals(x.Task.CreatedBy, username, StringComparison.OrdinalIgnoreCase)).ToList();
-            all = all.Where(x => x.Task.ParentTask == parent.Value
-                && (string.IsNullOrWhiteSpace(parentOwner) || string.Equals(x.Task.ParentOwner, parentOwner, StringComparison.OrdinalIgnoreCase))).ToList();
+            all = all.Where(x => string.Equals(x.Task.ParentUid, parentUid, StringComparison.OrdinalIgnoreCase)).ToList();
         }
         else if (string.IsNullOrWhiteSpace(inst))
         {
@@ -1023,10 +1022,12 @@ app.MapGet("/api/tasks", (string? inst, string? scope, int? parent, string? pare
                     all.Add((t, m.Id));
             }
             foreach (var t in ReadTaskList("admin"))
-                if (!all.Any(x => x.Task.Seq == t.Seq && x.Member == "admin"))
+                if (!all.Any(x => x.Task.Uid == t.Uid && x.Member == "admin"))
                     all.Add((t, "admin"));
-            // "All" overview: non-admins only see tasks they created (not tasks
-            // created by others, even if assigned to them).
+            // "All" overview: admins see every member's tasks (collaboration
+            // overview); non-admins only see tasks they created (not tasks
+            // created by others, even if assigned to them). The Task Assignment
+            // page hides Edit/Delete for tasks the current user did not create.
             if (!isAdmin) all = all.Where(x => string.Equals(x.Task.CreatedBy, username, StringComparison.OrdinalIgnoreCase)).ToList();
         }
         else if (string.Equals(scope, "assignment", StringComparison.OrdinalIgnoreCase))
@@ -1041,7 +1042,7 @@ app.MapGet("/api/tasks", (string? inst, string? scope, int? parent, string? pare
             all = ReadTaskList(inst).Select(t => (t, inst)).ToList();
         }
 
-        var ordered = all.OrderByDescending(x => x.Task.Seq).ToList();
+        var ordered = all.OrderByDescending(x => x.Task.Seq).ThenBy(x => x.Member, StringComparer.OrdinalIgnoreCase).ToList();
         var total = ordered.Count;
         // Apply pagination only when page/pageSize are supplied.
         int? pagedTotal = null; List<(TaskRecord Task, string Member)> slice = ordered;
@@ -1068,20 +1069,83 @@ app.MapGet("/api/tasks", (string? inst, string? scope, int? parent, string? pare
         {
             foreach (var t in list)
             {
-                if (t.ParentTask <= 0) continue;
+                if (string.IsNullOrWhiteSpace(t.ParentUid)) continue;
                 if (!isAdmin && !string.Equals(t.CreatedBy, username, StringComparison.OrdinalIgnoreCase)) continue;
-                var ck = (t.ParentOwner ?? "") + "#" + t.ParentTask;
-                childCounts[ck] = childCounts.TryGetValue(ck, out var c) ? c + 1 : 1;
+                childCounts[t.ParentUid!] = childCounts.TryGetValue(t.ParentUid!, out var c) ? c + 1 : 1;
             }
         }
         foreach (var m in instMgr.List()) CountChildren(ReadTaskList(m.Id));
         CountChildren(ReadTaskList("admin"));
 
+        // Hierarchical display number ("1", "1-1", "1-2-1", ...) computed over the
+        // WHOLE task forest, so it is unique even when the "All" view merges many
+        // members' lists. A task's number is its parent's number plus its 1-based
+        // position among its siblings; roots are numbered 1..N in the same order
+        // the API returns them.
+        var hierMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        {
+            var forest = new List<(string Owner, TaskRecord Task)>();
+            foreach (var m in instMgr.List())
+                foreach (var t in ReadTaskList(m.Id)) forest.Add((m.Id, t));
+            foreach (var t in ReadTaskList("admin"))
+                if (!forest.Any(x => x.Owner == "admin" && x.Task.Uid == t.Uid)) forest.Add(("admin", t));
+
+            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var x in forest) present.Add(x.Task.Uid);
+            var kidsOf = new Dictionary<string, List<(string Owner, TaskRecord Task)>>(StringComparer.OrdinalIgnoreCase);
+            var roots = new List<(string Owner, TaskRecord Task)>();
+            foreach (var x in forest)
+            {
+                var pu = x.Task.ParentUid ?? "";
+                if (!string.IsNullOrWhiteSpace(pu) && present.Contains(pu))
+                {
+                    if (!kidsOf.TryGetValue(pu, out var lst)) { lst = new List<(string, TaskRecord)>(); kidsOf[pu] = lst; }
+                    lst.Add(x);
+                }
+                else roots.Add(x);
+            }
+            int Cmp((string Owner, TaskRecord Task) a, (string Owner, TaskRecord Task) b)
+            {
+                var c = b.Task.Seq.CompareTo(a.Task.Seq);
+                return c != 0 ? c : string.Compare(a.Owner, b.Owner, StringComparison.OrdinalIgnoreCase);
+            }
+            roots.Sort(Cmp);
+            void Walk(List<(string Owner, TaskRecord Task)> list, string prefix)
+            {
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var x = list[i];
+                    var path = prefix.Length == 0 ? (i + 1).ToString() : prefix + "-" + (i + 1);
+                    hierMap[x.Task.Uid] = path;
+                    if (kidsOf.TryGetValue(x.Task.Uid, out var kids))
+                    {
+                        kids.Sort(Cmp);
+                        Walk(kids, path);
+                    }
+                }
+            }
+            Walk(roots, "");
+        }
+
+        // A task may only be deleted while it is still "private" to its creator:
+        // as soon as someone else has left feedback on it, deleting it would destroy
+        // that person's record, so the UI hides Delete (see hasOtherFeedback below).
+        // (A task with sub-tasks is already non-deletable via childCount.)
+        var fbMemo = new Dictionary<string, Dictionary<string, List<FeedbackEntry>>>(StringComparer.OrdinalIgnoreCase);
+        bool HasOtherFeedback(TaskRecord t, string member)
+        {
+            if (!fbMemo.TryGetValue(member, out var fb)) { fb = ReadFeedback(member); fbMemo[member] = fb; }
+            if (!fb.TryGetValue(t.Uid ?? "", out var list) || list == null) return false;
+            return list.Any(e => !string.Equals(e.By, t.CreatedBy, StringComparison.OrdinalIgnoreCase));
+        }
+
         var result = slice.Select(x => new {
-            seq = x.Task.Seq, name = x.Task.Name, type = x.Task.Type, content = x.Task.Content,
+            uid = x.Task.Uid, seq = x.Task.Seq, name = x.Task.Name, type = x.Task.Type, content = x.Task.Content,
             status = x.Task.Status, assignedAt = x.Task.AssignedAt, createdBy = x.Task.CreatedBy,
-            parentTask = x.Task.ParentTask, parentOwner = x.Task.ParentOwner, files = x.Task.Files, member = x.Member,
-            childCount = childCounts.TryGetValue(x.Member + "#" + x.Task.Seq, out var cc) ? cc : 0
+            parentUid = x.Task.ParentUid, files = x.Task.Files, member = x.Member,
+            childCount = childCounts.TryGetValue(x.Task.Uid, out var cc) ? cc : 0,
+            hasOtherFeedback = HasOtherFeedback(x.Task, x.Member),
+            hier = hierMap.TryGetValue(x.Task.Uid, out var hp) ? hp : x.Task.Seq.ToString()
         });
         if (pagedTotal.HasValue)
         {
@@ -1115,23 +1179,25 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
     {
         var list = ReadTaskList(req.Inst);
         var seq = (list.Count == 0 ? 0 : list.Max(t => t.Seq)) + 1;
-        list.Add(new TaskRecord { Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = req.Content ?? "", Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentTask = req.ParentTask ?? 0, ParentOwner = req.ParentOwner ?? "", Files = req.Files ?? new List<string>() });
+        var uid = LauncherDb.NewTaskUid();
+        list.Add(new TaskRecord { Uid = uid, Seq = seq, Name = req.Name ?? "", Type = req.Type ?? "", Content = req.Content ?? "", Status = req.Status ?? "pending", AssignedAt = string.IsNullOrWhiteSpace(req.AssignedAt) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm") : req.AssignedAt, CreatedBy = username, ParentUid = req.ParentUid ?? "", Files = req.Files ?? new List<string>() });
         WriteTaskList(req.Inst, list);
-        return Results.Ok(new { ok = true, seq });
+        return Results.Ok(new { ok = true, uid, seq });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
 });
 
-// PUT /api/tasks  -> edit a task  { inst, seq, type, content, status, files[] }
+// PUT /api/tasks  -> edit a task  { inst, uid, type, content, status, files[], parentUid?, newInst? }
 app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
     if (string.IsNullOrWhiteSpace(req.Inst)) return Results.Json(new { ok = false, error = "缺少成员" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(req.Uid)) return Results.Json(new { ok = false, error = "缺少任务ID" }, statusCode: 400);
     try
     {
         var list = ReadTaskList(req.Inst);
-        var t = list.FirstOrDefault(x => x.Seq == req.Seq);
+        var t = list.FirstOrDefault(x => string.Equals(x.Uid, req.Uid, StringComparison.OrdinalIgnoreCase));
         if (t == null) return Results.Json(new { ok = false, error = "任务不存在" }, statusCode: 404);
         if (!isAdmin && !string.Equals(t.CreatedBy, username, StringComparison.OrdinalIgnoreCase))
             return Results.Json(new { ok = false, error = "仅可编辑自己建立的任务" }, statusCode: 403);
@@ -1140,39 +1206,77 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         t.Content = req.Content ?? t.Content;
         t.Status = req.Status ?? t.Status;
         t.AssignedAt = req.AssignedAt ?? t.AssignedAt;
-        if (req.ParentTask.HasValue) t.ParentTask = req.ParentTask.Value;
-        if (req.ParentOwner != null) t.ParentOwner = req.ParentOwner;
+        if (req.ParentUid != null) t.ParentUid = req.ParentUid;
         if (req.Files != null) t.Files = req.Files;
+
+        // Re-assignment: move the task to another member's list (keeping it in the
+        // assignee's list is what makes it show up on their My Tasks page). The
+        // task keeps its uid, so children that point at it stay linked.
+        var target = req.NewInst;
+        if (!string.IsNullOrWhiteSpace(target) &&
+            !string.Equals(target, req.Inst, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!isAdmin)
+            {
+                var bound = auth.Find(username)?.InstanceId ?? username;
+                var knownMember = instMgr.Get(target!) != null;
+                if (!string.Equals(target, bound, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(target, username, StringComparison.OrdinalIgnoreCase) &&
+                    !knownMember)
+                    return Results.Json(new { ok = false, error = "无权操作该成员" }, statusCode: 403);
+            }
+            list.Remove(t);
+            var newList = ReadTaskList(target!);
+            t.Seq = (newList.Count == 0 ? 0 : newList.Max(x => x.Seq)) + 1;
+            newList.Add(t);
+            WriteTaskList(req.Inst, list);
+            WriteTaskList(target!, newList);
+
+            // Move feedback so it follows the task (feedback is keyed by task uid).
+            try
+            {
+                var oldFb = ReadFeedback(req.Inst);
+                if (oldFb.TryGetValue(t.Uid, out var entries) && entries.Count > 0)
+                {
+                    oldFb.Remove(t.Uid);
+                    WriteFeedback(req.Inst, oldFb);
+                    var newFb = ReadFeedback(target!);
+                    newFb[t.Uid] = entries;
+                    WriteFeedback(target!, newFb);
+                }
+            }
+            catch { }
+
+            return Results.Ok(new { ok = true, uid = t.Uid, member = target });
+        }
+
         WriteTaskList(req.Inst, list);
-        return Results.Ok(new { ok = true });
+        return Results.Ok(new { ok = true, uid = t.Uid });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
 });
 
-// DELETE /api/tasks?inst=<id>&seq=<n>  -> delete a task
-app.MapDelete("/api/tasks", (string? inst, int? seq, HttpContext ctx) =>
+// DELETE /api/tasks?inst=<id>&uid=<taskUid>  -> delete a task
+app.MapDelete("/api/tasks", (string? inst, string? uid, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
     if (string.IsNullOrWhiteSpace(inst)) return Results.Json(new { ok = false, error = "缺少成员" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(uid)) return Results.Json(new { ok = false, error = "缺少任务ID" }, statusCode: 400);
     try
     {
         var list = ReadTaskList(inst);
-        var t = list.FirstOrDefault(x => x.Seq == seq);
+        var t = list.FirstOrDefault(x => string.Equals(x.Uid, uid, StringComparison.OrdinalIgnoreCase));
         if (t == null) return Results.Json(new { ok = false, error = "任务不存在" }, statusCode: 404);
         if (!isAdmin && !string.Equals(t.CreatedBy, username, StringComparison.OrdinalIgnoreCase))
             return Results.Json(new { ok = false, error = "仅可删除自己建立的任务" }, statusCode: 403);
-        list.RemoveAll(x => x.Seq == seq);
+        list.RemoveAll(x => string.Equals(x.Uid, uid, StringComparison.OrdinalIgnoreCase));
         WriteTaskList(inst, list);
-        // Also drop this task's feedback so orphaned entries don't attach to a
-        // future task that reuses the same seq number.
+        // Also drop this task's feedback (keyed by the task uid).
         try
         {
-            if (seq.HasValue)
-            {
-                var fb = ReadFeedback(inst);
-                if (fb.Remove(seq.Value)) WriteFeedback(inst, fb);
-            }
+            var fb = ReadFeedback(inst);
+            if (fb.Remove(uid!)) WriteFeedback(inst, fb);
         }
         catch { }
         return Results.Ok(new { ok = true });
@@ -1224,12 +1328,12 @@ string SafeTaskDbPath(string instId) { try { return TaskDbPath(instId); } catch 
 string SafeTaskDocPath(string instId) { try { return TaskDocPath(instId); } catch { return ""; } }
 string SafeFeedbackDocPath(string instId) { try { return FeedbackDocPath(instId); } catch { return ""; } }
 
-Dictionary<int, List<FeedbackEntry>> ReadFeedback(string instId)
+Dictionary<string, List<FeedbackEntry>> ReadFeedback(string instId)
 {
     return taskCache.GetFeedback(instId, () => LoadFeedbackFromDisk(instId));
 }
 
-void WriteFeedback(string instId, Dictionary<int, List<FeedbackEntry>> dict)
+void WriteFeedback(string instId, Dictionary<string, List<FeedbackEntry>> dict)
 {
     taskCache.SetFeedback(instId, dict);
 }
@@ -1243,10 +1347,10 @@ List<TaskRecord> LoadTasksFromDisk(string instId)
 void WriteTasksToDisk(string instId, List<TaskRecord> tasks)
     => LauncherDb.SaveTasks(root, instId, tasks);
 
-Dictionary<int, List<FeedbackEntry>> LoadFeedbackFromDisk(string instId)
+Dictionary<string, List<FeedbackEntry>> LoadFeedbackFromDisk(string instId)
     => LauncherDb.LoadFeedback(root, instId, SafeTaskDbPath(instId), SafeTaskDocPath(instId), SafeFeedbackDocPath(instId));
 
-void WriteFeedbackToDisk(string instId, Dictionary<int, List<FeedbackEntry>> dict)
+void WriteFeedbackToDisk(string instId, Dictionary<string, List<FeedbackEntry>> dict)
     => LauncherDb.SaveFeedback(root, instId, dict);
 
 // Debounced flush hook: every FLUSH_INTERVAL the cache writes its dirty entries to disk.
@@ -1259,8 +1363,8 @@ void ScheduleTaskFlush()
     }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
 }
 
-// GET /api/feedback?inst=<id>&seq=<n> -> the feedback entries for a task (any user may read; scoped like tasks)
-app.MapGet("/api/feedback", (string? inst, int? seq, HttpContext ctx) =>
+// GET /api/feedback?inst=<id>&uid=<taskUid> -> the feedback entries for a task (any user may read; scoped like tasks)
+app.MapGet("/api/feedback", (string? inst, string? uid, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
@@ -1268,17 +1372,7 @@ app.MapGet("/api/feedback", (string? inst, int? seq, HttpContext ctx) =>
     try
     {
     var dict = ReadFeedback(target);
-    var list = seq.HasValue && dict.TryGetValue(seq.Value, out var l) ? l : new List<FeedbackEntry>();
-    // Staleness guard: because task seq numbers are reused after a delete, a
-    // freshly created task can inherit orphaned feedback left by a previous
-    // task that occupied the same seq. Only show feedback dated on/after the
-    // task's assignedAt time; anything earlier is orphaned and dropped.
-    if (seq.HasValue)
-    {
-        var assignedAt = ReadTaskList(target).FirstOrDefault(x => x.Seq == seq.Value)?.AssignedAt;
-        if (!string.IsNullOrWhiteSpace(assignedAt) && DateTime.TryParse(assignedAt, out var start))
-            list = list.Where(e => DateTime.TryParse(e.Time ?? e.Date, out var et) && et >= start).ToList();
-    }
+    var list = !string.IsNullOrWhiteSpace(uid) && dict.TryGetValue(uid!, out var l) ? l : new List<FeedbackEntry>();
     list = list.OrderByDescending(e => e.Time).ToList();
     // Keep the wire format stable for the UI: "files" stays a comma-separated
     // string even though it is stored normalized in feedback_files.
@@ -1318,7 +1412,7 @@ app.MapGet("/api/sessions", (string? date, HttpContext ctx) =>
     return Results.Ok(new { ok = true, dates });
 });
 
-// POST /api/feedback (multipart: inst, seq, content, files...) -> upsert today's entry
+// POST /api/feedback (multipart: inst, uid, content, files...) -> upsert today's entry
 app.MapPost("/api/feedback", async (HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
@@ -1327,15 +1421,15 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
         return Results.BadRequest(new { ok = false, error = "expected multipart form" });
     var form = await ctx.Request.ReadFormAsync();
     var inst = form["inst"].FirstOrDefault() ?? "";
-    var seqStr = form["seq"].FirstOrDefault() ?? "0";
+    var uid = form["uid"].FirstOrDefault() ?? "";
     var content = form["content"].FirstOrDefault() ?? "";
-    if (!int.TryParse(seqStr, out var seq)) seq = 0;
     var target = string.IsNullOrWhiteSpace(inst) ? username : inst;
     if (string.IsNullOrWhiteSpace(content)) return Results.Json(new { ok = false, error = "反馈内容不能为空" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(uid)) return Results.Json(new { ok = false, error = "缺少任务ID" }, statusCode: 400);
     try
     {
         var dict = ReadFeedback(target);
-        if (!dict.TryGetValue(seq, out var list)) { list = new List<FeedbackEntry>(); dict[seq] = list; }
+        if (!dict.TryGetValue(uid, out var list)) { list = new List<FeedbackEntry>(); dict[uid] = list; }
         var today = DateTime.Now.ToString("yyyy-MM-dd");
         var entry = list.FirstOrDefault(e => e.Date == today && string.Equals(e.By, username, StringComparison.OrdinalIgnoreCase));
         if (entry == null)
@@ -1345,11 +1439,14 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
         }
         entry.Content = content;
         entry.Time = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-        // Save uploaded files
+        // Save uploaded files under the task's per-owner ordinal folder (kept for
+        // forward-compatible file paths); fall back to the uid if the task is gone.
         var ws = ResolveUserWorkspace(target);
         if (ws != null && form.Files.Count > 0)
         {
-            var fbDir = System.IO.Path.Combine(ws, "TaskData", "Feedback", seq.ToString());
+            var seq = ReadTaskList(target).FirstOrDefault(x => string.Equals(x.Uid, uid, StringComparison.OrdinalIgnoreCase))?.Seq;
+            var folder = seq.HasValue ? seq.Value.ToString() : uid;
+            var fbDir = System.IO.Path.Combine(ws, "TaskData", "Feedback", folder);
             Directory.CreateDirectory(fbDir);
             var savedNames = new List<string>();
             // Preserve existing files
@@ -2400,6 +2497,12 @@ public record LanguageItem(string Label, string Code);
 
 record TaskRecord
 {
+    // Globally-unique, fixed-length (32 hex chars) task id. This is the primary
+    // key and the identity used everywhere (API, parent links, feedback); it never
+    // repeats and carries no meaning, so the storage engine can change (e.g. to
+    // PostgreSQL) without depending on per-owner auto-increment integers.
+    public string Uid { get; set; } = "";
+    // Per-owner ordinal, kept only for ordering/display (not an identity).
     public int Seq { get; set; }
     public string? Name { get; set; }
     public string? Type { get; set; }
@@ -2407,16 +2510,13 @@ record TaskRecord
     public string? Status { get; set; }
     public string? AssignedAt { get; set; }
     public string? CreatedBy { get; set; }
-    // Parent task seq (0 = top-level). Child tasks point at the task they were
-    // "continue-assigned" from. Used to expand subtasks inline in the table.
-    public int ParentTask { get; set; }
-    // Owner (member id) of the parent task, so a seq never collides across
-    // members' independent task lists when expanding subtasks.
-    public string? ParentOwner { get; set; }
+    // Parent task UID ("" = top-level). Child tasks point at the task they were
+    // "continue-assigned" from, regardless of which member's list it lives in.
+    public string? ParentUid { get; set; }
     public List<string> Files { get; set; } = new();
 }
 
-record TaskUpsertRequest(string? Inst, int Seq, string? Name, string? Type, string? Content, string? Status, string? AssignedAt, List<string>? Files, int? ParentTask, string? ParentOwner);
+record TaskUpsertRequest(string? Inst, string? Uid, string? Name, string? Type, string? Content, string? Status, string? AssignedAt, List<string>? Files, string? ParentUid, string? NewInst);
 
 record FeedbackEntry
 {
@@ -2427,7 +2527,7 @@ record FeedbackEntry
     public List<string> Files { get; set; } = new(); // feedback attachment filenames
 }
 
-record FeedbackRequest(string? Inst, int Seq, string? Content);
+record FeedbackRequest(string? Inst, string? Uid, string? Content);
 
 // In-process cache for task & feedback data. Loads once (lazy), mutates in memory,
 // and flushes dirty entries back to SQLite on a short debounce. The launcher is a
@@ -2436,7 +2536,7 @@ class TaskDataCache
 {
     private readonly object _lock = new();
     private readonly Dictionary<string, List<TaskRecord>> _tasks = new();
-    private readonly Dictionary<string, Dictionary<int, List<FeedbackEntry>>> _fb = new();
+    private readonly Dictionary<string, Dictionary<string, List<FeedbackEntry>>> _fb = new();
     private readonly HashSet<string> _dirtyTasks = new();
     private readonly HashSet<string> _dirtyFb = new();
 
@@ -2460,18 +2560,18 @@ class TaskDataCache
         }
     }
 
-    public Dictionary<int, List<FeedbackEntry>> GetFeedback(string instId, Func<Dictionary<int, List<FeedbackEntry>>> loader)
+    public Dictionary<string, List<FeedbackEntry>> GetFeedback(string instId, Func<Dictionary<string, List<FeedbackEntry>>> loader)
     {
         lock (_lock)
         {
             if (_fb.TryGetValue(instId, out var dict)) return dict;
-            dict = (loader?.Invoke() ?? new Dictionary<int, List<FeedbackEntry>>());
+            dict = (loader?.Invoke() ?? new Dictionary<string, List<FeedbackEntry>>());
             _fb[instId] = dict;
             return dict;
         }
     }
 
-    public void SetFeedback(string instId, Dictionary<int, List<FeedbackEntry>> dict)
+    public void SetFeedback(string instId, Dictionary<string, List<FeedbackEntry>> dict)
     {
         lock (_lock)
         {
@@ -2480,10 +2580,10 @@ class TaskDataCache
         }
     }
 
-    public void Flush(Action<string, List<TaskRecord>> writeTasks, Action<string, Dictionary<int, List<FeedbackEntry>>> writeFb)
+    public void Flush(Action<string, List<TaskRecord>> writeTasks, Action<string, Dictionary<string, List<FeedbackEntry>>> writeFb)
     {
         List<(string Id, List<TaskRecord> List)> toWriteTasks;
-        List<(string Id, Dictionary<int, List<FeedbackEntry>> Dict)> toWriteFb;
+        List<(string Id, Dictionary<string, List<FeedbackEntry>> Dict)> toWriteFb;
         lock (_lock)
         {
             toWriteTasks = _dirtyTasks.Select(id => (id, _tasks[id])).ToList();

@@ -1007,12 +1007,12 @@ function buildFmTabs() {
 
 // Render the logged-in user's assigned tasks (admin may assign to self too).
 async function loadMyTasks(container) {
-  var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈', thAssign:'继续分派', thOps:'操作' };
+  var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈', thAssign:'继续分派', thAssignee:'受理人', thOps:'操作' };
   var st = { processing:'处理中', done:'完成', cancelled:'取消', pending:'待处理' };
   var lang = preferredLang();
   var lc = String(lang||'').toLowerCase();
   var en = !(lc === 'zh' || lc === 'zh-cn' || lc === 'zhcn' || lc === 'cn');
-  if (en) { dict = { thSeq:'No.', thType:'Type', thName:'Name', thCreator:'Created By', thAssigned:'Assigned At', thStatus:'Status', thFiles:'Files', thFeedback:'Feedback', thAssign:'Continue Assign', thOps:'Actions' }; st = { processing:'Processing', done:'Done', cancelled:'Cancelled', pending:'Pending' }; }
+  if (en) { dict = { thSeq:'No.', thType:'Type', thName:'Name', thCreator:'Created By', thAssigned:'Assigned At', thStatus:'Status', thFiles:'Files', thFeedback:'Feedback', thAssign:'Continue Assign', thAssignee:'Assignee', thOps:'Actions' }; st = { processing:'Processing', done:'Done', cancelled:'Cancelled', pending:'Pending' }; }
   try {
     var inst = currentUser || 'admin';
     var tasks = [];
@@ -1024,7 +1024,7 @@ async function loadMyTasks(container) {
     }
     await fetchPage(1);
     if (!tasks.length) { container.innerHTML = '<div class="fm-empty">' + (en?'No tasks':'暂无任务') + '</div>'; return; }
-    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th>' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thAssign + '</th><th style="width:22px;"></th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th><th>' + dict.thOps + '</th></tr></thead></table>';
+    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th>' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thAssign + '</th><th style="width:22px;"></th><th>' + dict.thAssignee + '</th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th><th>' + dict.thOps + '</th></tr></thead></table>';
     container.innerHTML = hdr;
     var state = { page: 1 };
     // Persisted expansion state (key = member#seq) so saves keep rows open.
@@ -1037,16 +1037,25 @@ async function loadMyTasks(container) {
       }).join('');
       var tr = document.createElement('tr');
       var indent = depth ? ('padding-left:' + (10 + depth*16) + 'px;') : '';
-      // Edit/Delete are only offered for tasks this user created (自己分派的任务).
-      var mine = String(task.createdBy||'').toLowerCase() === String(currentUser||'').toLowerCase() && !!currentUser;
-      var opsHtml = mine
-        ? '<button class="fm-edit-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#64748b;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Edit':'编辑') + '</button> <button class="fm-del-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;margin-left:4px;">' + (en?'Delete':'删除') + '</button>'
-        : '';
-      tr.innerHTML = '<td style="' + indent + '">' + task.seq + '</td><td>' + (task.type||'') + '</td>'
-        + '<td><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.seq + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
-        + '<td><button class="fm-feedback-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Feedback':'反馈') + '</button></td>'
-        + '<td><button class="fm-assign-btn" data-task="' + task.seq + '" style="padding:2px 10px;border:0;border-radius:5px;background:#0ea5e9;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Continue Assign':'继续分派') + '</button></td>'
-        + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button class="fm-sub-toggle" data-task="' + task.seq + '" data-open="0" title="' + (en?'Expand subtasks':'展开子任务') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
+      // Edit/Delete are only offered for tasks this user created (自己分派的任务)
+      // and that have no sub-tasks (a parent task hides them so delegating work
+      // can't be broken by editing/deleting the parent).
+      // Delete is additionally hidden once ANYONE ELSE has left feedback on the
+      // task (hasOtherFeedback), so a co-worker's record can never be destroyed.
+      var mine = String(task.createdBy||'').toLowerCase() === String(currentUser||'').toLowerCase() && !!currentUser && !(task.childCount > 0);
+      var canDelete = mine && !task.hasOtherFeedback;
+      var opsHtml = (mine
+        ? '<button class="fm-edit-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#64748b;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Edit':'编辑') + '</button>'
+        : '')
+        + (canDelete
+        ? '<button class="fm-del-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;margin-left:' + (mine?'4px':'0') + ';">' + (en?'Delete':'删除') + '</button>'
+        : '');
+      tr.innerHTML = '<td style="' + indent + 'white-space:nowrap;">' + (task.hier != null && task.hier !== '' ? task.hier : task.seq) + '</td><td>' + (task.type||'') + '</td>'
+        + '<td><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.uid + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
+        + '<td><button class="fm-feedback-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Feedback':'反馈') + '</button></td>'
+        + '<td><button class="fm-assign-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#0ea5e9;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Continue Assign':'继续分派') + '</button></td>'
+        + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button class="fm-sub-toggle" data-task="' + task.uid + '" data-open="0" title="' + (en?'Expand subtasks':'展开子任务') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
+        + '<td>' + (task.member||'') + '</td>'
         + '<td>' + (task.createdBy||'') + '</td>'
         + '<td>' + (task.assignedAt||'') + '</td>'
         + '<td><span class="fm-st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
@@ -1057,11 +1066,11 @@ async function loadMyTasks(container) {
       });
       tr.querySelector('a.fm-task-name-link').onclick = function(ev){
         ev.preventDefault();
-        var tk = tasks.find(function(t){ return t.seq === task.seq; }) || task;
+        var tk = tasks.find(function(t){ return t.uid === task.uid; }) || task;
         showTaskView(tk, en);
       };
       tr.querySelector('button.fm-feedback-btn').onclick = function(){ openFeedback(inst, task, en); };
-      tr.querySelector('button.fm-assign-btn').onclick = function(){ openAssignDialog(task, inst, en, function(){ expanded[(task.member || inst) + '#' + task.seq] = true; loadMyTasks(container); }); };
+      tr.querySelector('button.fm-assign-btn').onclick = function(){ openAssignDialog(task, inst, en, function(){ expanded[task.uid] = true; loadMyTasks(container); }); };
       var stb = tr.querySelector('button.fm-sub-toggle');
       if (stb) stb.onclick = function(){ toggleSubRow(tr, task, depth || 0); };
       var eb = tr.querySelector('button.fm-edit-btn');
@@ -1074,7 +1083,7 @@ async function loadMyTasks(container) {
     // Fetch and show a task's subtasks inline (indented rows right below it).
     // Expansion state is kept on the container so a save-reload keeps rows open.
     function toggleSubRow(tr, task, depth) {
-      var key = (task.member || inst) + '#' + task.seq;
+      var key = task.uid;
       var btn = tr.querySelector('button.fm-sub-toggle');
       if (expanded[key]) {
         var n = tr.nextSibling;
@@ -1090,15 +1099,14 @@ async function loadMyTasks(container) {
     function expandRow(tr, task, depth) {
       var btn = tr.querySelector('button.fm-sub-toggle');
       if (btn) { btn.setAttribute('data-open', '1'); btn.textContent = '\u2212'; }
-      var pc = encodeURIComponent(task.member || inst);
-      return fetch('/api/tasks?parent=' + task.seq + '&parentOwner=' + pc + '&page=1&pageSize=100&_=' + Date.now())
+      return fetch('/api/tasks?parentUid=' + encodeURIComponent(task.uid) + '&page=1&pageSize=100&_=' + Date.now())
         .then(function(r){ return r.json(); })
         .then(function(d){
           var kids = d.tasks || [];
           if (!kids.length) {
             var ph = document.createElement('tr');
             ph.className = 'fm-sub-row';
-            ph.innerHTML = '<td></td><td colspan="10" style="color:#9ca3af;font-size:12px;padding:6px 10px;">' + (en?'(no subtasks)':'\uff08\u65e0\u5b50\u4efb\u52a1\uff09') + '</td>';
+            ph.innerHTML = '<td></td><td colspan="11" style="color:#9ca3af;font-size:12px;padding:6px 10px;">' + (en?'(no subtasks)':'\uff08\u65e0\u5b50\u4efb\u52a1\uff09') + '</td>';
             tr.parentNode.insertBefore(ph, tr.nextSibling);
             return ph;
           }
@@ -1110,7 +1118,7 @@ async function loadMyTasks(container) {
               var kr = buildRow(k, (depth || 0) + 1);
               kr.classList.add('fm-sub-row');
               prev.parentNode.insertBefore(kr, prev.nextSibling);
-              var kkey = (k.member || inst) + '#' + k.seq;
+              var kkey = k.uid;
               if (expanded[kkey]) return expandRow(kr, k, (depth || 0) + 1);
               return kr;
             });
@@ -1124,17 +1132,16 @@ async function loadMyTasks(container) {
       var old = tbl.querySelector('tbody'); if (old) old.remove();
       var body = document.createElement('tbody');
       var present = {};
-      tasks.forEach(function(x){ present[(x.member || inst) + '#' + x.seq] = true; });
+      tasks.forEach(function(x){ present[x.uid] = true; });
       tasks.forEach(function (task) {
         // Subtask whose parent is in this list -> shown inline under the parent.
-        if (task.parentTask) {
-          var pkey = (task.parentOwner || '') + '#' + task.parentTask;
-          if (present[pkey]) return;
+        if (task.parentUid) {
+          if (present[task.parentUid]) return;
         }
         var row = buildRow(task, 0);
         body.appendChild(row);
         // Restore previously expanded rows (e.g. after a save-triggered reload).
-        if (expanded[(task.member || inst) + '#' + task.seq]) expandRow(row, task, 0);
+        if (expanded[task.uid]) expandRow(row, task, 0);
       });
       tbl.appendChild(body);
       // Hint: task names can be dragged into the AI dialog on the right.
@@ -1218,7 +1225,7 @@ function openTaskFile2(rel) {
 
 // ---- "Continue Assign": create a child task assigned to a team member ----
 var asgModal = null, asgEn = false, asgPendingFiles = [], asgParent = null, asgOnSaved = null;
-var asgEditSeq = 0, asgEditInst = '';
+var asgEditUid = '', asgEditInst = '';
 var asgMembersCache = null;
 async function asgLoadMembers() {
   if (asgMembersCache) return asgMembersCache;
@@ -1320,7 +1327,7 @@ async function openAssignDialog(task, inst, en, onSaved) {
   var members = await asgLoadMembers();
   ensureAsgModal();
   asgEn = en; asgParent = task; asgOnSaved = onSaved || null; asgPendingFiles = [];
-  asgEditSeq = 0; asgEditInst = '';
+  asgEditUid = ''; asgEditInst = '';
   var q = function (id) { return asgModal.querySelector('#' + id); };
   q('asgTitle').textContent = en ? 'Continue Assign' : '\u7ee7\u7eed\u5206\u6d3e';
   asgSetLabels(en);
@@ -1359,7 +1366,7 @@ async function openEditDialog(task, inst, en, onSaved) {
   var members = await asgLoadMembers();
   ensureAsgModal();
   asgEn = en; asgParent = null; asgOnSaved = onSaved || null;
-  asgEditSeq = task.seq; asgEditInst = task.member || inst || currentUser;
+  asgEditUid = task.uid; asgEditInst = task.member || inst || currentUser;
   asgPendingFiles = (task.files || []).slice();
   var q = function (id) { return asgModal.querySelector('#' + id); };
   q('asgTitle').textContent = en ? 'Edit Task' : '\u7f16\u8f91\u4efb\u52a1';
@@ -1367,7 +1374,7 @@ async function openEditDialog(task, inst, en, onSaved) {
   var sel = q('asgAssignee');
   sel.innerHTML = members.map(function (mm) { return '<option value="' + mm.id + '">' + mm.name + '</option>'; }).join('');
   sel.value = task.member || asgEditInst || currentUser;
-  sel.disabled = true;
+  sel.disabled = false;
   q('asgType').value = task.type || '';
   asgRefreshTypeOptions(task.type || '');
   q('asgName').value = task.name || '';
@@ -1380,7 +1387,7 @@ async function openEditDialog(task, inst, en, onSaved) {
 }
 function deleteMyTask(task, inst, en, onSaved) {
   if (!confirm(en ? 'Delete this task?' : '\u786e\u5b9a\u5220\u9664\u8be5\u4efb\u52a1\uff1f')) return;
-  fetch('/api/tasks?inst=' + encodeURIComponent(task.member || inst || currentUser) + '&seq=' + task.seq, { method: 'DELETE' })
+  fetch('/api/tasks?inst=' + encodeURIComponent(task.member || inst || currentUser) + '&uid=' + encodeURIComponent(task.uid), { method: 'DELETE' })
     .then(function (r) { return r.json().catch(function () { return {}; }); })
     .then(function (d) { if (d.ok) { if (onSaved) onSaved(); } else { alert(d.error || (en ? 'Delete failed' : '\u5220\u9664\u5931\u8d25')); } })
     .catch(function () { alert(en ? 'Delete failed' : '\u5220\u9664\u5931\u8d25'); });
@@ -1388,7 +1395,7 @@ function deleteMyTask(task, inst, en, onSaved) {
 async function saveAssign() {
   var q = function (id) { return asgModal.querySelector('#' + id); };
   var assignee = q('asgAssignee').value;
-  if (!asgEditSeq && !assignee) { alert(asgEn ? 'Please choose an assignee' : '\u8bf7\u9009\u62e9\u53d7\u7406\u4eba'); return; }
+  if (!asgEditUid && !assignee) { alert(asgEn ? 'Please choose an assignee' : '\u8bf7\u9009\u62e9\u53d7\u7406\u4eba'); return; }
   var common = {
     name: q('asgName').value.trim(),
     type: q('asgType').value.trim(),
@@ -1398,18 +1405,18 @@ async function saveAssign() {
     files: asgPendingFiles
   };
   var method, payload;
-  if (asgEditSeq) {
+  if (asgEditUid) {
     method = 'PUT';
-    payload = Object.assign({ inst: asgEditInst, seq: asgEditSeq }, common);
+    payload = Object.assign({ inst: asgEditInst, uid: asgEditUid, newInst: assignee }, common);
   } else {
     method = 'POST';
-    payload = Object.assign({ inst: assignee, seq: 0, parentTask: asgParent ? asgParent.seq : 0, parentOwner: asgParent ? (asgParent.member || '') : '' }, common);
+    payload = Object.assign({ inst: assignee, parentUid: asgParent ? asgParent.uid : '' }, common);
   }
   try {
     var r = await fetch('/api/tasks', { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     var res = await r.json().catch(function () { return {}; });
     if (!res.ok) { alert(res.error || (asgEn ? 'Save failed' : '\u4fdd\u5b58\u5931\u8d25')); return; }
-    var msg = q('asgMsg'); msg.textContent = asgEn ? (asgEditSeq ? 'Saved' : 'Assigned') : (asgEditSeq ? '\u5df2\u4fdd\u5b58' : '\u5df2\u5206\u6d3e'); msg.style.display = 'inline-block';
+    var msg = q('asgMsg'); msg.textContent = asgEn ? (asgEditUid ? 'Saved' : 'Assigned') : (asgEditUid ? '\u5df2\u4fdd\u5b58' : '\u5df2\u5206\u6d3e'); msg.style.display = 'inline-block';
     setTimeout(function () { asgModal.style.display = 'none'; }, 600);
     if (asgOnSaved) asgOnSaved();
   } catch (e) { alert(asgEn ? 'Save failed' : '\u4fdd\u5b58\u5931\u8d25'); }
@@ -1420,7 +1427,7 @@ function openFbFile(fn) {
 }
 
 // ---- Task feedback (one per user per day; same-day is editable) ----
-var fbModal, fbInst = '', fbSeq = 0, fbEn = false, fbPendingFiles = [];
+var fbModal, fbInst = '', fbUid = '', fbSeq = 0, fbEn = false, fbPendingFiles = [];
 function ensureFbModal(en) {
   if (fbModal) return;
   fbEn = en;
@@ -1491,10 +1498,10 @@ function ensureFbModal(en) {
   });
 }
 function openFeedback(inst, task, en) {
-  fbInst = inst; fbSeq = task.seq; fbEn = en;
+  fbInst = inst; fbUid = task.uid; fbSeq = task.seq; fbEn = en;
   fbPendingFiles = [];
   ensureFbModal(en);
-  fbModal.querySelector('#fbTitle').textContent = (en?'Task: ':'任务：') + (task.name || '') + ' (#' + task.seq + ')';
+  fbModal.querySelector('#fbTitle').textContent = (en?'Task: ':'任务：') + (task.name || '') + ' (' + (task.hier || task.seq) + ')';
   fbModal.querySelector('#fbSave').textContent = en ? 'Submit' : '提交';
   fbModal.querySelector('#fbEditor').innerHTML = '';
   fbModal.querySelector('#fbFileInput').value = '';
@@ -1504,7 +1511,7 @@ function openFeedback(inst, task, en) {
 }
 async function loadFeedback() {
   try {
-    var r = await fetch('/api/feedback?inst=' + encodeURIComponent(fbInst) + '&seq=' + fbSeq);
+    var r = await fetch('/api/feedback?inst=' + encodeURIComponent(fbInst) + '&uid=' + encodeURIComponent(fbUid));
     var d = await r.json().catch(function(){ return {}; });
     var entries = d.entries || [];
     var body = fbModal.querySelector('#fbBody');
@@ -1571,7 +1578,7 @@ async function saveFeedback() {
   var html = editor.innerHTML.trim();
   if (!html || html === '<br>' || html === '<div><br></div>') { alert(fbEn ? 'Please enter feedback' : '请填写反馈内容'); return; }
   var fd = new FormData();
-  fd.append('inst', fbInst); fd.append('seq', fbSeq); fd.append('content', html);
+  fd.append('inst', fbInst); fd.append('uid', fbUid); fd.append('content', html);
   for (var i = 0; i < fbPendingFiles.length; i++) { fd.append('files', fbPendingFiles[i]); }
   var r = await fetch('/api/feedback', { method:'POST', body: fd });
   var d = await r.json().catch(function(){ return {}; });
