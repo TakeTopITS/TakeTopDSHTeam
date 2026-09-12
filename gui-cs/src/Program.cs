@@ -49,6 +49,59 @@ var auth = new AuthService(root);
 // Repair orphan instances (instances without a matching user account).
 auth.RepairOrphanInstances(instMgr.List());
 
+// ---- Backend message localization -------------------------------------------
+// The UI persists the chosen language in the `tt_lang` cookie. Use it so error
+// messages returned by the API are in the same language as the interface.
+bool IsEn(HttpContext ctx)
+{
+    var c = ctx.Request.Cookies["tt_lang"];
+    return !string.IsNullOrEmpty(c) && c.StartsWith("en", StringComparison.OrdinalIgnoreCase);
+}
+var errEn = new Dictionary<string, string>(StringComparer.Ordinal)
+{
+    ["用户名或密码错误"] = "Invalid username or password",
+    ["仅管理员可获取"] = "Admins only",
+    ["仅管理员可修改"] = "Admins only",
+    ["仅管理员可浏览"] = "Admins only",
+    ["仅管理员可操作"] = "Admins only",
+    ["仅管理员可创建"] = "Admins only",
+    ["仅管理员可删除"] = "Admins only",
+    ["需要管理员权限"] = "Administrator permission required",
+    ["无法获取最新版本（请检查网络）"] = "Cannot fetch the latest version (check your network)",
+    ["无权操作"] = "Not authorized",
+    ["无权操作该成员"] = "Not authorized for this member",
+    ["用户名不能为空"] = "Username cannot be empty",
+    ["未绑定工作区"] = "Workspace not configured",
+    ["目录不存在"] = "Directory not found",
+    ["不存在"] = "Not found",
+    ["目标已存在"] = "Target already exists",
+    ["源不存在"] = "Source not found",
+    ["名称非法"] = "Invalid name",
+    ["名称非法: "] = "Invalid name: ",
+    ["源和目标相同"] = "Source and target are the same",
+    ["不能移动到自身子目录"] = "Cannot move a folder into its own subdirectory",
+    ["zip 已存在"] = "ZIP already exists",
+    ["不是 zip 文件"] = "Not a ZIP file",
+    ["解压失败: "] = "Extraction failed: ",
+    ["路径越界"] = "Path is out of bounds",
+    ["文件不存在"] = "File not found",
+    ["文件过大，无法预览（>4MB）"] = "File too large to preview (>4MB)",
+    ["缺少成员"] = "Missing member",
+    ["缺少任务ID"] = "Missing task ID",
+    ["任务不存在"] = "Task not found",
+    ["仅可编辑自己建立的任务"] = "You can only edit tasks you created",
+    ["仅可删除自己建立的任务"] = "You can only delete tasks you created",
+    ["反馈内容不能为空"] = "Feedback content cannot be empty",
+    ["账号须以字母开头，仅含字母/数字/._-，不含汉字或纯数字"] = "Username must start with a letter and may contain only letters, digits, . _ - (no Chinese, not all digits)",
+    ["密码至少6位"] = "Password must be at least 6 characters",
+    ["新密码至少6位"] = "New password must be at least 6 characters",
+    ["账号已存在"] = "Username already exists",
+    ["用户不存在"] = "User not found",
+    ["旧密码错误"] = "Old password is incorrect",
+    ["成员工作区未配置"] = "Member workspace is not configured",
+};
+string L(HttpContext ctx, string zh) => IsEn(ctx) && errEn.TryGetValue(zh, out var en) ? en : zh;
+
 // Serve the UI: prefer a wwwroot next to the executable, else the source one.
 var wwwroot = new[] {
     Path.Combine(AppContext.BaseDirectory, "wwwroot"),
@@ -137,7 +190,7 @@ app.MapPost("/api/login", (LoginRequest req, HttpContext ctx) =>
 {
     req = req with { Username = req.Username?.ToLowerInvariant() };
     if (req.Username == null || req.Password == null || !auth.Verify(req.Username, req.Password))
-        return Results.Json(new { ok = false, error = "用户名或密码错误" }, statusCode: 401);
+        return Results.Json(new { ok = false, error = L(ctx, "用户名或密码错误") }, statusCode: 401);
     var user = auth.Find(req.Username)!;
     var token = auth.CreateSession(user.Username);
     ctx.Response.Cookies.Append("tt_session", token, new CookieOptions
@@ -199,7 +252,7 @@ app.MapGet("/api/logs", (int? from, HttpContext ctx) =>
 app.MapGet("/api/token", (HttpContext ctx) =>
     (bool)ctx.Items["isAdmin"]!
         ? Results.Ok(new { url = dsh.TokenUrl() })
-        : Results.Json(new { ok = false, error = "仅管理员可获取" }, statusCode: 403));
+        : Results.Json(new { ok = false, error = L(ctx, "仅管理员可获取") }, statusCode: 403));
 // Public: language list for the login page (available before authentication).
 app.MapGet("/api/languages", () =>
 {
@@ -224,7 +277,7 @@ app.MapGet("/api/workspace", () => new { workspace = dsh.ReadWorkspacePath(), is
 app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
-        return Results.Json(new { ok = false, error = "仅管理员可修改" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可修改") }, statusCode: 403);
     dsh.SaveWorkspacePath(req.Workspace);
     // Reapply the admin default dsh workspace so it matches the new path now.
     dsh.ApplyWorkspaceToDefault();
@@ -235,7 +288,7 @@ app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
 app.MapGet("/api/browse", ([Microsoft.AspNetCore.Mvc.FromQuery] string? path, [Microsoft.AspNetCore.Mvc.FromQuery] string? inst, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
-        return Results.Json(new { ok = false, error = "仅管理员可浏览" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可浏览") }, statusCode: 403);
     if (string.IsNullOrWhiteSpace(path))
     {
         // If an instance is specified, default to its workspace directory.
@@ -259,14 +312,14 @@ app.MapGet("/api/browse", ([Microsoft.AspNetCore.Mvc.FromQuery] string? path, [M
 });
 app.MapPost("/api/start", (StartRequest req, HttpContext ctx) =>
 {
-    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = "仅管理员可操作" }, statusCode: 403);
+    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = L(ctx, "仅管理员可操作") }, statusCode: 403);
     var port = req.Port ?? dsh.DefaultPort();
     dsh.Start(port);
     return Results.Ok(new { ok = true });
 });
 app.MapPost("/api/stop", (HttpContext ctx) =>
 {
-    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = "仅管理员可操作" }, statusCode: 403);
+    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = L(ctx, "仅管理员可操作") }, statusCode: 403);
     dsh.Stop();
     return Results.Ok(new { ok = true });
 });
@@ -294,11 +347,11 @@ app.MapGet("/api/update", () => new { current = dsh.CurrentVersion(), latest = d
 app.MapPost("/api/update/apply", async (HttpContext ctx) =>
 {
     if (ctx.Items["isAdmin"] as bool? != true)
-        return Results.Json(new { ok = false, error = "需要管理员权限" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "需要管理员权限") }, statusCode: 403);
     var from = dsh.CurrentVersion();
     var latest = dsh.NpmLatest();
     if (string.IsNullOrWhiteSpace(latest))
-        return Results.Json(new { ok = false, error = "无法获取最新版本（请检查网络）" }, statusCode: 502);
+        return Results.Json(new { ok = false, error = L(ctx, "无法获取最新版本（请检查网络）") }, statusCode: 502);
     if (latest == from)
         return Results.Json(new { ok = true, from, to = from, message = "已是最新版本" });
     var wasRunning = dsh.IsRunning;
@@ -358,7 +411,7 @@ app.MapGet("/api/members", (HttpContext ctx) =>
 app.MapPost("/api/instances", (CreateInstanceRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
-        return Results.Json(new { ok = false, error = "仅管理员可创建" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可创建") }, statusCode: 403);
     try
     {
         // Auto-generate workspace: {global_workspace}/{username} if not provided.
@@ -378,9 +431,9 @@ app.MapPost("/api/instances", (CreateInstanceRequest req, HttpContext ctx) =>
         // If account creation fails (e.g. bad password), keep the instance —
         // the admin can later reset the password to auto-create the account.
         var accountErr = auth.CreateUser(userId, req.Password ?? "", inst.Id);
-        return Results.Ok(new { ok = true, id = inst.Id, dshPort = inst.DshPort, accountCreated = accountErr == null, accountError = accountErr });
+        return Results.Ok(new { ok = true, id = inst.Id, dshPort = inst.DshPort, accountCreated = accountErr == null, accountError = accountErr == null ? null : L(ctx, accountErr) });
     }
-    catch (Exception ex) { return Results.BadRequest(new { ok = false, error = ex.Message }); }
+    catch (Exception ex) { return Results.BadRequest(new { ok = false, error = L(ctx, ex.Message) }); }
 });
 app.MapPost("/api/instances/{id}/start", (string id, HttpContext ctx) =>
 {
@@ -395,7 +448,7 @@ app.MapPost("/api/instances/{id}/start", (string id, HttpContext ctx) =>
     }
     if (inst == null) return Results.NotFound(new { ok = false, error = "instance not found" });
     if (!CanAccess(ctx, inst.Id))
-        return Results.Json(new { ok = false, error = "无权操作" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "无权操作") }, statusCode: 403);
     if (inst.Proc is { HasExited: false })
         return Results.Ok(new { ok = true, running = true, dshPort = inst.DshPort });
 
@@ -422,7 +475,7 @@ app.MapPost("/api/instances/{id}/stop", (string id, HttpContext ctx) =>
         inst = instMgr.Get(un);
     }
     if (inst == null) return Results.NotFound(new { ok = false });
-    if (!CanAccess(ctx, inst.Id)) return Results.Json(new { ok = false, error = "无权操作" }, statusCode: 403);
+    if (!CanAccess(ctx, inst.Id)) return Results.Json(new { ok = false, error = L(ctx, "无权操作") }, statusCode: 403);
     instMgr.Stop(inst);
     return Results.Ok(new { ok = true, running = false });
 });
@@ -430,7 +483,7 @@ app.MapGet("/api/instances/{id}/open", (string id, HttpContext ctx) =>
 {
     var inst = instMgr.Get(id);
     if (inst == null) return Results.NotFound(new { ok = false });
-    if (!CanAccess(ctx, inst.Id)) return Results.Json(new { ok = false, error = "无权操作" }, statusCode: 403);
+    if (!CanAccess(ctx, inst.Id)) return Results.Json(new { ok = false, error = L(ctx, "无权操作") }, statusCode: 403);
     return Results.Ok(new { ok = true, url = instMgr.OpenUrl(inst) });
 });
 // Return the caller's session token so the JS "打开" button can embed it in the
@@ -445,7 +498,7 @@ app.MapGet("/api/session-token", (HttpContext ctx) =>
 app.MapDelete("/api/instances/{id}", (string id, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
-        return Results.Json(new { ok = false, error = "仅管理员可删除" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可删除") }, statusCode: 403);
     var inst = instMgr.Get(id);
     if (inst == null) return Results.NotFound(new { ok = false });
     instMgr.Delete(inst);
@@ -460,19 +513,19 @@ app.MapPost("/api/change-password", (ChangePasswordRequest req, HttpContext ctx)
 {
     var username = (string)ctx.Items["username"]!;
     var err = auth.ChangePasswordWithOld(username, req.OldPassword ?? "", req.NewPassword ?? "");
-    if (err != null) return Results.BadRequest(new { ok = false, error = err });
+    if (err != null) return Results.BadRequest(new { ok = false, error = L(ctx, err) });
     return Results.Ok(new { ok = true });
 });
 // Admin resets any user's password.
 app.MapPost("/api/admin/reset-password", (ResetPasswordRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
-        return Results.Json(new { ok = false, error = "仅管理员可操作" }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可操作") }, statusCode: 403);
     if (string.IsNullOrEmpty(req.Username))
-        return Results.BadRequest(new { ok = false, error = "用户名不能为空" });
+        return Results.BadRequest(new { ok = false, error = L(ctx, "用户名不能为空") });
     var uname = req.Username.ToLowerInvariant();
     var err = auth.ResetPassword(uname, req.NewPassword ?? "", uname);
-    if (err != null) return Results.BadRequest(new { ok = false, error = err });
+    if (err != null) return Results.BadRequest(new { ok = false, error = L(ctx, err) });
     return Results.Ok(new { ok = true });
 });
 
@@ -582,7 +635,7 @@ static IReadOnlyList<object> BuildFileEntries(string absDir)
 app.MapGet("/api/files/root", (HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     return Results.Ok(new { ok = true, root = ws });
 });
 
@@ -590,23 +643,23 @@ app.MapGet("/api/files/root", (HttpContext ctx) =>
 app.MapGet("/api/files/list", (string? path, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var absDir = SafeResolve(ws, path);
-        if (!Directory.Exists(absDir)) return Results.Json(new { ok = false, error = "目录不存在" }, statusCode: 404);
+        if (!Directory.Exists(absDir)) return Results.Json(new { ok = false, error = L(ctx, "目录不存在") }, statusCode: 404);
         var entries = BuildFileEntries(absDir);
         return Results.Ok(new { ok = true, root = ws, path = path ?? "", entries });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Upload one or more files into a target directory.
 app.MapPost("/api/files/upload", (HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var targetRel = ctx.Request.Form["path"].ToString() ?? "";
@@ -634,7 +687,7 @@ app.MapPost("/api/files/upload", (HttpContext ctx) =>
             if (string.IsNullOrWhiteSpace(origName)) continue;
             var destName = (renames.TryGetValue(origName, out var nn) && !string.IsNullOrWhiteSpace(nn)) ? nn.Trim() : origName;
             if (destName.IndexOfAny(new[] { '/', '\\' }) >= 0 || destName is "." or "..")
-                return Results.Json(new { ok = false, error = "名称非法: " + destName }, statusCode: 400);
+                return Results.Json(new { ok = false, error = L(ctx, "名称非法: ") + destName }, statusCode: 400);
             var dest = Path.Combine(targetDir, destName);
             if (File.Exists(dest) || Directory.Exists(dest))
             {
@@ -654,45 +707,45 @@ app.MapPost("/api/files/upload", (HttpContext ctx) =>
         }
         return Results.Ok(new { ok = true, saved });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Delete a file or directory (recursive for dirs).
 app.MapPost("/api/files/delete", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var abs = SafeResolve(ws, req.Path);
         if (File.Exists(abs)) File.Delete(abs);
         else if (Directory.Exists(abs)) Directory.Delete(abs, recursive: true);
-        else return Results.Json(new { ok = false, error = "不存在" }, statusCode: 404);
+        else return Results.Json(new { ok = false, error = L(ctx, "不存在") }, statusCode: 404);
         return Results.Ok(new { ok = true });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Rename a file/directory within the same parent.
 app.MapPost("/api/files/rename", (FileRenameRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var abs = SafeResolve(ws, req.Path);
         var absNew = SafeResolve(ws, req.NewPath);
-        if (!File.Exists(abs) && !Directory.Exists(abs)) return Results.Json(new { ok = false, error = "不存在" }, statusCode: 404);
-        if (File.Exists(absNew) || Directory.Exists(absNew)) return Results.Json(new { ok = false, error = "目标已存在" }, statusCode: 409);
+        if (!File.Exists(abs) && !Directory.Exists(abs)) return Results.Json(new { ok = false, error = L(ctx, "不存在") }, statusCode: 404);
+        if (File.Exists(absNew) || Directory.Exists(absNew)) return Results.Json(new { ok = false, error = L(ctx, "目标已存在") }, statusCode: 409);
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(absNew)!);
         if (File.Exists(abs)) File.Move(abs, absNew);
         else Directory.Move(abs, absNew);
         return Results.Ok(new { ok = true });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Move a file/directory into a target directory. If the destination name is
@@ -701,26 +754,26 @@ app.MapPost("/api/files/rename", (FileRenameRequest req, HttpContext ctx) =>
 app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var src = SafeResolve(ws, req.Path);
         var dst = SafeResolve(ws, req.ToPath);
-        if (!File.Exists(src) && !Directory.Exists(src)) return Results.Json(new { ok = false, error = "源不存在" }, statusCode: 404);
+        if (!File.Exists(src) && !Directory.Exists(src)) return Results.Json(new { ok = false, error = L(ctx, "源不存在") }, statusCode: 404);
         // ToPath may itself be a directory (drop onto a folder); otherwise it is a
         // full destination path and we use its directory.
         var targetDir = Directory.Exists(dst) ? dst : Path.GetDirectoryName(dst)!;
         var newName = string.IsNullOrWhiteSpace(req.NewName) ? Path.GetFileName(src) : req.NewName!.Trim();
         if (newName.IndexOfAny(new[] { '/', '\\' }) >= 0 || newName is "." or "..")
-            return Results.Json(new { ok = false, error = "名称非法" }, statusCode: 400);
+            return Results.Json(new { ok = false, error = L(ctx, "名称非法") }, statusCode: 400);
         var finalDst = Path.Combine(targetDir, newName);
         // Moving onto itself (same folder it already lives in) is a no-op, not a conflict.
         if (string.Equals(finalDst.TrimEnd(Path.DirectorySeparatorChar), src.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
-            return Results.Json(new { ok = false, error = "源和目标相同" }, statusCode: 400);
+            return Results.Json(new { ok = false, error = L(ctx, "源和目标相同") }, statusCode: 400);
         // Refuse to move a directory into its own subtree.
         if (Directory.Exists(src) &&
             finalDst.StartsWith(src.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            return Results.Json(new { ok = false, error = "不能移动到自身子目录" }, statusCode: 400);
+            return Results.Json(new { ok = false, error = L(ctx, "不能移动到自身子目录") }, statusCode: 400);
         if (File.Exists(finalDst) || Directory.Exists(finalDst))
             return Results.Json(new { ok = false, conflict = true, target = newName, suggestion = SuggestName(targetDir, newName) }, statusCode: 409);
         System.IO.Directory.CreateDirectory(targetDir);
@@ -728,8 +781,8 @@ app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
         else Directory.Move(src, finalDst);
         return Results.Ok(new { ok = true });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Create a directory (recursive). If the name is already taken, return a
@@ -737,7 +790,7 @@ app.MapPost("/api/files/move", (FileMoveRequest req, HttpContext ctx) =>
 app.MapPost("/api/files/mkdir", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var abs = SafeResolve(ws, req.Path);
@@ -750,21 +803,21 @@ app.MapPost("/api/files/mkdir", (FileOpRequest req, HttpContext ctx) =>
         Directory.CreateDirectory(abs);
         return Results.Ok(new { ok = true });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Compress a file or directory to <name>.zip in the same folder.
 app.MapPost("/api/files/zip", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var src = SafeResolve(ws, req.Path);
-        if (!File.Exists(src) && !Directory.Exists(src)) return Results.Json(new { ok = false, error = "不存在" }, statusCode: 404);
+        if (!File.Exists(src) && !Directory.Exists(src)) return Results.Json(new { ok = false, error = L(ctx, "不存在") }, statusCode: 404);
         var zip = src + ".zip";
-        if (File.Exists(zip)) return Results.Json(new { ok = false, error = "zip 已存在" }, statusCode: 409);
+        if (File.Exists(zip)) return Results.Json(new { ok = false, error = L(ctx, "zip 已存在") }, statusCode: 409);
         if (Directory.Exists(src))
         {
             System.IO.Compression.ZipFile.CreateFromDirectory(src, zip);
@@ -776,8 +829,8 @@ app.MapPost("/api/files/zip", (FileOpRequest req, HttpContext ctx) =>
         }
         return Results.Ok(new { ok = true, name = Path.GetFileName(zip) });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Extract a zip archive into a SAME-NAME folder placed NEXT TO the archive
@@ -787,17 +840,17 @@ app.MapPost("/api/files/zip", (FileOpRequest req, HttpContext ctx) =>
 app.MapPost("/api/files/unzip", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var abs = SafeResolve(ws, req.Path);
         if (!File.Exists(abs) || !abs.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            return Results.Json(new { ok = false, error = "不是 zip 文件" }, statusCode: 400);
+            return Results.Json(new { ok = false, error = L(ctx, "不是 zip 文件") }, statusCode: 400);
         var parent = Path.GetDirectoryName(abs)!;                 // same directory as the .zip
         var baseName = Path.GetFileNameWithoutExtension(abs);
         var targetName = string.IsNullOrWhiteSpace(req.TargetName) ? baseName : req.TargetName!.Trim();
         if (targetName.IndexOfAny(new[] { '/', '\\' }) >= 0 || targetName is "." or "..")
-            return Results.Json(new { ok = false, error = "名称非法" }, statusCode: 400);
+            return Results.Json(new { ok = false, error = L(ctx, "名称非法") }, statusCode: 400);
         var target = Path.Combine(parent, targetName);
         if (File.Exists(target) || Directory.Exists(target))
             return Results.Json(new { ok = false, conflict = true, target = targetName, suggestion = SuggestName(parent, targetName) }, statusCode: 409);
@@ -805,23 +858,23 @@ app.MapPost("/api/files/unzip", (FileOpRequest req, HttpContext ctx) =>
         System.IO.Compression.ZipFile.ExtractToDirectory(abs, target);
         return Results.Ok(new { ok = true, name = targetName });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (System.IO.InvalidDataException ex) { return Results.Json(new { ok = false, error = "解压失败: " + ex.Message }, statusCode: 400); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (System.IO.InvalidDataException ex) { return Results.Json(new { ok = false, error = L(ctx, "解压失败: ") + ex.Message }, statusCode: 400); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Read a file's text content for the viewer (limit size to avoid huge loads).
 app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var abs = SafeResolve(ws, req.Path);
-        if (!File.Exists(abs)) return Results.Json(new { ok = false, error = "文件不存在" }, statusCode: 404);
+        if (!File.Exists(abs)) return Results.Json(new { ok = false, error = L(ctx, "文件不存在") }, statusCode: 404);
         var fi = new FileInfo(abs);
         const long max = 4L * 1024 * 1024;   // 4 MB cap
-        if (fi.Length > max) return Results.Json(new { ok = false, error = "文件过大，无法预览（>4MB）" }, statusCode: 413);
+        if (fi.Length > max) return Results.Json(new { ok = false, error = L(ctx, "文件过大，无法预览（>4MB）") }, statusCode: 413);
         var ext = Path.GetExtension(abs).ToLowerInvariant();
         var bytes = File.ReadAllBytes(abs);
         var isImage = (ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".webp" or ".svg" or ".ico");
@@ -835,8 +888,8 @@ app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
         var text = System.Text.Encoding.UTF8.GetString(bytes);
         return Results.Json(new { ok = true, type = "text", ext = ext, name = Path.GetFileName(abs), content = text });
     }
-    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // Download a file's raw bytes as an attachment (for files the viewer cannot
@@ -844,7 +897,7 @@ app.MapPost("/api/files/read", (FileOpRequest req, HttpContext ctx) =>
 app.MapGet("/api/files/download", (string? path, string? inline, HttpContext ctx) =>
 {
     var ws = ResolveFileWorkspace(ctx, allowCrossMemberRead: true);
-    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = "未绑定工作区" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(ws)) return Results.Json(new { ok = false, error = L(ctx, "未绑定工作区") }, statusCode: 400);
     try
     {
         var abs = SafeResolve(ws, path);
@@ -877,8 +930,8 @@ app.MapGet("/api/files/download", (string? path, string? inline, HttpContext ctx
             : "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + fileNameStar;
         return Results.File(bytes, mime, null, enableRangeProcessing: true);
     }
-    catch (ArgumentException) { return Results.Json(new { ok = false, error = "路径越界" }, statusCode: 403); }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (ArgumentException) { return Results.Json(new { ok = false, error = L(ctx, "路径越界") }, statusCode: 403); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 static string MimeOf(string ext)
@@ -1155,7 +1208,7 @@ app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, int? p
         Console.WriteLine($"[tasks] user={username} -> returning {slice.Count()} of {total}");
         return Results.Ok(new { ok = true, tasks = result, total = total });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // POST /api/tasks  -> add a task  { inst, type, content, status, files[] }
@@ -1163,7 +1216,7 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
-    if (string.IsNullOrWhiteSpace(req.Inst)) return Results.Json(new { ok = false, error = "缺少成员" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(req.Inst)) return Results.Json(new { ok = false, error = L(ctx, "缺少成员") }, statusCode: 400);
     if (!isAdmin)
     {
         var bound = auth.Find(username)?.InstanceId ?? username;
@@ -1173,7 +1226,7 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         if (!string.Equals(req.Inst, bound, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(req.Inst, username, StringComparison.OrdinalIgnoreCase) &&
             !knownMember)
-            return Results.Json(new { ok = false, error = "无权操作该成员" }, statusCode: 403);
+            return Results.Json(new { ok = false, error = L(ctx, "无权操作该成员") }, statusCode: 403);
     }
     try
     {
@@ -1184,7 +1237,7 @@ app.MapPost("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         WriteTaskList(req.Inst, list);
         return Results.Ok(new { ok = true, uid, seq });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // PUT /api/tasks  -> edit a task  { inst, uid, type, content, status, files[], parentUid?, newInst? }
@@ -1192,15 +1245,15 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
-    if (string.IsNullOrWhiteSpace(req.Inst)) return Results.Json(new { ok = false, error = "缺少成员" }, statusCode: 400);
-    if (string.IsNullOrWhiteSpace(req.Uid)) return Results.Json(new { ok = false, error = "缺少任务ID" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(req.Inst)) return Results.Json(new { ok = false, error = L(ctx, "缺少成员") }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(req.Uid)) return Results.Json(new { ok = false, error = L(ctx, "缺少任务ID") }, statusCode: 400);
     try
     {
         var list = ReadTaskList(req.Inst);
         var t = list.FirstOrDefault(x => string.Equals(x.Uid, req.Uid, StringComparison.OrdinalIgnoreCase));
-        if (t == null) return Results.Json(new { ok = false, error = "任务不存在" }, statusCode: 404);
+        if (t == null) return Results.Json(new { ok = false, error = L(ctx, "任务不存在") }, statusCode: 404);
         if (!isAdmin && !string.Equals(t.CreatedBy, username, StringComparison.OrdinalIgnoreCase))
-            return Results.Json(new { ok = false, error = "仅可编辑自己建立的任务" }, statusCode: 403);
+            return Results.Json(new { ok = false, error = L(ctx, "仅可编辑自己建立的任务") }, statusCode: 403);
         t.Name = req.Name ?? t.Name;
         t.Type = req.Type ?? t.Type;
         t.Content = req.Content ?? t.Content;
@@ -1223,7 +1276,7 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
                 if (!string.Equals(target, bound, StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(target, username, StringComparison.OrdinalIgnoreCase) &&
                     !knownMember)
-                    return Results.Json(new { ok = false, error = "无权操作该成员" }, statusCode: 403);
+                    return Results.Json(new { ok = false, error = L(ctx, "无权操作该成员") }, statusCode: 403);
             }
             list.Remove(t);
             var newList = ReadTaskList(target!);
@@ -1253,7 +1306,7 @@ app.MapPut("/api/tasks", (TaskUpsertRequest req, HttpContext ctx) =>
         WriteTaskList(req.Inst, list);
         return Results.Ok(new { ok = true, uid = t.Uid });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // DELETE /api/tasks?inst=<id>&uid=<taskUid>  -> delete a task
@@ -1261,15 +1314,15 @@ app.MapDelete("/api/tasks", (string? inst, string? uid, HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
     var isAdmin = (bool)ctx.Items["isAdmin"]!;
-    if (string.IsNullOrWhiteSpace(inst)) return Results.Json(new { ok = false, error = "缺少成员" }, statusCode: 400);
-    if (string.IsNullOrWhiteSpace(uid)) return Results.Json(new { ok = false, error = "缺少任务ID" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(inst)) return Results.Json(new { ok = false, error = L(ctx, "缺少成员") }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(uid)) return Results.Json(new { ok = false, error = L(ctx, "缺少任务ID") }, statusCode: 400);
     try
     {
         var list = ReadTaskList(inst);
         var t = list.FirstOrDefault(x => string.Equals(x.Uid, uid, StringComparison.OrdinalIgnoreCase));
-        if (t == null) return Results.Json(new { ok = false, error = "任务不存在" }, statusCode: 404);
+        if (t == null) return Results.Json(new { ok = false, error = L(ctx, "任务不存在") }, statusCode: 404);
         if (!isAdmin && !string.Equals(t.CreatedBy, username, StringComparison.OrdinalIgnoreCase))
-            return Results.Json(new { ok = false, error = "仅可删除自己建立的任务" }, statusCode: 403);
+            return Results.Json(new { ok = false, error = L(ctx, "仅可删除自己建立的任务") }, statusCode: 403);
         list.RemoveAll(x => string.Equals(x.Uid, uid, StringComparison.OrdinalIgnoreCase));
         WriteTaskList(inst, list);
         // Also drop this task's feedback (keyed by the task uid).
@@ -1281,7 +1334,7 @@ app.MapDelete("/api/tasks", (string? inst, string? uid, HttpContext ctx) =>
         catch { }
         return Results.Ok(new { ok = true });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 string TaskWorkspace(string instId)
@@ -1386,7 +1439,7 @@ app.MapGet("/api/feedback", (string? inst, string? uid, HttpContext ctx) =>
     });
     return Results.Ok(new { ok = true, entries });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 // GET /api/sessions?date=2026-09-09 -> markdown content of that day's sessions (all users)
@@ -1424,8 +1477,8 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
     var uid = form["uid"].FirstOrDefault() ?? "";
     var content = form["content"].FirstOrDefault() ?? "";
     var target = string.IsNullOrWhiteSpace(inst) ? username : inst;
-    if (string.IsNullOrWhiteSpace(content)) return Results.Json(new { ok = false, error = "反馈内容不能为空" }, statusCode: 400);
-    if (string.IsNullOrWhiteSpace(uid)) return Results.Json(new { ok = false, error = "缺少任务ID" }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(content)) return Results.Json(new { ok = false, error = L(ctx, "反馈内容不能为空") }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(uid)) return Results.Json(new { ok = false, error = L(ctx, "缺少任务ID") }, statusCode: 400);
     try
     {
         var dict = ReadFeedback(target);
@@ -1467,7 +1520,7 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
         WriteFeedback(target, dict);
         return Results.Ok(new { ok = true });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 
 

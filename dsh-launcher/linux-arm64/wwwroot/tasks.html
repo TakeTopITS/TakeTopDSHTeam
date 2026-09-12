@@ -48,9 +48,10 @@
   button.secondary { background: #64748b; }
   button.danger { background: #dc2626; }
   .table-wrap { background: #fff; border: 1px solid #e0e2e6; border-radius: 8px; overflow: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table { width: 100%; min-width: 1150px; border-collapse: collapse; font-size: 13.5px; }
   th, td { padding: 9px 12px; border-bottom: 1px solid #eef0f3; text-align: left; vertical-align: top; }
-  th { background: #f8fafc; font-weight: 700; color: #475569; position: sticky; top: 0; }
+  th { background: #f8fafc; font-weight: 700; color: #475569; position: sticky; top: 0; white-space: nowrap; }
+  .fb-btn, .asg-btn, .st { white-space: nowrap; }
   .st { font-weight: 600; }
   .st.processing { color: #d97706; }
   .st.done { color: #16a34a; }
@@ -113,18 +114,18 @@
         <table>
           <thead>
             <tr>
-              <th id="thSeq" style="width:90px;white-space:nowrap;">序号</th>
-              <th id="thType" style="width:120px;">任务类型</th>
-              <th id="thName" style="width:34%;min-width:240px;">任务名称</th>
+              <th id="thSeq" style="width:64px;white-space:nowrap;">序号</th>
+              <th id="thType" style="width:110px;">任务类型</th>
+              <th id="thName" style="width:30%;min-width:220px;">任务名称</th>
               <th id="thSub" style="width:24px;padding:9px 2px;"></th>
-              <th id="thFeedback" style="width:90px;">反馈</th>
-              <th id="thAssign" style="width:100px;">继续分派</th>
-              <th id="thAssignee" style="width:100px;">受理人</th>
-              <th id="thCreator" style="width:100px;">创建者</th>
-              <th id="thAssigned" style="width:140px;">分派时间</th>
-              <th id="thStatus" style="width:90px;">状态</th>
+              <th id="thFeedback" style="width:76px;">反馈</th>
+              <th id="thAssign" style="width:92px;">继续分派</th>
+              <th id="thAssignee" style="width:84px;">受理人</th>
+              <th id="thCreator" style="width:88px;">创建者</th>
+              <th id="thAssigned" style="width:116px;">分派时间</th>
+              <th id="thStatus" style="width:76px;">状态</th>
               <th id="thFiles" style="width:16%;">相关文件</th>
-              <th id="thOps" style="width:130px;">操作</th>
+              <th id="thOps" style="width:116px;">操作</th>
             </tr>
           </thead>
           <tbody id="taskBody"></tbody>
@@ -172,7 +173,7 @@
         </select>
       </div>
       <div class="field"><label id="lblFiles">相关文件（可多选，上传至 TaskData/Doc）</label>
-        <label for="fFiles" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">选择文件</label>
+        <label for="fFiles" id="fFileBtn" style="display:inline-block;padding:6px 14px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;">选择文件</label>
         <input type="file" id="fFiles" multiple style="position:absolute;left:-9999px;clip:rect(0,0,0,0);" />
         <span id="fFilesLabel" style="margin-left:8px;font-size:13px;color:#6b7280;"></span>
         <div class="chips" id="fileChips"></div>
@@ -215,7 +216,7 @@
       back:"← 返回", title:"任务分配", members:"成员", add:"添加任务", cur:"当前成员：",
       thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thAssign:"继续分派", thAssignee:"受理人", thOps:"操作",
       edit:"编辑", del:"删除", feedback:"反馈", fbContent:"反馈内容", fbRecord:"反馈记录", fbNo:"序号", fbBy:"反馈人", fbTime:"时间", fbFiles:"附件", fbEmpty:"暂无反馈", fbRequired:"请填写反馈内容", empty:"暂无任务", modalAdd:"添加任务", modalEdit:"编辑任务",
-      lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）", lblAssignee:"受理人",
+      lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）", lblAssignee:"受理人", chooseFiles:"选择文件",
       selectType:"-- 选择类型 --", addTypeTip:"输入新类型名称：",
       subTasks:"子任务", noSubTasks:"（无子任务）", expand:"展开子任务", collapse:"收起子任务",
       save:"保存", cancel:"取消", confirmDel:"确定删除该任务？", delMsg:"（已删除）", close:"关闭", fileAskDownload:"该类型文件无法预览，是否下载",
@@ -227,7 +228,7 @@
       back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
       thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thAssign:"Continue Assign", thAssignee:"Assignee", thOps:"Actions",
       edit:"Edit", del:"Delete", feedback:"Feedback", fbContent:"Content", fbRecord:"Feedback records", fbNo:"No.", fbBy:"By", fbTime:"Time", fbFiles:"Files", fbEmpty:"No feedback yet", fbRequired:"Please enter feedback", empty:"No tasks", modalAdd:"Add Task", modalEdit:"Edit Task",
-      lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)", lblAssignee:"Assignee",
+      lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)", lblAssignee:"Assignee", chooseFiles:"Choose files",
       selectType:"-- Select type --", addTypeTip:"Enter new type name:",
       subTasks:"Subtasks", noSubTasks:"(no subtasks)", expand:"Expand subtasks", collapse:"Collapse subtasks",
       save:"Save", cancel:"Cancel", confirmDel:"Delete this task?", delMsg:"(deleted)", close:"Close", fileAskDownload:"This file type can't be previewed. Download it?",
@@ -251,7 +252,7 @@
     $('#thSeq').textContent = t('thSeq'); $('#thType').textContent = t('thType'); $('#thName').textContent = t('thName'); $('#thCreator').textContent = t('thCreator'); $('#thAssigned').textContent = t('thAssigned');
     $('#thStatus').textContent = t('thStatus'); $('#thFiles').textContent = t('thFiles'); $('#thFeedback').textContent = t('feedback'); $('#thAssign').textContent = t('thAssign'); $('#thAssignee').textContent = t('thAssignee'); $('#thOps').textContent = t('thOps');
     $('#modalTitle').textContent = ''; // set on open
-    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles'); $('#lblAssignee').textContent = t('lblAssignee');
+    $('#lblType').textContent = t('lblType'); $('#lblName').textContent = t('lblName'); $('#lblContent').textContent = t('lblContent'); $('#lblAssigned').textContent = t('lblAssigned'); $('#lblStatus').textContent = t('lblStatus'); $('#lblFiles').textContent = t('lblFiles'); $('#lblAssignee').textContent = t('lblAssignee'); $('#fFileBtn').textContent = t('chooseFiles');
     $('#modalCancel').textContent = t('cancel'); $('#modalSave').textContent = t('save');
     $('#viewClose').textContent = t('close');
     document.getElementById('curMember').textContent = t('cur') + (curMember || '-');
