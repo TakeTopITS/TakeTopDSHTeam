@@ -237,7 +237,10 @@
 
   <!-- My Instance: non-admin users control their own instance -->
   <div class="card" id="myInstanceCard" style="display:none;">
-    <h1 data-i18n="myInstTitle">My Instance</h1>
+    <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin:0 0 14px;">
+      <h1 data-i18n="myInstTitle" style="margin:0;">My Instance</h1>
+      <div class="muted" style="font-size:13px;position:relative;top:-1px;"><span data-i18n="thWs">Workspace</span>: <span id="myInstWs" style="color:#334155;word-break:break-all;"></span>&nbsp;&nbsp;&nbsp;<span data-i18n="thPort">Port</span>: <span id="myInstPort" style="color:#334155;"></span></div>
+    </div>
     <div class="row">
       <button id="myInstStartBtn" onclick="myInstStart()" data-i18n="instStart">▶ Start</button>
       <button id="myInstStopBtn" class="danger" onclick="myInstStop()" data-i18n="instStop" style="display:none;">■ Stop</button>
@@ -997,11 +1000,13 @@ async function loadMyInstance() {
     if (!r.ok) return;
     const d = await r.json();
     const inst = (d.instances || [])[0];
-    if (!inst) { $('#myInstState').textContent = t('noInstances'); return; }
+    if (!inst) { $('#myInstState').textContent = t('noInstances'); $('#myInstWs').textContent = ''; $('#myInstPort').textContent = ''; return; }
     window._myInst = inst;
     const running = inst.running;
     $('#myInstDot').className = 'dot ' + (running ? 'running' : 'stopped');
     $('#myInstState').textContent = running ? t('myInstRunning') : t('myInstStopped');
+    $('#myInstWs').textContent = inst.workspace || '';
+    $('#myInstPort').textContent = (inst.dshPort != null ? String(inst.dshPort) : '');
     $('#myInstStartBtn').disabled = false;
     $('#myInstStartBtn').style.display = running ? 'none' : '';
     $('#myInstStopBtn').style.display = running ? '' : 'none';
