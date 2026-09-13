@@ -492,17 +492,17 @@ public class InstanceManager
     // instance starts, so a single key set by the admin on the admin DSH is shared
     // by every user instance. Per-instance records/* (browser-session secret) are
     // preserved; only refs/* values are refreshed from the shared template.
-    private void EnsureSharedCredentials(string destDshHome)
+    private bool EnsureSharedCredentials(string destDshHome)
     {
         try
         {
             var destCred = Path.Combine(destDshHome, ".credentials.yaml");
             var srcCred = Path.Combine(_dshTemplate, ".credentials.yaml");
-            if (!File.Exists(srcCred)) return;
+            if (!File.Exists(srcCred)) return false;
 
             // Parse src refs as name->value pairs.
             var srcRefs = ParseRefs(File.ReadAllLines(srcCred));
-            if (srcRefs.Count == 0) return;
+            if (srcRefs.Count == 0) return false;
 
             if (!File.Exists(destCred))
             {
@@ -513,7 +513,7 @@ public class InstanceManager
                 foreach (var kv in srcRefs) y.AppendLine($"{kv.Key}: \"{kv.Value}\"");
                 File.WriteAllText(destCred, y.ToString());
                 Chmod600IfUnix(destCred);
-                return;
+                return true;
             }
 
             // Existing instance: refresh only the refs values in place, preserving
@@ -522,6 +522,7 @@ public class InstanceManager
             var inRefs = false;
             var newLines = new List<string>();
             var seenRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var changed = false;
             foreach (var ln in destLines)
             {
                 var trimmed = ln.TrimStart();
@@ -539,6 +540,7 @@ public class InstanceManager
                             {
                                 newLines.Add($"{kv.Key}: \"{kv.Value}\"");
                                 seenRefs.Add(kv.Key);
+                                changed = true;
                             }
                         }
                         newLines.Add(ln);
@@ -552,7 +554,9 @@ public class InstanceManager
                         if (srcRefs.TryGetValue(key, out var val))
                         {
                             var indent = ln.Substring(0, ln.Length - ln.TrimStart().Length);
-                            newLines.Add($"{indent}{key}: \"{val}\"");
+                            var newLine = $"{indent}{key}: \"{val}\"";
+                            if (!string.Equals(newLine, ln, StringComparison.Ordinal)) changed = true;
+                            newLines.Add(newLine);
                             seenRefs.Add(key);
                             continue;
                         }
@@ -567,14 +571,83 @@ public class InstanceManager
             {
                 newLines.Add("refs:");
                 foreach (var kv in srcRefs) newLines.Add($"  {kv.Key}: \"{kv.Value}\"");
+                changed = true;
             }
-            File.WriteAllLines(destCred, newLines);
-            Chmod600IfUnix(destCred);
+            if (changed)
+            {
+                File.WriteAllLines(destCred, newLines);
+                Chmod600IfUnix(destCred);
+            }
+            return changed;
         }
         catch (Exception ex)
         {
             Trace.WriteLine($"[instance] shared credential seed failed: {ex.Message}");
+            return false;
         }
+    }
+
+    // ---- Shared API key propagation ----
+    // Members inherit the admin's API key at instance start. If the admin changes
+    // the key while instances are already running, push it out automatically: watch
+    // the admin template .credentials.yaml, refresh every instance's refs, and restart
+    // any running instance whose key actually changed so DSH reloads it.
+    private System.IO.FileSystemWatcher? _credWatcher;
+    private string? _lastSharedCredSig;
+
+    public void StartSharedCredentialWatcher()
+    {
+        try
+        {
+            SyncSharedCredentialsToAll();   // one-time catch-up for stale instances
+            var srcCred = Path.Combine(_dshTemplate, ".credentials.yaml");
+            var dir = Path.GetDirectoryName(srcCred);
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+            _credWatcher = new System.IO.FileSystemWatcher(dir, ".credentials.yaml")
+            {
+                NotifyFilter = System.IO.NotifyFilters.LastWrite | System.IO.NotifyFilters.Size | System.IO.NotifyFilters.FileName,
+            };
+            System.IO.FileSystemEventHandler handler = (s, e) => { try { SyncSharedCredentialsToAll(); } catch { } };
+            _credWatcher.Changed += handler;
+            _credWatcher.Created += handler;
+            _credWatcher.Renamed += (s, e) => { try { SyncSharedCredentialsToAll(); } catch { } };
+            _credWatcher.EnableRaisingEvents = true;
+        }
+        catch { }
+    }
+
+    private string SharedCredSignature()
+    {
+        try
+        {
+            var srcCred = Path.Combine(_dshTemplate, ".credentials.yaml");
+            if (!File.Exists(srcCred)) return "";
+            var refs = ParseRefs(File.ReadAllLines(srcCred));
+            if (refs.Count == 0) return "";
+            return string.Join(";", refs.OrderBy(k => k.Key).Select(k => k.Key + "=" + k.Value));
+        }
+        catch { return ""; }
+    }
+
+    public void SyncSharedCredentialsToAll()
+    {
+        try
+        {
+            var sig = SharedCredSignature();
+            if (sig.Length == 0 || sig == _lastSharedCredSig) return;
+            _lastSharedCredSig = sig;
+            foreach (var inst in _instances.ToList())
+            {
+                bool changed = false;
+                try { changed = EnsureSharedCredentials(inst.DshHome); } catch { }
+                if (changed && inst.Running)
+                {
+                    var cap = inst;
+                    _ = Task.Run(() => { try { Stop(cap); Start(cap); } catch { } });
+                }
+            }
+        }
+        catch { }
     }
 
     private static Dictionary<string, string> ParseRefs(string[] lines)

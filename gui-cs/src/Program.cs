@@ -41,6 +41,9 @@ dsh.SetInstanceManager(instMgr);
 // pointer to the default locale and sync every existing instance once at startup.
 instMgr.DefaultLocaleProvider = () => dsh.DefaultLocaleCode();
 instMgr.ApplyLocaleToAll();
+// Keep every member's shared API key in step with the admin: catch up once and
+// watch for later admin key changes so members never run with a stale key.
+instMgr.StartSharedCredentialWatcher();
 var auth = new AuthService(root);
 // Repair orphan instances (instances without a matching user account).
 auth.RepairOrphanInstances(instMgr.List());
