@@ -1466,7 +1466,8 @@ app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, string
             all = ReadTaskList(inst).Select(t => (t, inst)).ToList();
         }
 
-        var ordered = all.OrderByDescending(x => x.Task.Seq).ThenBy(x => x.Member, StringComparer.OrdinalIgnoreCase).ToList();
+        // Newest first: by creation/assigned time, then by seq as a tie-breaker.
+        var ordered = all.OrderByDescending(x => x.Task.AssignedAt ?? "").ThenByDescending(x => x.Task.Seq).ThenBy(x => x.Member, StringComparer.OrdinalIgnoreCase).ToList();
         var total = ordered.Count;
         // Apply pagination only when page/pageSize are supplied.
         int? pagedTotal = null; List<(TaskRecord Task, string Member)> slice = ordered;
