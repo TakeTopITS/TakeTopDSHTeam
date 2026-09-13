@@ -25,7 +25,7 @@ converts to the **Apache License, Version 2.0** on the Change Date.
   remain available under MIT permanently and are not affected by this change,
   which applies only to this and later versions.
 - **Intellectual property** in this software is owned by
-  泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.)
+  TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.
   (Copyright (C) 2026-2036). All rights reserved.
 
 ## How "users" is counted

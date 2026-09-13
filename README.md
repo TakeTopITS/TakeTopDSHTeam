@@ -4,7 +4,7 @@
 
 TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user AI collaboration platform — a self-hosted web workspace for any industry (software development, engineering design, document editing, media processing, and more). Each member gets a dedicated, isolated DSH with file management, task management, and a split-screen workbench. Conversations, files, and tasks are shared across the team, so knowledge accumulates and efficiency grows. It supports multiple LLMs (DeepSeek, OpenAI, Claude, Kimi, and more) with a single shared API Key — easy to manage, easy to control, and cheaper to run!
 
-> 👥 **Who it's for:** teams that use (or want to use) AI agent but need **Multiple users can collaborate, while data is isolated by user and fully self-controlled.** — without running one AI agent per person and without handing data to a cloud service.
+> 👥 **Who it's for:** teams that use (or want to use) DSH but need **multiple users, per-user isolation, and full control of their data** — without running one DSH per person and without handing data to a cloud service.
 
 ## Highlights
 
@@ -54,15 +54,15 @@ Start/stop the default DSH, edit config (appsettings URL / workspace / default l
 
 Each member also gets a simple **My Instance** page — start/stop their own DSH, open it, and see that instance's logs:
 
+![Member view — My Instance and per-instance logs](assets/MemberLauncher.png)
+
 - **Create instance** — auto workspace (`<global-workspace>/<username>`), dedicated OS user + sandbox.
-- ![Member view —— Add member](assets/AddMember.png)
 - **Start / Stop / Open / Delete / Reset Password** per member.
-- ![Member view — My Instance and per-instance logs](assets/MemberLauncher.png)
 
 ### 2. Workbench (split screen)
 - Click **Open DSH** on a member row (or the launcher's "Open DSH") → split workbench.
 - **Left pane** tabs: **File Manager** and **My Tasks**.
-- Resize: drag the divider, or the >> icon toggles 30% ↔ 70%.
+- Resize: drag the divider, or the ⤢ button toggles 30% ↔ 70%.
 
 ![Split-screen workbench — File Manager / My Tasks on the left, DSH chat on the right](assets/workbench.png)
 
@@ -154,4 +154,4 @@ The intellectual property of this software — including its source code, design
 
 Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
-Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司 (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+Copyright (c) 2026-2036 泰顶拓鼎信息科技（上海）有限公司 (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.). All rights reserved.

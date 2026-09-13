@@ -13,7 +13,7 @@
 // WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 娉伴《鎷撻紟淇℃伅绉戞妧锛堜笂娴凤級鏈夐檺鍏徃
-// (TakeTop Information Technology (Shanghai) Co., Ltd.). All rights reserved.
+// (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.). All rights reserved.
 // A commercial license is also available; see LICENSE-COMMERCIAL.md.
 
 using System.Text.Json;
