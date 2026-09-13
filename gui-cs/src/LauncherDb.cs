@@ -2,9 +2,6 @@
 // Copyright (C) 2026-2036 娉伴《鎷撻紟淇℃伅绉戞妧锛堜笂娴凤級鏈夐檺鍏徃
 // EMail: service@taketopits.com
 //
-// This software is licensed under the MIT License. See LICENSE for the full terms.
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
-//
 // This software is the intellectual property of 娉伴《鎷撻紟淇℃伅绉戞妧锛堜笂娴凤級鏈夐檺鍏徃
 // (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.). All rights reserved.
 
