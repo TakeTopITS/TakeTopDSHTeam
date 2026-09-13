@@ -1303,7 +1303,7 @@ function showTaskView(task, en) {
     el.id = 'taskContentView';
     el.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10000;display:flex;align-items:center;justify-content:center;';
     el.innerHTML = '<div style="background:#fff;border-radius:10px;width:min(640px,94vw);max-height:86vh;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><strong id="tcvTitle" style="font-size:16px;"></strong><button id="tcvClose" style="padding:4px 12px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Close':'关闭') + '</button></div>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><strong id="tcvTitle" draggable="true" ondragstart="fmTextDragStart(event)" style="font-size:16px;"></strong><button id="tcvClose" style="padding:4px 12px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Close':'关闭') + '</button></div>'
       + '<div id="tcvBody" draggable="true" ondragstart="fmTextDragStart(event)" style="border:1px solid #e0e2e6;border-radius:6px;padding:12px;font-size:14px;line-height:1.6;overflow:auto;min-height:120px;"></div>'
       + '<div id="tcvFiles" style="margin-top:10px;"></div>'
       + '</div>';
