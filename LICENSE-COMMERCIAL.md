@@ -17,6 +17,8 @@ The Enterprise edition adds:
 - **Hierarchical (pyramid) member management** — a normal member can create and
   manage sub-members, and each sub-member can, in turn, create further
   sub-members, forming a pyramid-style management structure.
+- **Service support** — during the paid period we provide uninterrupted service
+  and timely help with any usage issues.
 
 ### Pricing
 
