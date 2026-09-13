@@ -18,7 +18,7 @@ The Enterprise edition adds:
   manage sub-members, and each sub-member can, in turn, create further
   sub-members, forming a pyramid-style management structure.
 - **Service support** — during the paid period we provide uninterrupted service
-  and timely help with any usage issues.
+  and quickly help resolve any usage issues.
 
 ### Pricing
 
