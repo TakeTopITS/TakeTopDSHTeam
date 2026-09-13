@@ -66,6 +66,8 @@ public static class DshPatcher
         }
 
         Say(PatchWorkspaceAddRemoval(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-ui-workspace"), "lib", "client.js")));
+        Say(PatchWorkspacePathCase(Path.Combine(ResolvePluginDir(dshPkg, "dsh-workspace"), "lib", "index.js")));
+        Say(PatchClientLocaleFallback(Path.Combine(ResolvePluginDir(dshPkg, "dsh-client-locale"), "lib", "client.js")));
         Say(PatchFsSandbox(Path.Combine(ResolvePluginDir(dshPkg, "dsh-fs-sandbox"), "lib", "index.js")));
         Say(PatchBashEscalation(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-bash"), "lib", "index.js")));
         Say(PatchPwshEscalation(Path.Combine(ResolvePluginDir(dshPkg, "dsh-tool-pwsh"), "lib", "index.js")));
@@ -315,6 +317,52 @@ public static class DshPatcher
         src = src.Remove(idx, old.Length).Insert(idx, "return null; " + marker);
         File.WriteAllText(file, src);
         return "[welcome] suppressed";
+    }
+
+    // DSH's dsh-workspace compares a session's canonical cwd with the workspace
+    // record path with a case-SENSITIVE `!==`. On Windows the two can legitimately
+    // differ in case (e.g. folder `WORKSpaceEE` vs stored `WorkSpaceEE`), which
+    // makes session/workspace-attach fail and the UI stick on "Choose a workspace".
+    // Make the comparison case-insensitive on win32.
+    private static string PatchWorkspacePathCase(string file)
+    {
+        if (!File.Exists(file)) return "[ws-path-case] not found";
+        var src = File.ReadAllText(file);
+        if (src.Contains("function sameWorkspacePath(")) return "[ws-path-case] already patched";
+        const string anchor = "\treturn await realpath(path);\n}\n//#endregion";
+        if (src.IndexOf(anchor, StringComparison.Ordinal) < 0) return "[ws-path-case] source changed (SKIPPED)";
+        const string marker = "/* tt-ws-path-case */";
+        src = src.Replace(anchor, anchor + "\n" + marker +
+            "\nfunction sameWorkspacePath(left, right) {\n" +
+            "\treturn process.platform === \"win32\" ? String(left).toLowerCase() === String(right).toLowerCase() : left === right;\n}");
+        src = src.Replace(
+            "if (cwd !== this.record.path) throw new Error(",
+            "if (!sameWorkspacePath(cwd, this.record.path)) throw new Error(");
+        src = src.Replace(
+            "this.record.sessionIds.filter((id) => this.host.sessionPath(id) === this.record.path)",
+            "this.record.sessionIds.filter((id) => sameWorkspacePath(this.host.sessionPath(id), this.record.path))");
+        src = src.Replace(
+            "changed.sessionIds.filter((id) => this.host.sessionPath(id) === changed.path)",
+            "changed.sessionIds.filter((id) => sameWorkspacePath(this.host.sessionPath(id), changed.path))");
+        File.WriteAllText(file, src);
+        return "[ws-path-case] patched (Windows case-insensitive workspace path)";
+    }
+
+    // DSH's client picks its FIRST-paint locale from the browser (navigator.languages)
+    // and only later applies the saved preference, so opening it briefly shows the
+    // browser language and then switches (looks like flicker). Prefer a launcher-set
+    // window.__TT_DSH_LOCALE__ (injected into the HTML) for the initial locale.
+    private static string PatchClientLocaleFallback(string file)
+    {
+        if (!File.Exists(file)) return "[locale-fallback] not found";
+        var src = File.ReadAllText(file);
+        if (src.Contains("__TT_DSH_LOCALE__")) return "[locale-fallback] already patched";
+        const string old = "\t\tfunction resolveInitialLocale(locales) {\n\t\t\treturn detectBrowserLocale(locales) ?? \"en\";\n\t\t}";
+        if (src.IndexOf(old, StringComparison.Ordinal) < 0) return "[locale-fallback] source changed (SKIPPED)";
+        var neu = "\t\tfunction resolveInitialLocale(locales) {\n\t\t\treturn (typeof window !== \"undefined\" && window.__TT_DSH_LOCALE__) || detectBrowserLocale(locales) || \"en\";\n\t\t}";
+        src = src.Replace(old, neu);
+        File.WriteAllText(file, src);
+        return "[locale-fallback] patched (initial locale from launcher default)";
     }
 
     private static string PatchSettingsVisibility(string file, bool visible)

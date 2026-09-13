@@ -44,7 +44,14 @@ LauncherDb.MigrateUsersAndInstances(root);
 // Unix: keep the central DB / admin data folders private for other OS users.
 LauncherDb.HardenUnixPermissions(root);
 var instMgr = new InstanceManager(root, dsh.ReadInstancesStartPort());
+// Never auto-assign the launcher's own port or the admin DSH port to a member.
+instMgr.ReservedPorts.Add(dsh.ReadLauncherPort());
+instMgr.ReservedPorts.Add(dsh.DefaultPort());
 dsh.SetInstanceManager(instMgr);
+// Member instances should show DSH in the admin's 缺省语言, so give the manager a
+// pointer to the default locale and sync every existing instance once at startup.
+instMgr.DefaultLocaleProvider = () => dsh.DefaultLocaleCode();
+instMgr.ApplyLocaleToAll();
 var auth = new AuthService(root);
 // Repair orphan instances (instances without a matching user account).
 auth.RepairOrphanInstances(instMgr.List());
@@ -109,7 +116,7 @@ var wwwroot = new[] {
     Path.Combine(root, "wwwroot"),
 }.FirstOrDefault(d => System.IO.Directory.Exists(d));
 
-var launcherPort = Environment.GetEnvironmentVariable("LAUNCHER_PORT") ?? "46001";
+var launcherPort = dsh.ReadLauncherPort().ToString();
 var bindHost = dsh.ReadBindHost();   // 127.0.0.1 by default; public IP/LAN when exposed
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -266,6 +273,7 @@ app.MapGet("/api/config", () =>
     {
         root = root,
         url = dsh.ReadCfgUrl(),
+        launcherPort = dsh.ReadLauncherPort(),
         externalUrl = dsh.ExternalUrl(),
         version = dsh.CurrentVersion(),
         defaultLanguage = langRaw,
@@ -277,11 +285,16 @@ app.MapGet("/api/workspace", () => new { workspace = dsh.ReadWorkspacePath(), is
 app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
 {
     if (!(bool)ctx.Items["isAdmin"]!)
-        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可修改") }, statusCode: 403);
+        return Results.Json(new { ok = false, error = L(ctx, "需要管理员才可修改") }, statusCode: 403);
+    var before = dsh.ReadWorkspacePath();
     dsh.SaveWorkspacePath(req.Workspace);
     // Reapply the admin default dsh workspace so it matches the new path now.
     dsh.ApplyWorkspaceToDefault();
-    return Results.Ok(new { ok = true, workspace = dsh.ReadWorkspacePath() });
+    var after = dsh.ReadWorkspacePath();
+    // Switching workspace changes the DB/caches; restart the launcher for the user.
+    var needRestart = !string.Equals(before?.TrimEnd('\\', '/'), after?.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+    if (needRestart) _ = Task.Run(async () => { await Task.Delay(1500); RestartSelf(); });
+    return Results.Ok(new { ok = true, workspace = after, restart = needRestart });
 });
 // Server directory browsing: roots when no path, else a one-level listing. Admin only.
 // When ?inst=<id> is provided and no path, the default browse path is the instance's workspace.
@@ -319,12 +332,26 @@ app.MapPost("/api/start", (StartRequest req, HttpContext ctx) =>
 });
 app.MapPost("/api/stop", (HttpContext ctx) =>
 {
-    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = L(ctx, "仅管理员可操作") }, statusCode: 403);
+    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false, error = L(ctx, "需要管理员才可操作") }, statusCode: 403);
     dsh.Stop();
     return Results.Ok(new { ok = true });
 });
+// Restart the launcher itself (admin): used after a setting that changes the
+// listen port or the workspace. Respawns detached and exits, so the new process
+// can bind the (possibly new) port without the user touching Task Manager.
+app.MapPost("/api/restart", (HttpContext ctx) =>
+{
+    if (!(bool)ctx.Items["isAdmin"]!)
+        return Results.Json(new { ok = false, error = L(ctx, "仅管理员可操作") }, statusCode: 403);
+    var port = dsh.ReadLauncherPort();
+    _ = Task.Run(async () => { await Task.Delay(1200); RestartSelf(); });
+    return Results.Json(new { ok = true, port, url = $"http://127.0.0.1:{port}" });
+});
 app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
 {
+    var restart = false;
+    var restartDsh = false;
+    var langChanged = false;
     if (req.Url != null)
     {
         // Reject URL pointing to the launcher port to prevent self-proxy loops.
@@ -333,11 +360,52 @@ app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
         {
             return Results.Json(new { ok = false, error = $"Cannot set DSH URL to launcher port {launcherPort}; use 46000 instead." }, statusCode: 400);
         }
+        var oldDshPort = dsh.DefaultPort();
         dsh.SaveCfgUrl(req.Url);
+        if (dsh.DefaultPort() != oldDshPort) restartDsh = true;
     }
-    if (req.ExternalUrl != null) dsh.SaveExternalUrl(req.ExternalUrl);
-    if (req.DefaultLanguage != null) dsh.SaveDefaultLanguage(req.DefaultLanguage);
-    return Results.Json(new { ok = true, url = dsh.ReadCfgUrl(), externalUrl = dsh.ExternalUrl(), defaultLanguage = dsh.ReadDefaultLanguage() });
+    if (req.ExternalUrl != null)
+    {
+        var oldExt = (dsh.ExternalUrl() ?? "").Trim();
+        dsh.SaveExternalUrl(req.ExternalUrl);
+        // --trusted-host is applied at DSH start, so restart DSH when it changes.
+        if (!string.Equals(oldExt, (dsh.ExternalUrl() ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+            restartDsh = true;
+    }
+    if (req.DefaultLanguage != null)
+    {
+        var oldLang = dsh.ReadDefaultLanguage();
+        dsh.SaveDefaultLanguage(req.DefaultLanguage);
+        if (!string.Equals((oldLang ?? "").Trim(), (dsh.ReadDefaultLanguage() ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+            restartDsh = true;
+        if (!string.Equals((oldLang ?? "").Split(',').FirstOrDefault()?.Trim(), (dsh.ReadDefaultLanguage() ?? "").Split(',').FirstOrDefault()?.Trim(), StringComparison.OrdinalIgnoreCase))
+            langChanged = true;
+        Console.WriteLine($"[config] defaultLanguage changed: '{oldLang}' -> '{dsh.ReadDefaultLanguage()}' (restartDsh={restartDsh}, langChanged={langChanged})");
+    }
+    if (req.LauncherPort is int lp)
+    {
+        if (lp < 1 || lp > 65535)
+            return Results.Json(new { ok = false, error = "Launcher port must be 1-65535." }, statusCode: 400);
+        var cur = dsh.ReadLauncherPort();
+        dsh.SaveLauncherPort(lp);
+        if (lp != cur) { restart = true; _ = Task.Run(async () => { await Task.Delay(1500); RestartSelf(); }); }
+    }
+    if (restartDsh && dsh.IsRunning) _ = Task.Run(() => { try { dsh.Stop(); dsh.Start(dsh.DefaultPort()); } catch { } });
+    if (langChanged)
+    {
+        // Member instances follow the default language too: rewrite each instance's
+        // settings.yaml and restart the running ones so the change takes effect now.
+        instMgr.ApplyLocaleToAll();
+        _ = Task.Run(() =>
+        {
+            foreach (var inst in instMgr.List())
+            {
+                if (!inst.Running) continue;
+                try { instMgr.Stop(inst); instMgr.Start(inst); } catch { }
+            }
+        });
+    }
+    return Results.Json(new { ok = true, url = dsh.ReadCfgUrl(), launcherPort = dsh.ReadLauncherPort(), externalUrl = dsh.ExternalUrl(), defaultLanguage = dsh.ReadDefaultLanguage(), restart, restartDsh, langChanged });
 });
 app.MapGet("/api/update", () => new { current = dsh.CurrentVersion(), latest = dsh.NpmLatest() });
 
@@ -2161,7 +2229,9 @@ app.Use(async (ctx, next) =>
                 if (!string.IsNullOrEmpty(fallbackSecret)) proxyToken = fallbackSecret;
             }
         }
-        await ProxyToPort(ctx, proxyPort, path, proxyToken, root, launcherToken, workspaceId);
+        var dlFirst = (dsh.ReadDefaultLanguage() ?? "en").Split(',').FirstOrDefault()?.Split(':').LastOrDefault()?.Trim() ?? "en";
+        var ttLocale = dlFirst.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? "zh" : "en";
+        await ProxyToPort(ctx, proxyPort, path, proxyToken, root, launcherToken, workspaceId, dsh.ReadDshHost(), ttLocale);
     }
     catch (Exception ex)
     {
@@ -2193,7 +2263,8 @@ _ = Task.Run(async () =>
     // control page's "Open DSH Web" button waits for its token on demand).
     // Retry up to 3 times with delays since DSH may need a moment after
     // patching to be ready.
-    var cfgPort = dsh.DefaultPort();
+    dsh.ApplyDshLocaleFromDefault();
+    var cfgPort = dsh.EnsureAdminDshPort();
     for (var attempt = 1; attempt <= 3; attempt++)
     {
         // "Running" must mean the HTTP service actually answers — a live process can
@@ -2221,11 +2292,31 @@ _ = Task.Run(async () =>
         }
     // Background: periodically mirror dsh sessions into docs/ (shared experience).
     dsh.StartSessionBackup();
+    // Publish the actual listen endpoint so launcher scripts (start.bat) never
+    // hard-code a port; removed again on clean shutdown.
+    try
+    {
+        var cfgDir = Path.Combine(root, "config");
+        Directory.CreateDirectory(cfgDir);
+        File.WriteAllText(Path.Combine(cfgDir, "launcher.runtime.json"),
+            System.Text.Json.JsonSerializer.Serialize(new
+            {
+                url = $"http://127.0.0.1:{launcherPort}",
+                port = launcherPort,
+                pid = Environment.ProcessId,
+            }));
+    }
+    catch { }
     if (Environment.GetEnvironmentVariable("DSH_OPEN_BROWSER") != "0")
     {
         await Task.Delay(1200);
         OpenBrowser($"http://127.0.0.1:{launcherPort}");
     }
+});
+
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    try { File.Delete(Path.Combine(root, "config", "launcher.runtime.json")); } catch { }
 });
 
 app.Run();
@@ -2244,13 +2335,46 @@ static void OpenBrowser(string url)
     catch { /* ignore */ }
 }
 
-// Reverse-proxy a request to an instance's loopback port, preserving method,
-// path/query, headers, body, and upgrading WebSocket connections.
-static async Task ProxyToPort(HttpContext ctx, int port, string path, string? token = null, string? root = null, string? launcherToken = null, string? workspaceId = null)
+// Relaunch this launcher detached, then exit so the new process can bind the
+// (possibly changed) port. On Windows we go through cmd with a short delay so the
+// old process fully releases the port first; on Linux we exit non-zero and let the
+// systemd unit (Restart=on-failure) bring it back.
+static void RestartSelf()
 {
     try
     {
-        var target = $"http://127.0.0.1:{port}";
+        if (OperatingSystem.IsWindows())
+        {
+            var proc = Environment.ProcessPath ?? "";
+            var same = string.Equals(Path.GetFileNameWithoutExtension(proc), "dotnet", StringComparison.OrdinalIgnoreCase);
+            var inner = same
+                ? "\"" + proc + "\" \"" + Path.Combine(AppContext.BaseDirectory, "TakeTopDshLauncher.dll") + "\""
+                : "\"" + proc + "\"";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c ping -n 4 127.0.0.1 >nul & start \"\" " + inner,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = AppContext.BaseDirectory,
+            });
+        }
+        else
+        {
+            Environment.Exit(1);
+        }
+    }
+    catch { }
+    Environment.Exit(0);
+}
+
+// Reverse-proxy a request to an instance's loopback port, preserving method,
+// path/query, headers, body, and upgrading WebSocket connections.
+static async Task ProxyToPort(HttpContext ctx, int port, string path, string? token = null, string? root = null, string? launcherToken = null, string? workspaceId = null, string? host = null, string? ttLocale = null)
+{
+    try
+    {
+        var target = $"http://{host ?? "localhost"}:{port}";
         var basePath = path == "/" || path == "" ? "/" : path;
 
         // Strip our own launcher_token from the query string so it doesn't leak
@@ -2351,8 +2475,6 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
 
         async Task<HttpResponseMessage> SendAsync(string url)
         {
-            using var h2 = new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false };
-            using var inv = new HttpMessageInvoker(h2);
             using var r2 = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), url);
             if (bodyBytesRaw.Length > 0)
                 r2.Content = new ByteArrayContent(bodyBytesRaw);
@@ -2374,7 +2496,7 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
                 if (!r2.Headers.TryAddWithoutValidation(h.Key, (IEnumerable<string>)h.Value))
                     r2.Content?.Headers.TryAddWithoutValidation(h.Key, (IEnumerable<string>)h.Value);
             }
-            return await inv.SendAsync(r2, ctx.RequestAborted);
+            return await ProxyHttp.Invoker.SendAsync(r2, ctx.RequestAborted);
         }
 
         ctx.Response.StatusCode = (int)resp.StatusCode;
@@ -2545,37 +2667,57 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
       var code = decodeURIComponent(m[1]).toLowerCase();
       var dshLocale = (code === 'zh' || code === 'zh-cn' || code === 'cn') ? 'zh' : (code === 'en' || code === 'en-us') ? 'en' : code;
       if (!dshLocale) return;
-      // Try settings/update; ignore failures (best effort).
-      rpc('settings/update', { ns: 'locale', patch: { preference: dshLocale } }).then(function(){ /* ok */ }).catch(function(){});
+      // Persist the preference via the settings/mutate RPC (ns 'locale'). The old
+      // 'settings/update' method does not exist in this DSH version, so it silently
+      // failed and DSH reverted to its stored default on every reload -> the
+      // language flickered. settings/mutate persists it, so it sticks.
+      rpc('settings/mutate', ['locale', [{ op: 'set', path: ['preference'], value: dshLocale }]]).then(function(){ /* ok */ }).catch(function(){});
     } catch(e) { }
   }
 
   function doOpen() {
-    applyLocale();
+    // Language is controlled by the launcher default language (written into
+    // DSH settings.yaml) and applied when DSH starts; do NOT override it here per
+    // browser, otherwise DSH flips between its stored locale and the browser one.
     if (!WORKSPACE_ID) return; // no workspace configured; nothing to auto-open
     var marker = 'dsh.launcher.autoopened';
     var stored;
     try { stored = JSON.parse(localStorage.getItem('dsh.sessions.current') || '{}'); } catch(e) { stored = {}; }
 
 
-    // If a session is already current and the composer is enabled, leave the app alone.
+    // Already pivoted to a session for this workspace: keep the overlay up until
+    // the composer is actually enabled (workspace attached), then reveal — so the
+    // unselected frame is never shown. Never create another session here.
+    if (stored.sessionId && localStorage.getItem(marker) === stored.sessionId) {
+      var __n = 0;
+      var __t = setInterval(function(){
+        __n++;
+        var __ed = document.querySelector('[contenteditable=""true""], [role=""textbox""], textarea');
+        var __txt = (document.body ? document.body.innerText : '') || '';
+        var __bad = __txt.indexOf('Choose a workspace') >= 0 || __txt.indexOf('选择工作区') >= 0;
+        if ((__ed && !__ed.disabled && !__bad) || __n > 120) { clearInterval(__t); if (window.__ttHideOv) window.__ttHideOv(); }
+      }, 250);
+      return;
+    }
+    // A session is current and the composer is enabled -> app is ready.
     var editor = document.querySelector('[contenteditable=""true""], [role=""textbox""], textarea');
-    if (stored.sessionId && editor && !editor.disabled) return;
+    if (stored.sessionId && editor && !editor.disabled) { if (window.__ttHideOv) window.__ttHideOv(); return; }
 
     // Create a NATIVE (fully-initialized) workspace session via DSH's own RPC.
+    // The full-screen overlay (injected into the HTML head) stays up until the
+    // reload lands on the workspace-bound session, so no unselected flash shows.
     rpc('session/create', { request: { workspaceId: WORKSPACE_ID } }).then(function(cr){
       var sessionId = cr && cr.result && cr.result.ok && cr.result.value ? cr.result.value.sessionId : null;
-      if (!sessionId) { console.warn('[launcher] session/create failed:', JSON.stringify(cr)); return null; }
+      if (!sessionId) { console.warn('[launcher] session/create failed:', JSON.stringify(cr)); if (window.__ttHideOv) window.__ttHideOv(); return null; }
       return { sessionId: sessionId };
     }).then(function(res){
       if (!res || !res.sessionId) return;
-      if (stored.sessionId === res.sessionId) return;
       localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId: res.sessionId }));
-      if (localStorage.getItem(marker) === res.sessionId) return; // already pivoted once
       localStorage.setItem(marker, res.sessionId);
       location.reload();
     }).catch(function(err){
       console.warn('[launcher] auto-open error:', err);
+      if (window.__ttHideOv) window.__ttHideOv();
     });
   }
 
@@ -2691,16 +2833,32 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
   document.addEventListener('dragover', function(ev){ ev.preventDefault(); }, true);
 })();
 </script>";
-            var autoOpenInjected = autoOpenScript.Replace("__WSID__", wsIdJs ?? "") + authReloadScript + fmDropScript;
+            // Pin DSH's FIRST-paint locale to the launcher default so it does not
+            // briefly render in the browser language before the saved preference
+            // loads (that flash is what made it look like it kept switching).
+            var ttLocaleJs = "<script>window.__TT_DSH_LOCALE__=\"" + (string.IsNullOrEmpty(ttLocale) ? "en" : ttLocale) + "\";</script>";
+            // Full-screen overlay created at the START of <head> (before the SPA
+            // renders) so the unselected-workspace frame is never visible; the
+            // auto-open script removes it once the workspace session is in place.
+            var ovText = (!string.IsNullOrEmpty(ttLocale) && ttLocale!.StartsWith("zh", StringComparison.OrdinalIgnoreCase)) ? "正在进入工作区..." : "Entering workspace...";
+            var ovSecTpl = (!string.IsNullOrEmpty(ttLocale) && ttLocale!.StartsWith("zh", StringComparison.OrdinalIgnoreCase)) ? "已等待 {0} 秒" : "{0}s elapsed";
+            var ovScript = "<script>(function(){try{var st=document.createElement('style');st.textContent='#ttAutoOv{position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f8f9fa;color:#555;font-family:system-ui,sans-serif}#ttAutoOv .ttsp{width:48px;height:48px;border:5px solid #e0e0e0;border-top-color:#4a90d9;border-radius:50%;animation:ttspin 1s linear infinite}#ttAutoOv .ttm{font-size:15px}#ttAutoOv .ttsec{font-size:13px;color:#a0a0a0;font-variant-numeric:tabular-nums}@keyframes ttspin{to{transform:rotate(360deg)}}';document.head.appendChild(st);var ov=document.createElement('div');ov.id='ttAutoOv';ov.innerHTML='<div class=\"ttsp\"></div><div class=\"ttm\">" + ovText + "</div><div class=\"ttsec\" id=\"ttOvSec\"></div>';document.documentElement.appendChild(ov);var __sec=0;var __tpl=\"" + ovSecTpl + "\";var __iv=setInterval(function(){try{__sec++;var e=document.getElementById('ttOvSec');if(e)e.textContent=__tpl.replace('{0}',__sec)}catch(e){}},1000);var obs=new MutationObserver(function(){try{if(!ov.isConnected)document.documentElement.appendChild(ov)}catch(e){}});try{obs.observe(document.documentElement,{childList:true})}catch(e){}window.__ttHideOv=function(){try{clearInterval(__iv)}catch(e){}try{obs.disconnect();ov.remove()}catch(e){}};setTimeout(function(){try{window.__ttHideOv()}catch(e){}},120000);}catch(e){}})();</script>";
+            var restScripts = autoOpenScript.Replace("__WSID__", wsIdJs ?? "") + authReloadScript + fmDropScript;
+            if (html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase) >= 0)
+                html = html.Replace("<head>", "<head>" + ttLocaleJs + ovScript, StringComparison.OrdinalIgnoreCase);
             if (html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase) >= 0)
-                html = html.Replace("</head>", autoOpenInjected + "</head>", StringComparison.OrdinalIgnoreCase);
+                html = html.Replace("</head>", restScripts + "</head>", StringComparison.OrdinalIgnoreCase);
             else if (html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase) >= 0)
-                html = html.Replace("</body>", autoOpenInjected + "</body>", StringComparison.OrdinalIgnoreCase);
+                html = html.Replace("</body>", ttLocaleJs + ovScript + restScripts + "</body>", StringComparison.OrdinalIgnoreCase);
 
             var modifiedBytes = System.Text.Encoding.UTF8.GetBytes(html);
             // Strip Content-Encoding since we decompressed and send uncompressed.
             ctx.Response.ContentLength = modifiedBytes.Length;
             ctx.Response.Headers.Remove("Content-Encoding");
+            // Never let the browser cache this injected HTML: it carries the pinned
+            // locale + overlay, so a cached copy would keep an outdated language.
+            ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            ctx.Response.Headers["Pragma"] = "no-cache";
             await ctx.Response.Body.WriteAsync(modifiedBytes, ctx.RequestAborted);
         }
         else
@@ -2860,7 +3018,7 @@ static string? ExtractQueryParam(string query, string key)
 }
 
 record StartRequest(int? Port);
-record ConfigRequest(string? Url, string? ExternalUrl, string? DefaultLanguage);
+record ConfigRequest(string? Url, string? ExternalUrl, string? DefaultLanguage, int? LauncherPort);
 record WorkspaceRequest(string? Workspace);
 record LoginRequest(string? Username, string? Password);
 record CreateInstanceRequest(string? Id, string? Name, string? Workspace, string? Password);
@@ -2978,4 +3136,19 @@ class TaskDataCache
 static class TaskCleanupHolder
 {
     public static System.Threading.Timer? Timer;
+}
+
+// Shared HTTP client for the DSH proxy. A single pooled handler (instead of a new
+// SocketsHttpHandler per request) keeps upstream connections alive, so the SPA's
+// many asset/API requests reuse one connection instead of reconnecting each time.
+static class ProxyHttp
+{
+    public static readonly SocketsHttpHandler Handler = new SocketsHttpHandler
+    {
+        UseProxy = false,
+        AllowAutoRedirect = false,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        ConnectTimeout = TimeSpan.FromSeconds(5),
+    };
+    public static readonly HttpMessageInvoker Invoker = new HttpMessageInvoker(Handler);
 }

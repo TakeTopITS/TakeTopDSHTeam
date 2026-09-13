@@ -46,6 +46,8 @@ public class DshService
         var wsHome = Path.Combine(ResolveWorkspacePath(root), ".dsh");
         var legacyHome = Path.Combine(root, ".dsh");
         _dshHome = Directory.Exists(wsHome) ? wsHome : (Directory.Exists(legacyHome) ? legacyHome : wsHome);
+        // Move any legacy install-root settings into the workspace config once.
+        try { EnsureSettingsMigrated(); } catch { }
     }
 
     public void SetInstanceManager(InstanceManager mgr) => _instMgr = mgr;
@@ -127,6 +129,24 @@ public class DshService
         {
             using var client = new System.Net.Sockets.TcpClient();
             client.Connect("127.0.0.1", port);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Stronger "is this port usable?" check: only true if we can actually BIND
+    // 127.0.0.1:port right now. Catches ports reserved/excluded by the OS that a
+    // plain connect test would wrongly report as free.
+    public static bool IsPortFree(int port)
+    {
+        try
+        {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
             return true;
         }
         catch
@@ -473,6 +493,110 @@ public class DshService
             return false;
         }
         catch { return false; }
+    }
+
+    // PIDs currently LISTENING on a loopback port.
+    private static List<int> PortOwnerPids(int port)
+    {
+        var ids = new List<int>();
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netstat",
+                    Arguments = "-ano",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                using var p = Process.Start(psi)!;
+                var output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(3000);
+                foreach (var line in output.Split('\n'))
+                    if (line.Contains($":{port} ") && line.Contains("LISTENING"))
+                    {
+                        var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 0 && int.TryParse(parts[^1], out var pid)) ids.Add(pid);
+                    }
+            }
+            else
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "ss",
+                    Arguments = "-ltnp",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                using var p = Process.Start(psi);
+                if (p != null)
+                {
+                    var output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(3000);
+                    foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var pidm = System.Text.RegularExpressions.Regex.Match(line, @"pid=(\d+)");
+                        if (pidm.Success && int.TryParse(pidm.Groups[1].Value, out var pid)) ids.Add(pid);
+                    }
+                }
+            }
+        }
+        catch { }
+        return ids;
+    }
+
+    // True when the process holding the port is a node process (i.e. looks like a
+    // leftover DSH from a previous run) rather than some unrelated service.
+    private static bool PortHeldByNode(int port)
+    {
+        foreach (var pid in PortOwnerPids(port).Distinct())
+        {
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    if (string.Equals(Process.GetProcessById(pid).ProcessName, "node", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                else
+                {
+                    var comm = File.ReadAllText("/proc/" + pid + "/comm").Trim();
+                    if (comm == "node") return true;
+                }
+            }
+            catch { }
+        }
+        return false;
+    }
+
+    // Pick the admin DSH port at startup: keep the configured one when free,
+    // reclaim it when it's held by our own (node) leftover DSH, otherwise move to
+    // the next free port and persist it. Never kills a non-DSH process, and the
+    // choice is port-only — it has no effect on stored sessions/data.
+    public int EnsureAdminDshPort()
+    {
+        var desired = DefaultPort();
+        if (!IsPortInUse(desired)) return desired;
+        if (PortHeldByNode(desired))
+        {
+            AddLog($"[dsh] port {desired} held by a stale DSH; reclaiming it");
+            StopPortOwner(desired);
+            for (int i = 0; i < 10 && IsPortInUse(desired); i++) Thread.Sleep(300);
+            if (!IsPortInUse(desired)) return desired;
+        }
+        var used = new HashSet<int> { ReadLauncherPort() };
+        try { foreach (var inst in _instMgr?.List() ?? new List<InstanceManager.Instance>()) used.Add(inst.DshPort); } catch { }
+        for (int candidate = desired + 1; candidate <= Math.Min(desired + 200, 65535); candidate++)
+        {
+            if (used.Contains(candidate) || IsPortInUse(candidate)) continue;
+            SaveCfgUrl("http://127.0.0.1:" + candidate);
+            AddLog($"[dsh] port {desired} is in use by another process; auto-selected {candidate}");
+            return candidate;
+        }
+        return desired;
     }
 
     public void Stop()
@@ -937,12 +1061,74 @@ public class DshService
 
     public void SaveCfgUrl(string url) => WriteDshWeb(new() { ["Url"] = url });
 
+    // Host used to reach the local DSH backend. An explicit non-loopback host in
+    // the config Url is honored (e.g. [::1] on IPv6-only hosts). For the default
+    // loopback we return 127.0.0.1 (NOT "localhost"): DSH binds IPv4 only, and on
+    // Windows "localhost" resolves to ::1 first, so every fresh connection waited
+    // for the IPv6 attempt before falling back -> ~2-4s page loads through the proxy.
+    public string ReadDshHost()
+    {
+        try
+        {
+            if (Uri.TryCreate(ReadCfgUrl(), UriKind.Absolute, out var uri))
+            {
+                var h = uri.Host;
+                if (string.IsNullOrWhiteSpace(h) ||
+                    h.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                    h.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+                    return "127.0.0.1";
+                return h.Contains(':') ? "[" + h + "]" : h; // IPv6 literal needs brackets in a URL
+            }
+        }
+        catch { }
+        return "127.0.0.1";
+    }
+
+    // Launcher's own listen port; takes effect on the next start.
+    public void SaveLauncherPort(int port) => WriteDshWeb(new() { ["LauncherPort"] = port });
+
     // Save the external reverse-proxy URL (configured on the control page).
     public void SaveExternalUrl(string? externalUrl) =>
         WriteDshWeb(new() { ["ExternalUrl"] = string.IsNullOrWhiteSpace(externalUrl) ? null : externalUrl.Trim() });
 
-    public void SaveDefaultLanguage(string? defaultLanguage) =>
+    public void SaveDefaultLanguage(string? defaultLanguage)
+    {
         WriteDshWeb(new() { ["DefaultLanguage"] = string.IsNullOrWhiteSpace(defaultLanguage) ? null : defaultLanguage.Trim() });
+        ApplyDshLocaleFromDefault();
+    }
+
+    // DSH shows its UI in the 'locale.preference' stored in its own settings.yaml.
+    // Mirror the launcher's "缺省语言" (first entry) into it, so opening DSH uses
+    // the language the admin set — and, because it is persisted, it never flickers.
+    // Merges into settings.yaml so other DSH settings (welcome notice, …) survive.
+    public void ApplyDshLocaleFromDefault() => WriteLocalePreference(_dshHome, DefaultLocaleCode());
+
+    // "zh" or "en" derived from the launcher's 缺省语言 first entry.
+    public string DefaultLocaleCode()
+    {
+        var first = (ReadDefaultLanguage() ?? "en").Split(',').FirstOrDefault()?.Split(':').LastOrDefault()?.Trim() ?? "en";
+        return first.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? "zh" : "en";
+    }
+
+    // Write locale.preference (zh/en) into a specific DSH home's settings.yaml,
+    // merging so other keys survive. Static so member instances can reuse it.
+    public static void WriteLocalePreference(string dshHome, string code)
+    {
+        try
+        {
+            var file = Path.Combine(dshHome, "settings.yaml");
+            var text = File.Exists(file) ? File.ReadAllText(file) : "";
+            if (System.Text.RegularExpressions.Regex.IsMatch(text, "(?m)^\\s*preference:\\s*.*$"))
+                text = System.Text.RegularExpressions.Regex.Replace(text, "(?m)^(\\s*preference:\\s*).*$", "${1}" + code);
+            else if (System.Text.RegularExpressions.Regex.IsMatch(text, "(?m)^locale:\\s*$"))
+                text = System.Text.RegularExpressions.Regex.Replace(text, "(?m)^(locale:\\s*)$", "$1\n  preference: " + code);
+            else
+                text += (text.Length > 0 && !text.EndsWith("\n") ? "\n" : "") + "locale:\n  preference: " + code + "\n";
+            Directory.CreateDirectory(dshHome);
+            File.WriteAllText(file, text);
+        }
+        catch { }
+    }
 
     // Workspace path the admin sets on the control page. This is the directory
     // dsh's sandbox/cwd points at (where AI works). Empty = dsh's own default.
@@ -952,6 +1138,21 @@ public class DshService
     }
 
     public string DshHome => _dshHome;
+
+    // Port the launcher itself listens on. Single source of truth: the merged
+    // config (config/launcher.local.json over appsettings.json) key DshWeb.LauncherPort;
+    // the LAUNCHER_PORT env var is only a fallback for advanced/container use.
+    public int ReadLauncherPort()
+    {
+        var d = ReadDshWeb();
+        if (d.TryGetValue("LauncherPort", out var v) && v != null)
+        {
+            if (v is long l && l > 0 && l <= 65535) return (int)l;
+            if (v is string s && int.TryParse(s, out var p) && p > 0 && p <= 65535) return p;
+        }
+        if (int.TryParse(Environment.GetEnvironmentVariable("LAUNCHER_PORT"), out var ep) && ep > 0 && ep <= 65535) return ep;
+        return 46001;
+    }
 
     // Resolve the effective workspace path from config without an instance: the
     // gitignored local override wins, then appsettings.json, then the portable
@@ -1000,27 +1201,62 @@ public class DshService
     // public/network interface when exposing over LAN/internet).
     public string ReadBindHost() => OptStr(ReadDshWeb(), "BindHost") ?? "127.0.0.1";
 
-    // First port the launcher uses when auto-assigning instance ports.
+    // First port the launcher uses when auto-assigning instance ports. Defaults to
+    // the launcher's own port, so member ports sit right next to it (launcher 46201,
+    // admin DSH 46202 -> members 46203, 46204, ...). Override with DshWeb.InstancesStartPort.
     public int ReadInstancesStartPort()
     {
         var d = ReadDshWeb();
-        return d.TryGetValue("InstancesStartPort", out var v) && v is long n ? (int)n : 46000;
+        if (d.TryGetValue("InstancesStartPort", out var v))
+        {
+            if (v is long n && n > 0 && n <= 65535) return (int)n;
+            if (v is string s && int.TryParse(s, out var p) && p > 0 && p <= 65535) return p;
+        }
+        return ReadLauncherPort();
     }
 
     public void SaveWorkspacePath(string? workspacePath) =>
         WriteDshWeb(new() { ["WorkspacePath"] = string.IsNullOrWhiteSpace(workspacePath) ? null : workspacePath.Trim() });
 
-    // Runtime-mutable settings are stored in a gitignored local file so the
-    // committed appsettings.json stays a portable, machine-independent template.
-    // Reads merge the local override OVER the appsettings.json defaults.
-    private string LocalSettingsPath => Path.Combine(_root, "config", "launcher.local.json");
+    // The install-root file is only a POINTER to the workspace: it holds
+    // WorkspacePath (and nothing else) so the launcher can find the workspace even
+    // before any config is loaded. Everything else lives in the workspace config
+    // (<workspace>/config/launcher.json) so a program upgrade that overwrites the
+    // install directory can never wipe the user's settings.
+    private string BootstrapPath => Path.Combine(_root, "config", "launcher.local.json");
+
+    // Full, user-editable config; travels with the workspace and survives upgrades.
+    private string WorkspaceSettingsPath()
+        => Path.Combine(ResolveWorkspacePath(_root), "config", "launcher.json");
 
     private Dictionary<string, object?> ReadDshWeb()
     {
         var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in ParseDshWeb(Path.Combine(_root, "appsettings.json"))) dict[kv.Key] = kv.Value;
-        foreach (var kv in ParseDshWeb(LocalSettingsPath)) dict[kv.Key] = kv.Value;
+        foreach (var kv in ParseDshWeb(BootstrapPath)) dict[kv.Key] = kv.Value;
+        foreach (var kv in ParseDshWeb(WorkspaceSettingsPath())) dict[kv.Key] = kv.Value;
         return dict;
+    }
+
+    // One-time migration: pull legacy settings (Url/LauncherPort/…) out of the
+    // install-root bootstrap into the workspace config, leaving the bootstrap with
+    // only the workspace pointer.
+    private void EnsureSettingsMigrated()
+    {
+        var boot = ParseDshWeb(BootstrapPath);
+        if (boot.Count == 0) return;
+        var wsPath = WorkspaceSettingsPath();
+        var wsExisting = ParseDshWeb(wsPath);
+        var moved = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in boot)
+        {
+            if (string.Equals(kv.Key, "WorkspacePath", StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.IsNullOrWhiteSpace(kv.Key)) continue;
+            if (!wsExisting.ContainsKey(kv.Key)) moved[kv.Key] = kv.Value;
+        }
+        if (moved.Count > 0) WriteDshWebFile(wsPath, moved);
+        var pointer = boot.TryGetValue("WorkspacePath", out var wp) ? Convert.ToString(wp, System.Globalization.CultureInfo.InvariantCulture) : null;
+        WriteBootstrapPointer(pointer);
     }
 
     private static Dictionary<string, object?> ParseDshWeb(string path)
@@ -1049,12 +1285,46 @@ public class DshService
     private static string? OptStr(Dictionary<string, object?> d, string key)
         => d.TryGetValue(key, out var v) && v is string s && !string.IsNullOrWhiteSpace(s) ? s.Trim() : null;
 
-    // Persist runtime settings into the gitignored local override file (merged
-    // over appsettings.json on read). A value of null removes that key. Writes
-    // NEVER touch the committed appsettings.json, so a clone stays clean.
+    // Persist runtime settings. WorkspacePath goes to the install-root pointer so
+    // the next launch can find the workspace; every other key is written to the
+    // workspace config. Writes NEVER touch the committed appsettings.json.
     private void WriteDshWeb(Dictionary<string, object?> cfg)
     {
-        var path = LocalSettingsPath;
+        if (cfg.ContainsKey("WorkspacePath"))
+        {
+            var ws = cfg["WorkspacePath"] == null ? null : Convert.ToString(cfg["WorkspacePath"], System.Globalization.CultureInfo.InvariantCulture);
+            // 1) Remember the workspace pointer in the install dir.
+            WriteBootstrapPointer(ws);
+            var target = Path.Combine(string.IsNullOrWhiteSpace(ws) ? ResolveWorkspacePath(_root) : ws!, "config", "launcher.json");
+            // 2) Materialize the effective settings into the workspace so it owns a
+            //    complete config file from the very first save.
+            var effective = ReadDshWeb();
+            effective.Remove("WorkspacePath");
+            if (effective.Count > 0) WriteDshWebFile(target, effective);
+            // 3) Apply any remaining keys from this same call.
+            cfg = cfg.Where(kv => !string.Equals(kv.Key, "WorkspacePath", StringComparison.OrdinalIgnoreCase))
+                     .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+            if (cfg.Count > 0) WriteDshWebFile(target, cfg);
+            return;
+        }
+        WriteDshWebFile(WorkspaceSettingsPath(), cfg);
+    }
+
+    // The install-root pointer: workspace path only, so it survives the one thing
+    // that must not be lost and stays trivially small.
+    private void WriteBootstrapPointer(string? workspacePath)
+    {
+        var file = BootstrapPath;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(file)!); } catch { }
+        var root = new JsonObject();
+        var web = new JsonObject();
+        if (!string.IsNullOrWhiteSpace(workspacePath)) web["WorkspacePath"] = JsonValue.Create(workspacePath);
+        root["DshWeb"] = web;
+        File.WriteAllText(file, root.ToJsonString(JsonWriteOptions));
+    }
+
+    private void WriteDshWebFile(string path, Dictionary<string, object?> cfg)
+    {
         try { Directory.CreateDirectory(Path.GetDirectoryName(path)!); } catch { }
         JsonNode root;
         if (File.Exists(path))
@@ -1079,13 +1349,16 @@ public class DshService
             else
                 web[kvp.Key] = JsonValue.Create(Convert.ToString(kvp.Value, System.Globalization.CultureInfo.InvariantCulture));
         }
-        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions {
-            WriteIndented = true,
-            // Keep CJK / non-ASCII as literal characters instead of \uXXXX escapes,
-            // so the config file stays human-readable (中文 stays 中文, not \u4E2D\u6587).
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        }));
+        File.WriteAllText(path, root.ToJsonString(JsonWriteOptions));
     }
+
+    private static readonly JsonSerializerOptions JsonWriteOptions = new()
+    {
+        WriteIndented = true,
+        // Keep CJK / non-ASCII as literal characters instead of \uXXXX escapes,
+        // so the config file stays human-readable (中文 stays 中文, not \u4E2D\u6587).
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     // UI language list from appsettings.json DshWeb.DefaultLanguage, e.g.
     // "en,zh-cn". Defaults to "en,zh-cn" when unset. Empty when explicitly "".

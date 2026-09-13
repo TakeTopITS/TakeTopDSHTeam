@@ -54,6 +54,11 @@ public class InstanceManager
     private readonly string _instRoot;       // instances/<id>
     private readonly string _dshTemplate;    // .dsh template root
     private readonly int _basePort;          // first port used for auto-assignment
+    // Ports that must never be auto-assigned to a member (launcher + admin DSH).
+    public HashSet<int> ReservedPorts { get; } = new();
+    // Returns the launcher's default DSH locale ("zh"/"en"); set by Program.cs so
+    // each member instance's settings.yaml follows the admin's 缺省语言.
+    public Func<string>? DefaultLocaleProvider { get; set; }
     private readonly object _gate = new();
     private readonly List<Instance> _instances = new();
     // Static cache: OS users already created + permissions set, so the slow
@@ -321,17 +326,40 @@ public class InstanceManager
     }
 
     // Find a free port starting at basePort (skips ports already in use by the
-    // OS or already assigned to another instance).
+    // OS, ports reserved for the launcher/admin DSH, and ports already assigned
+    // to another instance). A port is only accepted when it can actually be bound.
     public int AllocPort(int? basePort = null)
     {
         var start = basePort ?? _basePort;
         HashSet<int> used = new(_instances.Select(i => i.DshPort).Where(p => p > 0));
-        for (var p = start; p < start + 2000; p++)
+        foreach (var r in ReservedPorts) used.Add(r);
+        for (var p = Math.Max(1, start); p <= 65535 && p < start + 2000; p++)
         {
             if (used.Contains(p)) continue;
-            if (!DshService.IsPortInUse(p)) return p;
+            if (DshService.IsPortInUse(p)) continue;
+            if (!DshService.IsPortFree(p)) continue;
+            return p;
         }
         throw new InvalidOperationException("no free port available");
+    }
+
+    // Apply the launcher default locale to one instance's own DSH settings.yaml so
+    // member DSH matches the admin's 缺省语言 (instead of a stale template value).
+    private void ApplyLocale(Instance inst)
+    {
+        try
+        {
+            if (inst == null || string.IsNullOrWhiteSpace(inst.DshHome)) return;
+            var code = DefaultLocaleProvider?.Invoke() ?? "en";
+            DshService.WriteLocalePreference(inst.DshHome, code);
+        }
+        catch { }
+    }
+
+    // Re-apply the default locale to every instance (launcher start / language change).
+    public void ApplyLocaleToAll()
+    {
+        foreach (var i in _instances.ToList()) ApplyLocale(i);
     }
 
     public string NodeExe()
@@ -406,6 +434,8 @@ public class InstanceManager
             _instances.Add(inst);
             // Apply workspace + sandbox mode immediately so cordis.patch.yml is correct.
             ApplyWorkspace(inst);
+            // Match the admin's 缺省语言 for this new member's DSH.
+            ApplyLocale(inst);
 
             // Create OS user for isolation (if password provided). If user creation
             // fails (e.g. password rejected / elevated launcher missing), keep the
@@ -593,6 +623,10 @@ public class InstanceManager
             // below, so even an instance that is already running (e.g. auto-restored
             // on launcher start) gets the real DeepSeek key the admin configured.
             try { EnsureSharedCredentials(inst.DshHome); } catch { }
+
+            // Keep this member's DSH language in sync with the launcher default,
+            // even for an already-running instance (takes effect on its next start).
+            ApplyLocale(inst);
 
             if (inst.Proc is { HasExited: false }) return;
 
