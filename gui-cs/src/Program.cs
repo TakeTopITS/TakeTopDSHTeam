@@ -411,6 +411,48 @@ long SumHomeTokens(string dshHome)
     catch { }
     return total;
 }
+// Token totals grouped by the model each session used (rows.modelSelection.val.lastUsed).
+List<(string Model, long Tokens)> HomeTokensByModel(string dshHome)
+{
+    var map = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+    try
+    {
+        if (string.IsNullOrWhiteSpace(dshHome)) return new();
+        var dir = Path.Combine(dshHome, "storages", "session_projcache", "sessions");
+        if (!Directory.Exists(dir)) return new();
+        foreach (var f in Directory.EnumerateFiles(dir, "*.json"))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(f));
+                if (!doc.RootElement.TryGetProperty("record", out var rec) || rec.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!rec.TryGetProperty("rows", out var rows) || rows.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!rows.TryGetProperty("tokenUsage", out var tu)) continue;
+                if (!tu.TryGetProperty("val", out var val) || val.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!val.TryGetProperty("totals", out var tot) || tot.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                long t = 0;
+                foreach (var k in new[] { "uncachedInputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens" })
+                    if (tot.TryGetProperty(k, out var n) && n.TryGetInt64(out var v)) t += v;
+                if (t == 0) continue;
+                var model = "unknown";
+                if (rows.TryGetProperty("modelSelection", out var ms) && ms.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && ms.TryGetProperty("val", out var mv) && mv.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && mv.TryGetProperty("lastUsed", out var lu) && lu.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    var mdl = lu.TryGetProperty("model", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String ? m.GetString() : null;
+                    var prov = lu.TryGetProperty("provider", out var p) && p.ValueKind == System.Text.Json.JsonValueKind.String ? p.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(mdl)) model = mdl!;
+                    else if (!string.IsNullOrWhiteSpace(prov)) model = prov!;
+                }
+                map.TryGetValue(model, out var cur);
+                map[model] = cur + t;
+            }
+            catch { }
+        }
+    }
+    catch { }
+    return map.Select(kv => (kv.Key, kv.Value)).ToList();
+}
 // The admin DSH writes its sessions to <workspace>/.dsh; each member instance to its own home.
 string AdminDshHome() => Path.Combine(dsh.ReadWorkspacePath(), ".dsh");
 
@@ -451,17 +493,26 @@ app.MapGet("/api/tokenUsage", (HttpContext ctx) =>
             return Results.Ok(new { ok = true, tokens = own });
         }
         var members = new List<object>();
+        var rows = new List<object>();
         long total = 0;
+        void Collect(string member, string home)
+        {
+            foreach (var (model, tk) in HomeTokensByModel(home))
+                rows.Add(new { member, model, tokens = tk });
+        }
         var adminTokens = SumHomeTokens(AdminDshHome());
         members.Add(new { member = "admin", name = "Admin", tokens = adminTokens, self = true });
         total += adminTokens;
+        Collect("admin", AdminDshHome());
         foreach (var i in instMgr.List())
         {
             var tk = SumHomeTokens(i.DshHome);
             members.Add(new { member = i.Id, name = i.Name, tokens = tk, self = false });
             total += tk;
+            Collect(i.Id, i.DshHome);
         }
-        return Results.Ok(new { ok = true, tokens = total, total, members });
+        var asOf = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        return Results.Ok(new { ok = true, tokens = total, total, members, asOf, rows });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });

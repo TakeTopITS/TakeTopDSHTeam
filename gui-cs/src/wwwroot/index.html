@@ -278,6 +278,12 @@
 
   <!-- tabs end -->
 
+  <!-- Token usage (admin only): every member x model, cumulative totals -->
+  <div class="card" data-admin id="tokenCard" style="display:none;">
+    <h2 data-i18n="tokenTitle">Token Usage</h2>
+    <div id="tokenTable" style="font-size:13px;"></div>
+  </div>
+
   <div class="card">
     <h2 data-i18n="logTitle">日志</h2>
     <div class="row">
@@ -480,7 +486,7 @@ async function withLoading(btn, fn, done) {
 const I18N = {
   zh: {
     title: "TakeTopDshTeam 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
-    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thTokens: "已用 Token", tokenTotalAll: "合计（含 admin）", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录", loginFail: "用户名或密码错误",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thTokens: "已用 Token", tokenTotalAll: "合计（含 admin）", thModel: "大模型", thAsOf: "截止时间", tokenTitle: "Token 用量", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录", loginFail: "用户名或密码错误",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
     wsDefaultWarn: "⚠ 尚未设置工作区：当前使用默认目录（发行版目录下的 WorkSpace）。升级/替换发行版时可能被覆盖，或与其它副本共用。请先设置专用工作区目录。",
@@ -521,7 +527,7 @@ const I18N = {
   },
   en: {
     title: "TakeTopDshTeam Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
-    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thTokens: "Tokens used", tokenTotalAll: "Total (all members incl. admin)", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in", loginFail: "Invalid username or password",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thTokens: "Tokens used", tokenTotalAll: "Total (all members incl. admin)", thModel: "Model", thAsOf: "As of", tokenTitle: "Token Usage", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in", loginFail: "Invalid username or password",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
     wsDefaultWarn: "⚠ No workspace set: using the DEFAULT (the WorkSpace folder inside the release dir). It may be overwritten on upgrade or shared with other copies. Set a dedicated workspace directory first.",
@@ -700,6 +706,7 @@ async function refresh() {
   $('#startBtn').disabled = on || starting;
   $('#stopBtn').disabled = !on && !starting;
   loadTokenTotal();
+  loadTokenTable();
 }
 
 // Token totals from the DSH session projections. Admin sees every member (incl self);
@@ -712,6 +719,31 @@ async function loadTokenTotal() {
     const d = await r.json();
     const el = $('#adminTokenTotal');
     if (el) el.textContent = fmtTokens(d.total != null ? d.total : d.tokens);
+  } catch (e) {}
+}
+// Admin card: cumulative tokens per (member, model); "as of" is the snapshot time.
+async function loadTokenTable() {
+  var box = $('#tokenTable');
+  if (!box) return;
+  try {
+    const d = await (await fetch('/api/tokenUsage')).json();
+    if (!d || !d.rows) { box.innerHTML = ''; return; }
+    var h = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f5f6f8;">'
+      + '<th style="padding:6px 8px;text-align:left;">' + t('thUser') + '</th>'
+      + '<th style="padding:6px 8px;text-align:left;">' + t('thModel') + '</th>'
+      + '<th style="padding:6px 8px;text-align:right;">' + t('thTokens') + '</th>'
+      + '<th style="padding:6px 8px;text-align:left;">' + t('thAsOf') + '</th>'
+      + '</tr></thead><tbody>';
+    d.rows.forEach(function(r){
+      h += '<tr style="border-bottom:1px solid #eee;">'
+        + '<td style="padding:6px 8px;font-weight:600;">' + esc(r.member) + '</td>'
+        + '<td style="padding:6px 8px;">' + esc(r.model) + '</td>'
+        + '<td style="padding:6px 8px;text-align:right;">' + fmtTokens(r.tokens) + '</td>'
+        + '<td style="padding:6px 8px;color:#6b7280;">' + esc(d.asOf || '') + '</td>'
+        + '</tr>';
+    });
+    h += '</tbody></table>';
+    box.innerHTML = h;
   } catch (e) {}
 }
 
