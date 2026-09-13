@@ -1635,6 +1635,7 @@ app.MapGet("/api/feedback", (string? inst, string? uid, HttpContext ctx) =>
     // string even though it is stored normalized in feedback_files.
     var entries = list.Select(e => new
     {
+        uid = e.Uid,
         date = e.Date,
         by = e.By,
         content = e.Content,
@@ -1691,7 +1692,7 @@ app.MapPost("/api/feedback", async (HttpContext ctx) =>
         var entry = list.FirstOrDefault(e => e.Date == today && string.Equals(e.By, username, StringComparison.OrdinalIgnoreCase));
         if (entry == null)
         {
-            entry = new FeedbackEntry { Date = today, By = username };
+            entry = new FeedbackEntry { Uid = LauncherDb.NewUid(), Date = today, By = username };
             list.Add(entry);
         }
         entry.Content = StripLauncherToken(content);
@@ -2778,6 +2779,7 @@ record TaskUpsertRequest(string? Inst, string? Uid, string? Name, string? Type, 
 
 record FeedbackEntry
 {
+    public string? Uid { get; set; } = ""; // feedback uid (primary key; stable across saves)
     public string? Date { get; set; }
     public string? By { get; set; }
     public string? Content { get; set; }
