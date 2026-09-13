@@ -147,6 +147,7 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 
 - **🧮 Per-member token control** — see and control each member's token usage.
 - **🏛️ Hierarchical (pyramid) member management** — a normal member can create and manage sub-members, and each sub-member can, in turn, create further sub-members, forming a pyramid-style management structure.
+- **🛠️ Support** — during the paid period we provide uninterrupted service and timely help with any usage issues.
 
 **Pricing:** **USD 10 per user per month** (e.g. 10 users = USD 100/month; 15 users = USD 150/month; 20 users = USD 200/month). Contact **service@taketopits.com** — see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 
