@@ -40,6 +40,9 @@
 <style>
   body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #1c1e21; }
   .wrap { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+  /* /fm mode: drop the 860px cap and use a smaller side inset so the task table
+     sits closer to the pane edges (the default centering padded it too much). */
+  body.fm-standalone .wrap { max-width: none; padding: 0 20px; }
   .card { background: #fff; border: 1px solid #e0e2e6; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
   h1 { font-size: 20px; margin: 0 0 14px; }
   h2 { font-size: 15px; margin: 10px 0 6px; }
@@ -111,11 +114,11 @@
   .fm-md th,.fm-md td { border:1px solid #d1d5db; padding:4px 8px; }
   .fm-md blockquote { border-left:3px solid #d1d5db; margin:8px 0; padding:2px 12px; color:#6b7280; }
   /* left-pane tabs (File Manager | My Tasks) inside /fm */
-  .fm-tabs { display:flex; gap:6px; padding:10px 14px 6px; background:#fff; border-bottom:1px solid #e0e2e6; }
+  .fm-tabs { display:flex; gap:6px; padding:10px 0 6px; background:#fff; border-bottom:1px solid #e0e2e6; }
   .fm-tab { flex:1; padding:9px 10px; border:1px solid #d5d9df; border-radius:7px; background:#fff; color:#475569; font-size:14px; font-weight:600; cursor:pointer; text-align:center; }
   .fm-tab:hover { background:#f5f7fa; }
   .fm-tab.active { background:#2563eb; color:#fff; border-color:#2563eb; }
-  .fm-tasks { padding:12px 14px; }
+  .fm-tasks { padding:12px 0; }
   .fm-task-table { width:99%; min-width:max-content; border-collapse:collapse; font-size:13px; white-space:nowrap; }
   .fm-task-table th, .fm-task-table td { padding:8px 10px; border-bottom:1px solid #eef0f3; text-align:left; vertical-align:top; }
   #fmList, #fmTasksView, .fm-tasks { overflow-x:auto; }
@@ -127,6 +130,9 @@
   #instList td:nth-child(5) { white-space: nowrap; text-align: left; }
   #instList button { padding: 5px 10px; font-size: 13px; }
   .fm-task-table th { background:#f8fafc; color:#475569; font-weight:700; }
+  /* Name column: cap the width so a long task name wraps instead of stretching the table. */
+  .fm-task-table th.fm-th-name { width:440px; max-width:440px; }
+  .fm-task-table td.fm-task-name-cell { width:440px; max-width:440px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
   .fm-st { font-weight:600; }
   .fm-st.processing { color:#d97706; } .fm-st.done { color:#16a34a; } .fm-st.cancelled { color:#9ca3af; } .fm-st.pending { color:#64748b; }
   .fm-empty { padding:20px; text-align:center; color:#9ca3af; font-size:13px; }
@@ -758,6 +764,7 @@ async function init() {
   // ---- "fm" standalone mode: used inside the /work split page's left pane.
   // Render ONLY the file manager, full-width within the pane; skip every card.
   if (location.pathname === '/fm') {
+    document.body.classList.add('fm-standalone');
     document.querySelectorAll('.wrap > .card, .wrap > .topbar').forEach(el => { el.style.display = 'none'; });
     $('#fileManagerCard').style.display = '';
     $('#fileManagerCard').style.margin = '0';
@@ -1132,7 +1139,7 @@ async function loadMyTasks(container) {
     }
     await fetchPage(1);
     if (!tasks.length) { container.innerHTML = '<div class="fm-empty">' + (en?'No tasks':'暂无任务') + '</div>'; return; }
-    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th>' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thAssign + '</th><th style="width:22px;"></th><th>' + dict.thAssignee + '</th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th><th>' + dict.thOps + '</th></tr></thead></table>';
+    var hdr = '<table class="fm-task-table"><thead><tr><th>' + dict.thSeq + '</th><th>' + dict.thType + '</th><th class="fm-th-name">' + dict.thName + '</th><th>' + dict.thFeedback + '</th><th>' + dict.thAssign + '</th><th style="width:22px;"></th><th>' + dict.thAssignee + '</th><th>' + dict.thCreator + '</th><th>' + dict.thAssigned + '</th><th>' + dict.thStatus + '</th><th>' + dict.thFiles + '</th><th>' + dict.thOps + '</th></tr></thead></table>';
     container.innerHTML = hdr;
     var state = { page: 1 };
     // Persisted expansion state (key = member#seq) so saves keep rows open.
@@ -1166,7 +1173,7 @@ async function loadMyTasks(container) {
         ? '<button class="fm-del-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;margin-left:' + (mine?'4px':'0') + ';">' + (en?'Delete':'删除') + '</button>'
         : '');
       tr.innerHTML = '<td style="' + indent + 'white-space:nowrap;">' + (task.hier != null && task.hier !== '' ? task.hier : task.seq) + '</td><td>' + (task.type||'') + '</td>'
-        + '<td><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.uid + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
+        + '<td class="fm-task-name-cell"><a href="javascript:void(0)" class="fm-task-name-link" data-task="' + task.uid + '" draggable="true" ondragstart="fmTaskDragStart(event)" style="color:#2563eb;font-weight:600;text-decoration:none;">' + (task.name||'') + '</a></td>'
         + '<td><button class="fm-feedback-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Feedback':'反馈') + '</button></td>'
         + '<td><button class="fm-assign-btn" data-task="' + task.uid + '" style="padding:2px 10px;border:0;border-radius:5px;background:#0ea5e9;color:#fff;font-size:12px;cursor:pointer;">' + (en?'Continue Assign':'继续分派') + '</button></td>'
         + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button class="fm-sub-toggle" data-task="' + task.uid + '" data-open="0" title="' + (en?'Expand subtasks':'展开子任务') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
