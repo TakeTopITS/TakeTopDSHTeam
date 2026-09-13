@@ -1828,7 +1828,7 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/logs") ||
         path.StartsWith("/api/token") ||
         path.StartsWith("/api/config") ||
-        path.StartsWith("/api/workspace") ||
+        path == "/api/workspace" ||
         path.StartsWith("/api/browse") ||
         path.StartsWith("/api/files") ||
         path.StartsWith("/api/start") ||

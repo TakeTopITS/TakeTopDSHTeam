@@ -1137,11 +1137,15 @@ async function loadMyTasks(container) {
 
     function buildRow(task, depth) {
       var filesHtml = (task.files||[]).map(function(f){
-        var n = dispName(String(f).split('/').pop());
-        return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(n).replace(/"/g,'&quot;') + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
+        var raw = String(f).split('/').pop();
+        var n = dispName(raw);
+        var p = 'TaskData/Doc/' + raw;
+        return '<div><a href="javascript:void(0)" class="fm-task-file" data-file="' + String(raw).replace(/"/g,'&quot;') + '" data-path="' + String(p).replace(/"/g,'&quot;') + '" draggable="true" ondragstart="fmFileDragStart(event)" style="color:#2563eb;text-decoration:none;font-size:12.5px;cursor:pointer;">' + n + '</a></div>';
       }).join('') + (task.feedbackFiles||[]).map(function(fn){
-        var b = dispName(String(fn).split('/').pop());
-        return '<div><a href="javascript:void(0)" class="fm-task-fbfile" data-name="' + String(fn).replace(/"/g,'&quot;') + '" style="color:#7c3aed;text-decoration:none;font-size:12.5px;cursor:pointer;">' + b + '</a></div>';
+        var raw = String(fn).split('/').pop();
+        var b = dispName(raw);
+        var p = 'TaskData/Feedback/' + (task.seq || 0) + '/' + raw;
+        return '<div><a href="javascript:void(0)" class="fm-task-fbfile" data-name="' + String(raw).replace(/"/g,'&quot;') + '" data-path="' + String(p).replace(/"/g,'&quot;') + '" draggable="true" ondragstart="fmFileDragStart(event)" style="color:#7c3aed;text-decoration:none;font-size:12.5px;cursor:pointer;">' + b + '</a></div>';
       }).join('');
       var tr = document.createElement('tr');
       var indent = depth ? ('padding-left:' + (10 + depth*16) + 'px;') : '';
@@ -1300,7 +1304,7 @@ function showTaskView(task, en) {
     el.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10000;display:flex;align-items:center;justify-content:center;';
     el.innerHTML = '<div style="background:#fff;border-radius:10px;width:min(640px,94vw);max-height:86vh;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><strong id="tcvTitle" style="font-size:16px;"></strong><button id="tcvClose" style="padding:4px 12px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Close':'关闭') + '</button></div>'
-      + '<div id="tcvBody" style="border:1px solid #e0e2e6;border-radius:6px;padding:12px;font-size:14px;line-height:1.6;overflow:auto;min-height:120px;"></div>'
+      + '<div id="tcvBody" draggable="true" ondragstart="fmTextDragStart(event)" style="border:1px solid #e0e2e6;border-radius:6px;padding:12px;font-size:14px;line-height:1.6;overflow:auto;min-height:120px;"></div>'
       + '<div id="tcvFiles" style="margin-top:10px;"></div>'
       + '</div>';
     document.body.appendChild(el);
@@ -1323,7 +1327,7 @@ function showTaskView(task, en) {
     if (!rows.length) { fbox.innerHTML = ''; return; }
     var fhtml = '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px;">' + (en ? 'Attachments' : '附件文件') + '</div>';
     rows.forEach(function (r, i) {
-      fhtml += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="tcv-file" data-i="' + i + '" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + r.name + '</a></div>';
+      fhtml += '<div style="padding:2px 0;"><a href="javascript:void(0)" class="tcv-file" data-i="' + i + '" data-path="' + String(r.rel).replace(/"/g, '&quot;') + '" draggable="true" ondragstart="fmFileDragStart(event)" style="color:#2563eb;text-decoration:none;font-size:12.5px;">' + r.name + '</a></div>';
     });
     fbox.innerHTML = fhtml;
     fbox.querySelectorAll('a.tcv-file').forEach(function (a) {
@@ -1682,9 +1686,9 @@ function pagFb(wrap, entries, today) {
     body.innerHTML = '';
     slice.forEach(function(e, i){
       var filesHtml = '';
-      if (e.files) { e.files.split(',').filter(Boolean).forEach(function(fn){ filesHtml += '<div><a href="javascript:void(0)" onclick="openFbFile(\'' + fn.replace(/'/g, "\\'") + '\')" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">' + fn.replace(/~[0-9a-f]{8}(\.[^.]*)?$/i,'$1') + '</a></div>'; }); }
+      if (e.files) { e.files.split(',').filter(Boolean).forEach(function(fn){ var fp = 'TaskData/Feedback/' + (fbSeq || 0) + '/' + fn; filesHtml += '<div><a href="javascript:void(0)" onclick="openFbFile(\'' + fn.replace(/'/g, "\\'") + '\')" data-path="' + fp.replace(/"/g, '&quot;') + '" draggable="true" ondragstart="fmFileDragStart(event)" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">' + fn.replace(/~[0-9a-f]{8}(\.[^.]*)?$/i, '$1') + '</a></div>'; }); }
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td style="padding:8px;">' + (total - (s + i)) + '</td><td style="padding:8px;">' + (e.content||'') + '</td><td style="padding:8px;">' + (e.by||'') + '</td><td style="padding:8px;">' + (e.time||'') + '</td><td style="padding:8px;">' + filesHtml + '</td>';
+      tr.innerHTML = '<td style="padding:8px;">' + (total - (s + i)) + '</td><td style="padding:8px;cursor:grab;" draggable="true" ondragstart="fmTextDragStart(event)">' + (e.content || '') + '</td><td style="padding:8px;">' + (e.by || '') + '</td><td style="padding:8px;">' + (e.time || '') + '</td><td style="padding:8px;">' + filesHtml + '</td>';
       body.appendChild(tr);
     });
     var pag = wrap.querySelector('.tt-pager');
@@ -2144,7 +2148,8 @@ function fmDragStart(ev) {
   const path = row.dataset.path || '';
   const name = row.dataset.name || '';
   fmDragSource = { path: path, name: name };
-  try { ev.dataTransfer.setData('text/plain', path); } catch (e) {}
+  const pre = dshComposerHasText() ? ', ' : '';
+  try { ev.dataTransfer.setData('text/plain', pre + '"' + path + '"'); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-path', path); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
   try { ev.dataTransfer.effectAllowed = 'copyMove'; } catch (e) {}
@@ -2206,8 +2211,46 @@ function fmTaskDragStart(ev) {
   const link = ev.target.closest('.fm-task-name-link');
   if (!link) return;
   const name = (link.textContent || '').trim();
-  try { ev.dataTransfer.setData('text/plain', name); } catch (e) {}
+  const pre = dshComposerHasText() ? ', ' : '';
+  try { ev.dataTransfer.setData('text/plain', pre + '"' + name + '"'); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
+}
+// Whether the DSH composer (right pane) already holds text. The composer is in
+// the sibling same-origin iframe, so the drag source can read it directly.
+function dshComposerHasText() {
+  try {
+    var par = window.parent;
+    if (!par || par === window) return false;
+    var fr = par.document.getElementById('dshPane');
+    var doc = fr && (fr.contentDocument || (fr.contentWindow && fr.contentWindow.document));
+    if (!doc) return false;
+    var el = doc.querySelector('[contenteditable="true"]') || doc.querySelector('[contenteditable]') || doc.querySelector('textarea');
+    if (!el) return false;
+    var t = (typeof el.value === 'string') ? el.value : (el.textContent || '');
+    return t.replace(/\u200b/g, '').trim().length > 0;
+  } catch (e) { return false; }
+}
+// Drag a task/feedback attachment link into the DSH input box: carry the
+// workspace-relative path so the AI can locate the file directly.
+function fmFileDragStart(ev) {
+  const el = ev.target.closest('a[data-path]');
+  if (!el) return;
+  const p = el.getAttribute('data-path') || '';
+  const pre = dshComposerHasText() ? ', ' : '';
+  try { ev.dataTransfer.setData('text/plain', pre + '"' + p + '"'); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-path', p); } catch (e) {}
+  try { ev.dataTransfer.setData('application/x-tt-fm-name', p.split('/').pop()); } catch (e) {}
+  try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
+}
+// Drag feedback content / the task content view into the DSH input box as text
+// (wrapped in double quotes).
+function fmTextDragStart(ev) {
+  const el = ev.target.closest('[draggable],td');
+  const txt = (el && (el.innerText || el.textContent)) || '';
+  if (!txt) return;
+  const pre = dshComposerHasText() ? ', ' : '';
+  try { ev.dataTransfer.setData('text/plain', pre + '"' + txt + '"'); } catch (e) {}
   try { ev.dataTransfer.effectAllowed = 'copy'; } catch (e) {}
 }
 
