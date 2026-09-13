@@ -1578,7 +1578,7 @@ function ensureFbModal(en) {
   fbModal.innerHTML =
     '<div style="background:#fff;border-radius:10px;width:min(760px,96vw);max-height:90vh;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow-y:auto;">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-    +   '<strong id="fbTitle" style="font-size:16px;"></strong>'
+      +   '<strong id="fbTitle" draggable="true" ondragstart="fmTextDragStart(event)" style="font-size:16px;"></strong>'
     +   '<button id="fbClose" style="padding:4px 14px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">' + (en?'Close':'关闭') + '</button>'
     + '</div>'
     + '<label id="fbLbl" style="font-weight:600;font-size:13px;margin-bottom:4px;">' + (en?'Task completion feedback':'任务完成情况反馈') + '</label>'
