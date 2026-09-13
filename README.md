@@ -154,4 +154,4 @@ The intellectual property of this software — including its source code, design
 
 Third-party components bundled with this product remain under their own licenses (see `gui-cs/src/wwwroot/vendor/licenses/` and [NOTICE](NOTICE)).
 
-Copyright (c) 2026-2036 TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.. All rights reserved.
+Copyright (c) 2026-2036 TaiDingTuoDing Information Technology (Shanghai) Co., Ltd. All rights reserved.
