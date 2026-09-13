@@ -2,19 +2,11 @@
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
-// This software is licensed under the Business Source License 1.1 (BSL 1.1).
-// You may copy, modify, redistribute, and make non-production use; production
-// use is free for an organization with up to 10 users. Use by more than 10
-// users requires a commercial license. See LICENSE for the full terms and
-// LICENSE-COMMERCIAL.md for commercial licensing.
-//
-// On the Change Date (2030-09-11) this version automatically converts to the
-// Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
-// WARRANTY OF ANY KIND.
+// This software is licensed under the MIT License. See LICENSE for the full terms.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 //
 // This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
 // (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.). All rights reserved.
-// A commercial license is also available; see LICENSE-COMMERCIAL.md.
 
 using System.Diagnostics;
 using System.IO.Compression;

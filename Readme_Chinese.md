@@ -23,7 +23,7 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 > 🔒 **自托管设计——不是云服务。** 我们**不**提供任何云端托管或租赁服务。你下载安装包并在自己的电脑或服务器上本地安装；账号、会话、文件与 API Key 都保存在你自己的磁盘上，我们从不接收或保存你的数据——数据完全由你掌控。（唯一的对外连接是你自己配置的大模型服务商。）
 
-> **BSL 1.1（源码可见）。** 本项目以 **Business Source License 1.1** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——**10 个用户以内的组织免费**；超过 10 个用户需购买商业许可（**每人每月 USD 10**：例如 11 人 = USD 10/月，15 人 = USD 50/月，20 人 = USD 100/月）（[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。它是**源码可见，而非 OSI 认证的开源**，并会在变更日（2030-09-11）**自动转为 Apache-2.0**。知识产权归 泰顶拓鼎信息科技（上海）有限公司 所有 —— 邮箱：service@taketopits.com。保留所有权利。
+> **MIT 许可（开源）。** 本项目以 **MIT License** 授权（见 [LICENSE](LICENSE) / [COPYING](COPYING)）——你可以自由使用、修改与分发（包括商业用途），只需保留版权声明。若团队规模更大、需要**按成员控制 Token 用量**与**金字塔式成员管理**，我们还提供**收费的企业版**（见下文）。
 
 ---
 
@@ -139,20 +139,29 @@ Linux   : bash start.sh
 
 - **下载** —— 在 **Releases** 页面获取最新发行版（或克隆本仓库）；一个包覆盖 Windows / macOS / Linux，离线安装。
 - **问题 / 反馈 / Bug** —— 在 GitHub 提 **Issue**。
-- **商业许可（超过 10 个用户）及其它咨询** —— service@taketopits.com
+- **企业版（收费）与商业许可** —— service@taketopits.com
 
 关键词：`deepseek-harness` · `multi-user` · `self-hosted` · `ai-agent` · `llm` · `team-collaboration` · `sqlite`
 
 ---
 
+## 企业版（收费）
+
+本仓库是**标准版**，采用 **MIT 许可、免费**。若团队需要更强的管控能力，我们提供**收费的企业版**，额外增加：
+
+- **🧮 按成员控制 Token 用量** —— 可查看并控制每个成员的 Token 用量。
+- **🏛️ 金字塔式成员管理** —— 普通成员可以创建并管理子成员，子成员还可以继续创建子成员，形成金字塔式的管理架构。
+
+**收费方式：** 按**每人每月 USD 10** 计价（例如 10 人 = USD 100/月；15 人 = USD 150/月；20 人 = USD 200/月）。联系 **service@taketopits.com** —— 见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。
+
+---
+
 ## 许可
 
-本项目以 **Business Source License 1.1 (BSL 1.1)** 授权——见 [LICENSE](LICENSE) / [COPYING](COPYING)。BSL 1.1 是**源码可见**许可（并非 OSI 认证的开源）。
+本项目（**标准版**）以 **MIT License** 授权——见 [LICENSE](LICENSE) / [COPYING](COPYING)。
 
-- 你可以复制、修改、创作衍生作品、再分发，并对本软件进行**非生产**用途。
-- **附加使用授权（Additional Use Grant）：** 生产用途对**不超过 10 个用户的组织免费**；超过 10 个用户需要**商业许可**，按**每人每月 USD 10** 计价（例如 11 人 = USD 10/月；15 人 = USD 50/月；20 人 = USD 100/月）（联系 service@taketopits.com；见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)）。
-- **自动转换：** 在变更日（**2030-09-11**）——或某个版本首次公开发布满四周年之日，以较早者为准——该版本自动转为 **Apache License, Version 2.0**（完全开源）。许可按版本适用。
-- 此前以 **MIT License** 发布的版本永久继续适用 MIT。
+- 你可以使用、复制、修改、合并、发布、分发、再许可和/或销售本软件的副本（包括商业用途），只需保留版权声明与本许可声明。
+- 我们也提供**收费的企业版**（见上文[企业版](#企业版收费)）；其商业条款见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。
 
 本软件的知识产权——包括其源代码、设计、文档及相关材料——归 **泰顶拓鼎信息科技（上海）有限公司** 所有（邮箱：service@taketopits.com）。许可授予使用权，但不转移知识产权所有权，所有权仍归版权持有人。
 

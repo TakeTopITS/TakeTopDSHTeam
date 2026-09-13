@@ -1,14 +1,13 @@
 # Contributing
 
-Thanks for contributing! To keep this project's licensing (Business Source
-License 1.1, BSL 1.1) with complete copyright ownership, all external
-contributions must satisfy:
+Thanks for contributing! To keep this project's licensing (MIT License) with
+complete copyright ownership, all external contributions must satisfy:
 
 1. The code you submit is your own original work, or you are authorized to submit it.
 2. You agree to sign and comply with the Contributor License Agreement (CLA), assigning
    the relevant copyright in your contribution to
    TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.
-3. Follow the existing code style and license header (BSL 1.1).
+3. Follow the existing code style and license header (MIT).
 
 ## Process
 

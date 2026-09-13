@@ -7,26 +7,20 @@ EMail: service@taketopits.com
 License
 -------
 
-This software is licensed under the Business Source License 1.1 (BSL 1.1).
+This software is licensed under the MIT License.
 See the LICENSE / COPYING file for the full text.
 
-  - Source-available. You may copy, modify, create derivative works,
-    redistribute, and make non-production use of the software.
-  - Additional Use Grant: production use is free for an organization with up to
-    10 users. Use by more than 10 users requires a commercial license, priced at
-    USD 10 per additional user per month (e.g. 11 users = USD 10/month; 15 users =
-    USD 50/month; 20 users = USD 100/month) (see LICENSE-COMMERCIAL.md).
-  - On the Change Date (2030-09-11), this version automatically converts to the
-    Apache License, Version 2.0. The license applies per version: each version
-    converts to Apache-2.0 on the earlier of its stated Change Date or the fourth
-    anniversary of its first public release.
+  - You may use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the software, including for commercial purposes, provided the
+    copyright notice and this permission notice are retained.
+  - The software is provided "AS IS", without warranty of any kind.
 
-Note on earlier versions
-------------------------
+Enterprise edition
+------------------
 
-Earlier releases of this software were published under the MIT License. Those
-releases remain available under MIT permanently and are not affected by this
-change, which applies only to this and later versions.
+A paid Enterprise edition is also available, adding per-member token control
+and hierarchical (pyramid) member management. Commercial terms: USD 10 per user
+per month (see LICENSE-COMMERCIAL.md).
 
 Intellectual property
 ---------------------

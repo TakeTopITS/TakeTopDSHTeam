@@ -1,32 +1,30 @@
 ﻿# Licensing
 
-TakeTopDshTeam is released under the **Business Source License 1.1 (BSL 1.1)**
-(see [LICENSE](LICENSE) / [COPYING](COPYING)). BSL 1.1 is a **source-available**
-license (it is not an OSI-approved open-source license) that automatically
-converts to the **Apache License, Version 2.0** on the Change Date.
+TakeTopDshTeam has two editions:
 
-## Core terms
+- **Standard edition** (this repository) — released under the **MIT License**
+  (see [LICENSE](LICENSE) / [COPYING](COPYING)). Free to use, modify and
+  distribute, including for commercial use, provided the copyright notice is
+  retained.
+- **Enterprise edition** (paid) — a commercial edition that adds governance
+  features on top of the standard edition (see below).
 
-- **Source-available.** You may copy, modify, create derivative works,
-  redistribute, and make non-production use of the software.
-- **Additional Use Grant (free tier).** Production use is permitted **free of
-  charge for an organization with up to 10 users**.
-- **Above 10 users.** A **commercial license** is required. The first 10 users
-  are free; **each additional user costs USD 10 per month** (e.g. 11 users =
-  USD 10/month, 15 users = USD 50/month, 20 users = USD 100/month). If your use
-  exceeds
-  the grant you must purchase a commercial license, or refrain from using the
-  software.
-- **Automatic conversion.** On the Change Date (2030-09-11) — or the fourth
-  anniversary of a given version's first public release, whichever is earlier —
-  that version converts to **Apache-2.0** (fully open source). The license applies
-  per version, so every new version has its own 4-year term.
-- **Earlier MIT versions.** Releases previously published under the MIT License
-  remain available under MIT permanently and are not affected by this change,
-  which applies only to this and later versions.
-- **Intellectual property** in this software is owned by
-  TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.
-  (Copyright (C) 2026-2036). All rights reserved.
+## Enterprise edition (paid)
+
+The Enterprise edition adds:
+
+- **Per-member token control** — see and control each member's token usage.
+- **Hierarchical (pyramid) member management** — a normal member can create and
+  manage sub-members, and each sub-member can, in turn, create further
+  sub-members, forming a pyramid-style management structure.
+
+### Pricing
+
+- The Enterprise edition is a **paid** product, priced at **USD 10 per user per
+  month** (e.g. 10 users = USD 100/month, 15 users = USD 150/month, 20 users =
+  USD 200/month).
+- Contact: **service@taketopits.com**
+  (please state: intended use, deployment, and user count).
 
 ## How "users" is counted
 
@@ -34,15 +32,13 @@ converts to the **Apache License, Version 2.0** on the Change Date.
   production (the launcher's user accounts, including `admin`).
 - Test / evaluation / non-production use does not count toward the limit.
 
-## Commercial license
+## Intellectual property
 
-- For more than 10 users, or any use not covered by the Additional Use Grant,
-  contact the company for a commercial license.
-- **Pricing:** the first 10 users are free; **each additional user is
-  USD 10 per month** (e.g. 11 users = USD 10/month; 15 users = USD 50/month;
-  20 users = USD 100/month).
-- Contact: **service@taketopits.com**
-  (please state: intended use, deployment, and user count).
+Intellectual property in both editions is owned by
+TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.
+(Copyright (C) 2026-2036). All rights reserved. The MIT License grants usage
+rights to the standard edition but does not transfer ownership of the
+intellectual property, which remains with the copyright holder.
 
 ## Contributions
 

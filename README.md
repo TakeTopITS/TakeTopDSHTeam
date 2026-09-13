@@ -23,7 +23,7 @@ TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user A
 
 > 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and API keys are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
 
-> **BSL 1.1 (source-available).** Licensed under the **Business Source License 1.1** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — **free for organizations with up to 10 users**; above 10 users a commercial license is required (**USD 10 per additional user per month**: e.g. 11 users = USD 10/month, 15 users = USD 50/month, 20 users = USD 100/month) ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). It is **source-available, not OSI open source**, and **automatically converts to Apache-2.0** on the Change Date (2030-09-11). The intellectual property remains vested in TaiDingTuoDing Information Technology (Shanghai) Co., Ltd. — Email: service@taketopits.com. All rights reserved.
+> **MIT License (open source).** Licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — you are free to use, modify and distribute it, including for commercial purposes, provided the copyright notice is retained. For larger teams that need **per-member token control** and **hierarchical member management**, we also offer a paid **Enterprise edition** (see below).
 
 ---
 
@@ -135,20 +135,29 @@ Full **English / Chinese** toggle across the console, workbench, file manager, t
 
 - **Download** — grab the latest release from the **Releases** page (or clone this repository). One package covers Windows / macOS / Linux and installs offline.
 - **Questions, feedback, bugs** — open an **Issue** on GitHub.
-- **Commercial licensing (more than 10 users) & other enquiries** — service@taketopits.com
+- **Enterprise edition (paid) & commercial licensing** — service@taketopits.com
 
 Topics: `deepseek-harness` · `multi-user` · `self-hosted` · `ai-agent` · `llm` · `team-collaboration` · `sqlite`
 
 ---
 
+## Enterprise edition (paid)
+
+This repository is the **Standard** edition, and it is **MIT-licensed and free**. For teams that need more governance, we offer a paid **Enterprise edition** that adds:
+
+- **🧮 Per-member token control** — see and control each member's token usage.
+- **🏛️ Hierarchical (pyramid) member management** — a normal member can create and manage sub-members, and each sub-member can, in turn, create further sub-members, forming a pyramid-style management structure.
+
+**Pricing:** **USD 10 per user per month** (e.g. 10 users = USD 100/month; 15 users = USD 150/month; 20 users = USD 200/month). Contact **service@taketopits.com** — see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
+
+---
+
 ## License
 
-This project is licensed under the **Business Source License 1.1 (BSL 1.1)** — see [LICENSE](LICENSE) / [COPYING](COPYING). BSL 1.1 is a **source-available** license (it is not OSI open source).
+This project (the **Standard** edition) is licensed under the **MIT License** — see [LICENSE](LICENSE) / [COPYING](COPYING).
 
-- You may copy, modify, create derivative works, redistribute, and make **non-production** use of the software.
-- **Additional Use Grant:** production use is **free for an organization with up to 10 users**; above 10 users a **commercial license** is required, priced at **USD 10 per additional user per month** (e.g. 11 users = USD 10/month; 15 users = USD 50/month; 20 users = USD 100/month) (contact service@taketopits.com; see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)).
-- **Automatic conversion:** on the Change Date (**2030-09-11**) — or the fourth anniversary of a version's first public release, whichever is earlier — that version converts to the **Apache License, Version 2.0** (fully open source). The license applies per version.
-- Earlier releases published under the **MIT License remain available under MIT** permanently.
+- You may use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, including for commercial purposes, provided the copyright notice and this permission notice are retained.
+- A paid **Enterprise edition** is also available (see [Enterprise edition](#enterprise-edition-paid) above); its commercial terms are described in [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 
 The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.** (Email: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
