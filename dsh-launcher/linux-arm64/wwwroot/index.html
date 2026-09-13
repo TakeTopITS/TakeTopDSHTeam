@@ -180,6 +180,7 @@
       <button id="openWebBtn" class="secondary" onclick="openWithToken()" data-i18n="openDsh" style="margin-left:42px;">打开DSH</button>
     </div>
     <div class="status"><span id="dot" class="dot stopped"></span><span id="stateText">Stopped</span></div>
+    <div class="muted" style="font-size:13px;margin-top:6px;"><span data-i18n="thTokens">Tokens used</span>: <span id="adminTokenTotal" style="color:#334155;">-</span></div>
     <div id="tokenHint" class="muted" style="min-height:18px;margin-top:6px;"></div>
   </div>
 
@@ -252,6 +253,7 @@
     <div class="status"><span id="myInstDot" class="dot stopped"></span><span id="myInstState">Stopped</span></div>
     <div id="myInstMsg" class="muted" style="min-height:18px;margin-top:6px;"></div>
     <div class="muted" style="font-size:13px;margin-top:10px;"><span data-i18n="thWs">Workspace</span>: <span id="myInstWs" style="color:#334155;word-break:break-all;"></span>&nbsp;&nbsp;&nbsp;<span data-i18n="thPort">Port</span>: <span id="myInstPort" style="color:#334155;"></span></div>
+    <div class="muted" style="font-size:13px;margin-top:4px;"><span data-i18n="thTokens">Tokens used</span>: <span id="myInstTokens" style="color:#334155;">-</span></div>
   </div>
 
   <!-- File manager: every logged-in user manages their own workspace -->
@@ -478,7 +480,7 @@ async function withLoading(btn, fn, done) {
 const I18N = {
   zh: {
     title: "TakeTopDshTeam 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
-    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录", loginFail: "用户名或密码错误",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thTokens: "已用 Token", tokenTotalAll: "合计（含 admin）", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录", loginFail: "用户名或密码错误",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
     wsDefaultWarn: "⚠ 尚未设置工作区：当前使用默认目录（发行版目录下的 WorkSpace）。升级/替换发行版时可能被覆盖，或与其它副本共用。请先设置专用工作区目录。",
@@ -519,7 +521,7 @@ const I18N = {
   },
   en: {
     title: "TakeTopDshTeam Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
-    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in", loginFail: "Invalid username or password",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thTokens: "Tokens used", tokenTotalAll: "Total (all members incl. admin)", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in", loginFail: "Invalid username or password",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
     wsDefaultWarn: "⚠ No workspace set: using the DEFAULT (the WorkSpace folder inside the release dir). It may be overwritten on upgrade or shared with other copies. Set a dedicated workspace directory first.",
@@ -697,6 +699,20 @@ async function refresh() {
   $('#stateText').textContent = on ? (st.pid ? (t('stateRunningPid') + st.pid + ')') : t('stateRunning')) : starting ? t('stateStarting') : t('stateStopped');
   $('#startBtn').disabled = on || starting;
   $('#stopBtn').disabled = !on && !starting;
+  loadTokenTotal();
+}
+
+// Token totals from the DSH session projections. Admin sees every member (incl self);
+// a member sees only their own.
+function fmtTokens(n) { return (n == null || isNaN(n)) ? '-' : Number(n).toLocaleString(); }
+async function loadTokenTotal() {
+  try {
+    const r = await fetch('/api/tokenUsage');
+    if (!r.ok) return;
+    const d = await r.json();
+    const el = $('#adminTokenTotal');
+    if (el) el.textContent = fmtTokens(d.total != null ? d.total : d.tokens);
+  } catch (e) {}
 }
 
 async function loadLogs() {
@@ -1012,6 +1028,7 @@ async function loadMyInstance() {
     $('#myInstState').textContent = running ? t('myInstRunning') : t('myInstStopped');
     $('#myInstWs').textContent = inst.workspace || '';
     $('#myInstPort').textContent = (inst.dshPort != null ? String(inst.dshPort) : '');
+    try { const tr = await fetch('/api/tokenUsage'); const td = await tr.json(); $('#myInstTokens').textContent = fmtTokens(td.tokens); } catch (e) {}
     $('#myInstStartBtn').disabled = false;
     $('#myInstStartBtn').style.display = running ? 'none' : '';
     $('#myInstStopBtn').style.display = running ? '' : 'none';
@@ -2417,6 +2434,7 @@ async function loadInstances() {
          + '<th style="padding:6px 8px;text-align:left;">' + t('thPort') + '</th>'
          + '<th style="padding:6px 8px;text-align:left;">' + t('thWs') + '</th>'
          + '<th style="padding:6px 8px;text-align:left;">' + t('thState') + '</th>'
+         + '<th style="padding:6px 8px;text-align:left;">' + t('thTokens') + '</th>'
          + '<th style="padding:6px 8px;text-align:left;">' + t('thOps') + '</th>'
          + '</tr></thead></table>';
     box.innerHTML = hdrHtml;
@@ -2444,11 +2462,22 @@ async function loadInstances() {
              + '<td style="padding:6px 8px;">' + i.dshPort + '</td>'
              + '<td style="padding:6px 8px;">' + esc(i.workspace) + '</td>'
              + '<td style="padding:6px 8px;color:' + stateColor + ';">' + (i.running ? t('instRunning') : t('instStopped')) + '</td>'
+             + '<td style="padding:6px 8px;">' + fmtTokens(i.tokens) + '</td>'
              + '<td style="padding:6px 8px;white-space:nowrap;text-align:left;">' + ops + '</td>';
         body.appendChild(tr);
       }
       tbl.appendChild(body);
     }, t('noInstances'));
+    if (isAdmin) {
+      try {
+        const tr2 = await (await fetch('/api/tokenUsage')).json();
+        const foot = document.createElement('div');
+        foot.className = 'muted';
+        foot.style.cssText = 'margin-top:6px;font-size:13px;';
+        foot.textContent = t('tokenTotalAll') + ': ' + fmtTokens(tr2.total);
+        box.appendChild(foot);
+      } catch (e) {}
+    }
     } catch (renderErr) { console.error('[LIST] render error:', renderErr); box.textContent = 'render error: ' + renderErr.message; }
   } catch (e) { console.error('[LIST] fetch error:', e); $('#instList').textContent = t('instError') + ': ' + e.message; }
 }

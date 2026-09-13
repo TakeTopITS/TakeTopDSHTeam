@@ -379,6 +379,41 @@ app.MapPost("/api/update/apply", async (HttpContext ctx) =>
 });
 
 // ---- Instance manager API (multi-user, each instance = user) ----
+// Sum the token usage recorded by the DSH token-meter projection for one DSH home.
+// Each session under storages/session_projcache/sessions/*.json keeps a cumulative
+// `rows.tokenUsage.val.totals` object; the four buckets are disjoint, so a session's
+// total is their sum and a member's total is the sum over their session files.
+long SumHomeTokens(string dshHome)
+{
+    long total = 0;
+    try
+    {
+        if (string.IsNullOrWhiteSpace(dshHome)) return 0;
+        var dir = Path.Combine(dshHome, "storages", "session_projcache", "sessions");
+        if (!Directory.Exists(dir)) return 0;
+        foreach (var f in Directory.EnumerateFiles(dir, "*.json"))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(f));
+                // Projection file layout: { version, record: { identity, rows: { tokenUsage: { val: { totals } } } } }
+                if (!doc.RootElement.TryGetProperty("record", out var rec) || rec.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!rec.TryGetProperty("rows", out var rows) || rows.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!rows.TryGetProperty("tokenUsage", out var tu)) continue;
+                if (!tu.TryGetProperty("val", out var val) || val.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!val.TryGetProperty("totals", out var tot) || tot.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                foreach (var k in new[] { "uncachedInputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens" })
+                    if (tot.TryGetProperty(k, out var n) && n.TryGetInt64(out var v)) total += v;
+            }
+            catch { }
+        }
+    }
+    catch { }
+    return total;
+}
+// The admin DSH writes its sessions to <workspace>/.dsh; each member instance to its own home.
+string AdminDshHome() => Path.Combine(dsh.ReadWorkspacePath(), ".dsh");
+
 app.MapGet("/api/instances", (HttpContext ctx) =>
 {
     var username = (string)ctx.Items["username"]!;
@@ -394,8 +429,41 @@ app.MapGet("/api/instances", (HttpContext ctx) =>
     {
         id = i.Id, name = i.Name, dshPort = i.DshPort,
         workspace = i.Workspace, running = i.Running,
+        tokens = SumHomeTokens(i.DshHome),
     });
     return new { instances = list };
+});
+// GET /api/tokenUsage -> total tokens from the DSH session projections.
+// Non-admin gets their own total; admin gets every member (including admin itself)
+// plus the grand total.
+app.MapGet("/api/tokenUsage", (HttpContext ctx) =>
+{
+    var username = (string)ctx.Items["username"]!;
+    var isAdmin = (bool)ctx.Items["isAdmin"]!;
+    try
+    {
+        if (!isAdmin)
+        {
+            var bound = auth.Find(username)?.InstanceId ?? username;
+            long own = string.Equals(bound, "admin", StringComparison.OrdinalIgnoreCase)
+                ? SumHomeTokens(AdminDshHome())
+                : (instMgr.Get(bound) is { } mi ? SumHomeTokens(mi.DshHome) : 0);
+            return Results.Ok(new { ok = true, tokens = own });
+        }
+        var members = new List<object>();
+        long total = 0;
+        var adminTokens = SumHomeTokens(AdminDshHome());
+        members.Add(new { member = "admin", name = "Admin", tokens = adminTokens, self = true });
+        total += adminTokens;
+        foreach (var i in instMgr.List())
+        {
+            var tk = SumHomeTokens(i.DshHome);
+            members.Add(new { member = i.Id, name = i.Name, tokens = tk, self = false });
+            total += tk;
+        }
+        return Results.Ok(new { ok = true, tokens = total, total, members });
+    }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = L(ctx, ex.Message) }, statusCode: 500); }
 });
 // Member directory for task collaboration: any authenticated user may list ALL
 // members (id + name) so they can assign tasks to / reference one another.
