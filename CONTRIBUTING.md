@@ -7,7 +7,7 @@ contributions must satisfy:
 1. The code you submit is your own original work, or you are authorized to submit it.
 2. You agree to sign and comply with the Contributor License Agreement (CLA), assigning
    the relevant copyright in your contribution to
-   泰顶拓鼎信息科技（上海）有限公司 (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.)
+   TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.
 3. Follow the existing code style and license header (BSL 1.1).
 
 ## Process
