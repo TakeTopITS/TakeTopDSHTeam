@@ -2510,7 +2510,6 @@ async function loadInstances() {
         tr.style.borderBottom = '1px solid #eee';
         var ops = '';
         if (i.running) {
-          ops += '<button class="secondary" onclick="instOpen(\'' + esc(i.id) + '\')">' + t('instOpen') + '</button> ';
           ops += '<button class="secondary" onclick="instStop(this,\'' + esc(i.id) + '\')">' + t('instStop') + '</button> ';
         } else {
           ops += '<button onclick="instStart(this,\'' + esc(i.id) + '\')">' + t('instStart') + '</button> ';
