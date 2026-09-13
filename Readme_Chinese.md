@@ -2,7 +2,7 @@
 
 ![TakeTopDshTeam — 分屏工作台：左侧文件管理器 + 右侧 DSH 对话](assets/workbench.png)
 
-TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI 协同工作平台 —— 一个自托管的网页工作区，适用行业不限（软件开发，工程设计，文档编辑，媒体处理等等）。每位成员拥有独立隔离的 DSH，内置文件管理、任务管理与分屏工作台；对话、文件与任务在团队内共享，知识持续沉淀、效率不断提升。支持多种大模型（DeepSeek、OpenAI、Claude、Kimi 等），共用一个 API Key —— 好管理、好控制、更省钱！
+TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI 协同工作平台 —— 一个自托管的网页工作区，适用行业不限（软件开发，工程设计，文档编辑，媒体处理等等）。每位成员拥有独立隔离的 DSH，内置文件管理、任务管理与分屏工作台；对话、文件与任务在团队内共享，知识持续沉淀、效率不断提升。支持多种大模型（DeepSeek、OpenAI、Claude、Kimi、Local Model等），共用一个 API Key —— 好管理、好控制、更省钱！
 
 > 👥 **适合谁用：** 已经在用（或想用）DSH，但需要**多用户、按用户隔离、数据完全自控**的团队 —— 既不想给每个人各装一个 DSH，也不想把数据交给云服务。
 

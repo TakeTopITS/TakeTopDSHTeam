@@ -2,7 +2,7 @@
 
 ![TakeTopDshTeam — split-screen workbench: File Manager (left) + DSH chat (right)](assets/workbench.png)
 
-TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user AI collaboration platform — a self-hosted web workspace for any industry (software development, engineering design, document editing, media processing, and more). Each member gets a dedicated, isolated DSH with file management, task management, and a split-screen workbench. Conversations, files, and tasks are shared across the team, so knowledge accumulates and efficiency grows. It supports multiple LLMs (DeepSeek, OpenAI, Claude, Kimi, and more) with a single shared API Key — easy to manage, easy to control, and cheaper to run!
+TakeTopDSHTeam transforms DeepSeek Harness (DSH) into a team-ready, multi-user AI collaboration platform — a self-hosted web workspace for any industry (software development, engineering design, document editing, media processing, and more). Each member gets a dedicated, isolated DSH with file management, task management, and a split-screen workbench. Conversations, files, and tasks are shared across the team, so knowledge accumulates and efficiency grows. It supports multiple LLMs (DeepSeek, OpenAI, Claude, Kimi,、Local Model and more) with a single shared API Key — easy to manage, easy to control, and cheaper to run!
 
 > 👥 **Who it's for:** teams that use (or want to use) DSH but need **multiple users, per-user isolation, and full control of their data** — without running one DSH per person and without handing data to a cloud service.
 
