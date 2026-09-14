@@ -71,6 +71,7 @@ Each member also gets a simple **My Instance** page — start/stop their own DSH
 - Per-file actions (right-click): zip / unzip / rename / move / delete.
 - Preview inline (images, text, video); non-previewable files prompt to download.
 - **Drag a file into the AI dialog** to hand it straight to the agent.
+- Leaders can also upload and distribute project files to each member's workspace directory.
 
 ![File Manager — right-click a file or folder for actions](assets/FileManage.png)
 
