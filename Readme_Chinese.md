@@ -1,4 +1,4 @@
-﻿# TakeTopDSHTeam
+# TakeTopDSHTeam
 
 ![TakeTopDshTeam — 分屏工作台：左侧文件管理器 + 右侧 DSH 对话](assets/workbench.png)
 
