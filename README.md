@@ -84,7 +84,7 @@ Each user sees tasks assigned to them:
 - **Continue Assign** — create a follow-up (child) task and choose its **assignee**; the sub-task lands in that member's My Tasks, and the parent row auto-expands to show it.
 - **Edit / Delete** — rows you created get Edit and Delete buttons (your own tasks only).
 - **Subtask tree** — a `+` in the subtask column expands a task's children inline (indented, multi-level); tasks without children show no `+`.
-- Opening this tab automatically widens the left pane to **70%**.
+- Leaders can assign tasks to each member, and members can also assign tasks to one another. Task documents follow the task as it flows, and work results can be fed back in real time!
 
 ![My Tasks — drag a task name into the AI dialog to start on it](assets/TaskHandleForCoding.png)
 ![My Tasks — each task keeps its rich-text feedback and attachments](assets/TaskFeedback.png)
