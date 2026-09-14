@@ -112,17 +112,31 @@ public class DshService
 
     public int TotalLogCount => _logs.Count;
 
+    // Cached set of locally-listening TCP ports. A plain TcpClient.Connect probe
+    // could hang ~2s per call on machines where the SYN is dropped (firewall /
+    // sandbox), and startup probes every instance twice -> several seconds. The
+    // IP global listener table is one cheap call, reused for a short TTL.
+    private static readonly object _listenLock = new();
+    private static HashSet<int> _listenCache = new();
+    private static DateTime _listenAt = DateTime.MinValue;
+
     public static bool IsPortInUse(int port)
     {
-        try
+        lock (_listenLock)
         {
-            using var client = new System.Net.Sockets.TcpClient();
-            client.Connect("127.0.0.1", port);
-            return true;
-        }
-        catch
-        {
-            return false;
+            if ((DateTime.UtcNow - _listenAt).TotalSeconds >= 2)
+            {
+                var set = new HashSet<int>();
+                try
+                {
+                    foreach (var ep in System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners())
+                        set.Add(ep.Port);
+                }
+                catch { }
+                _listenCache = set;
+                _listenAt = DateTime.UtcNow;
+            }
+            return _listenCache.Contains(port);
         }
     }
 

@@ -12,7 +12,22 @@ using TakeTopDshLauncher;
 
 // Compute the project root: walk up from the app base dir looking for the root.
 var root = FindRoot(AppContext.BaseDirectory);
+// Startup timing (written to %TEMP%\taketopds-startup.log) so we can see how long
+// each phase takes before the HTTP port is bound.
+var __sw = System.Diagnostics.Stopwatch.StartNew();
+void __mark(string m)
+{
+    try
+    {
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "taketopds-startup.log"),
+            $"{DateTime.Now:HH:mm:ss.fff} +{__sw.ElapsedMilliseconds}ms  {m}\n");
+    }
+    catch { }
+}
+try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "taketopds-startup.log"), ""); } catch { }
+__mark("begin");
 MigrateDataHomes(root);
+__mark("after MigrateDataHomes");
 
 // Standalone patch mode: run `TakeTopDshLauncher --apply-patch` after a DSH
 // upgrade to re-apply every launcher patch (removed "添加工作区", sandbox read
@@ -27,26 +42,29 @@ if (args.Any(a => a.Equals("--apply-patch", StringComparison.OrdinalIgnoreCase))
 }
 
 var dsh = new DshService(root);
+__mark("after new DshService");
 // Consolidate the previous launcher DB (config/launcher.db) into the single
 // central business database before any store reads it.
 LauncherDb.MigrateUsersAndInstances(root);
+__mark("after MigrateUsersAndInstances");
 // Unix: keep the central DB / admin data folders private for other OS users.
 LauncherDb.HardenUnixPermissions(root);
+__mark("after HardenUnixPermissions");
 var instMgr = new InstanceManager(root, dsh.ReadInstancesStartPort());
+__mark("after new InstanceManager");
 // Never auto-assign the launcher's own port or the admin DSH port to a member.
 instMgr.ReservedPorts.Add(dsh.ReadLauncherPort());
 instMgr.ReservedPorts.Add(dsh.DefaultPort());
 dsh.SetInstanceManager(instMgr);
 // Member instances should show DSH in the admin's 缺省语言, so give the manager a
-// pointer to the default locale and sync every existing instance once at startup.
+// pointer to the default locale (the actual per-instance sync is deferred to the
+// background task right after the port binds, so it never delays startup).
 instMgr.DefaultLocaleProvider = () => dsh.DefaultLocaleCode();
-instMgr.ApplyLocaleToAll();
-// Keep every member's shared API key in step with the admin: catch up once and
-// watch for later admin key changes so members never run with a stale key.
-instMgr.StartSharedCredentialWatcher();
 var auth = new AuthService(root);
+__mark("after new AuthService");
 // Repair orphan instances (instances without a matching user account).
 auth.RepairOrphanInstances(instMgr.List());
+__mark("after RepairOrphanInstances");
 
 // ---- Backend message localization -------------------------------------------
 // The UI persists the chosen language in the `tt_lang` cookie. Use it so error
@@ -161,28 +179,10 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-// ---- Workspace-not-set guard (always on, no toggle) ----
-// While the admin still uses the portable DEFAULT workspace, refuse data-creating
-// operations: a default directory can be shared by other clones/versions or be
-// overwritten on an upgrade, which would lose data. Setting the workspace itself
-// (/api/workspace) and read/login endpoints stay allowed so the admin can fix it.
-app.Use(async (ctx, next) =>
-{
-    var path = ctx.Request.Path.Value ?? "";
-    var method = ctx.Request.Method;
-    var mutating =
-        (HttpMethods.IsPost(method) && (path == "/api/instances" || path == "/api/start" || path == "/api/tasks" || path == "/api/feedback")) ||
-        (HttpMethods.IsPut(method) && path == "/api/tasks") ||
-        (HttpMethods.IsDelete(method) && path == "/api/tasks");
-    if (mutating && dsh.IsWorkspaceDefault())
-    {
-        ctx.Response.StatusCode = 409;
-        ctx.Response.ContentType = "application/json; charset=utf-8";
-        await ctx.Response.WriteAsync("{\"ok\":false,\"error\":\"workspace_not_set\",\"message\":\"请先设置工作区目录（当前使用默认路径，升级或其它副本可能覆盖数据）\"}");
-        return;
-    }
-    await next();
-});
+// NOTE: the previous "workspace-not-set" guard is intentionally removed. The
+// portable default workspace (<install>\WorkSpace) is now a first-class choice:
+// users may keep it, and creating instances / saving tasks is no longer blocked.
+// (Upgrading should preserve the WorkSpace folder; see the docs.)
 
 // --- API ---
 app.MapPost("/api/login", (LoginRequest req, HttpContext ctx) =>
@@ -285,7 +285,14 @@ app.MapPost("/api/workspace", (WorkspaceRequest req, HttpContext ctx) =>
     var after = dsh.ReadWorkspacePath();
     // Switching workspace changes the DB/caches; restart the launcher for the user.
     var needRestart = !string.Equals(before?.TrimEnd('\\', '/'), after?.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
-    if (needRestart) _ = Task.Run(async () => { await Task.Delay(1500); RestartSelf(); });
+    // If the user moved the old workspace folder to the new path (common when
+    // switching to a dedicated directory), re-base member instance workspaces so
+    // they follow the move instead of pointing at the now-empty old location.
+    if (needRestart)
+    {
+        try { instMgr.RebaseWorkspaces(before ?? "", after ?? ""); } catch { }
+        _ = Task.Run(async () => { await Task.Delay(1500); RestartSelf(); });
+    }
     return Results.Ok(new { ok = true, workspace = after, restart = needRestart });
 });
 // Server directory browsing: roots when no path, else a one-level listing. Admin only.
@@ -2247,6 +2254,11 @@ app.UseStaticFiles(new StaticFileOptions
 // and auto-start the dsh web process so it is ready to use immediately.
 _ = Task.Run(async () =>
 {
+    __mark("background init start");
+    // Deferred from startup so it never delays the port bind: sync the default
+    // locale + the shared API key into every instance.
+    try { instMgr.ApplyLocaleToAll(); } catch { }
+    try { instMgr.StartSharedCredentialWatcher(); } catch { }
     await Task.Delay(500);
     // Re-apply all DSH package patches on every launcher start, so a restart
     // after a DSH upgrade keeps every feature working. The admin default dsh
@@ -2312,7 +2324,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
     try { File.Delete(Path.Combine(root, "config", "launcher.runtime.json")); } catch { }
 });
 
-app.Run();
+app.Start();
+__mark("app listening (port bound)");
+await app.WaitForShutdownAsync();
 
 static void OpenBrowser(string url)
 {
@@ -2346,10 +2360,13 @@ static void RestartSelf()
             Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = "/c ping -n 4 127.0.0.1 >nul & start \"\" " + inner,
+                Arguments = "/c ping -n 2 127.0.0.1 >nul & start \"\" " + inner,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WorkingDirectory = AppContext.BaseDirectory,
+                // Self-restart: don't pop a new browser tab; the page that triggered
+                // the restart already waits for us and jumps to the login page.
+                Environment = { ["DSH_OPEN_BROWSER"] = "0" },
             });
         }
         else

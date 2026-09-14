@@ -113,7 +113,9 @@ public class InstanceManager
         lock (_gate)
         {
             _instances.Clear();
+            IMark("Load: begin");
             var rows = LauncherDb.LoadInstances(_root);
+            IMark("Load: after LoadInstances rows=" + rows.Count);
 
             // One-time migration from the legacy config/instances.json.
             if (rows.Count == 0 && File.Exists(_instancesDir))
@@ -148,7 +150,10 @@ public class InstanceManager
                 if (!string.IsNullOrWhiteSpace(inst.Workspace))
                     inst.Workspace = Path.GetFullPath(inst.Workspace);
                 // Re-hydrate the process handle (from a previous run) if its port is live.
-                if (inst.Running && DshService.IsPortInUse(inst.DshPort))
+                IMark($"Load: inst {inst.Id} dbRunning={inst.Running} port={inst.DshPort}");
+                var __inUse = inst.Running && DshService.IsPortInUse(inst.DshPort);
+                IMark($"Load: inst {inst.Id} inUse={__inUse}");
+                if (__inUse)
                 {
                     if (FindProcByPort(inst.DshPort, out var pid))
                     {
@@ -159,14 +164,22 @@ public class InstanceManager
                     else inst.Running = false;
                 }
                 else inst.Running = false;
+                IMark($"Load: inst {inst.Id} done running={inst.Running}");
                 _instances.Add(inst);
             }
 
             // Auto-correct any instance whose port is now held by another process
             // (e.g. the environment reassigned a fixed port). Reallocate a free
             // port so the user never has to touch port config. Skip default dsh.
+            IMark("Load: before RebalancePorts");
             RebalancePorts();
+            IMark("Load: after RebalancePorts");
         }
+    }
+
+    private static void IMark(string m)
+    {
+        try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "taketopds-startup.log"), $"{DateTime.Now:HH:mm:ss.fff}    [IM] {m}\n"); } catch { }
     }
 
     // Parse the legacy config/instances.json (used only for the one-time migration).
@@ -209,29 +222,39 @@ public class InstanceManager
             bool changed = false;
             foreach (var inst in _instances)
             {
+                IMark($"RB: {inst.Id} port={inst.DshPort}");
                 if (inst.DshPort <= 0) { inst.DshPort = AllocPort(); changed = true; continue; }
-                if (!DshService.IsPortInUse(inst.DshPort)) continue;
+                if (!DshService.IsPortInUse(inst.DshPort)) { IMark($"RB: {inst.Id} free"); continue; }
                 // Port is live. Keep it only if it is our instance's own dsh;
                 // otherwise the port was hijacked by something else -> reallocate.
                 bool ours = inst.Proc is { HasExited: false } && FindProcByPort(inst.DshPort, out var pid) && inst.Proc.Id == pid;
+                IMark($"RB: {inst.Id} live ours={ours}");
                 if (!ours)
                 {
                     inst.DshPort = AllocPort();
                     inst.Running = false;
                     changed = true;
                 }
+                IMark($"RB: {inst.Id} done port={inst.DshPort}");
             }
             if (changed) Save();
         }
         catch (Exception ex) { Trace.WriteLine($"[ports] rebalance failed: {ex.Message}"); }
     }
 
-    private bool FindProcByPort(int port, out int pid)
+    // Cache of `netstat -ano` output. FindProcByPort is called once per running
+    // instance during startup (Load + RebalancePorts); spawning netstat each time
+    // cost several seconds, so reuse one table for a short TTL.
+    private static readonly object _netstatLock = new();
+    private static string _netstatCache = "";
+    private static DateTime _netstatAt = DateTime.MinValue;
+
+    private static string NetstatTable()
     {
-        pid = 0;
-        try
+        lock (_netstatLock)
         {
-            if (OperatingSystem.IsWindows())
+            if (_netstatCache.Length > 0 && (DateTime.UtcNow - _netstatAt).TotalSeconds < 5) return _netstatCache;
+            try
             {
                 var psi = new ProcessStartInfo
                 {
@@ -242,9 +265,26 @@ public class InstanceManager
                     CreateNoWindow = true,
                 };
                 using var p = Process.Start(psi);
-                if (p == null) return false;
-                var outLines = p.StandardOutput.ReadToEnd();
-                p.WaitForExit(3000);
+                if (p != null)
+                {
+                    var o = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(3000);
+                    if (o.Length > 0) { _netstatCache = o; _netstatAt = DateTime.UtcNow; }
+                }
+            }
+            catch { }
+            return _netstatCache;
+        }
+    }
+
+    private bool FindProcByPort(int port, out int pid)
+    {
+        pid = 0;
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var outLines = NetstatTable();
                 foreach (var line in outLines.Split('\n'))
                 {
                     if (line.Contains($":{port} ") && line.Contains("LISTENING"))
@@ -317,6 +357,40 @@ public class InstanceManager
     // Find a free port starting at basePort (skips ports already in use by the
     // OS, ports reserved for the launcher/admin DSH, and ports already assigned
     // to another instance). A port is only accepted when it can actually be bound.
+    // When the workspace ROOT moves (the user moved the folder and changed the
+    // path), member instance workspaces are stored as ABSOLUTE paths; re-base the
+    // ones that lived under the old root to the new one. Only rebase when the
+    // folder actually exists at the new location, so we never point at an empty
+    // dir (if the user didn't move the data, leave the recorded path untouched).
+    public void RebaseWorkspaces(string oldRoot, string newRoot)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(oldRoot) || string.IsNullOrWhiteSpace(newRoot)) return;
+            var o = Path.GetFullPath(oldRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var n = Path.GetFullPath(newRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.Equals(o, n, StringComparison.OrdinalIgnoreCase)) return;
+            var oPrefix = o + Path.DirectorySeparatorChar;
+            var changed = false;
+            lock (_gate)
+            {
+                foreach (var inst in _instances)
+                {
+                    if (string.IsNullOrWhiteSpace(inst.Workspace)) continue;
+                    var w = Path.GetFullPath(inst.Workspace);
+                    if (!w.StartsWith(oPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    var target = Path.Combine(n, w.Substring(oPrefix.Length));
+                    if (!Directory.Exists(target)) continue;   // data not moved there -> leave as-is
+                    Trace.WriteLine($"[workspace] rebased {inst.Id}: {w} -> {target}");
+                    inst.Workspace = target;
+                    changed = true;
+                }
+                if (changed) Save();
+            }
+        }
+        catch (Exception ex) { Trace.WriteLine($"[workspace] rebase failed: {ex.Message}"); }
+    }
+
     public int AllocPort(int? basePort = null)
     {
         var start = basePort ?? _basePort;
