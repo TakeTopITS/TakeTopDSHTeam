@@ -140,6 +140,19 @@ public class DshService
         }
     }
 
+    // Uncached "is something listening on this port right now?" — used for config
+    // validation (a just-started service must be seen immediately).
+    public static bool IsPortListening(int port)
+    {
+        try
+        {
+            foreach (var ep in System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners())
+                if (ep.Port == port) return true;
+        }
+        catch { }
+        return false;
+    }
+
     // Stronger "is this port usable?" check: only true if we can actually BIND
     // 127.0.0.1:port right now. Catches ports reserved/excluded by the OS that a
     // plain connect test would wrongly report as free.

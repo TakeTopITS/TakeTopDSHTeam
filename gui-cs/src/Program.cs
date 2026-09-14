@@ -389,6 +389,21 @@ app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
         if (lp < 1 || lp > 65535)
             return Results.Json(new { ok = false, error = "Launcher port must be 1-65535." }, statusCode: 400);
         var cur = dsh.ReadLauncherPort();
+        // Refuse a launcher port that is already taken (another service, the DSH
+        // port, or a member instance) so a bad save can't half-apply / fail to bind.
+        if (lp != cur)
+        {
+            var taken = DshService.IsPortListening(lp)
+                || lp == dsh.DefaultPort()
+                || instMgr.List().Any(i => i.DshPort == lp);
+            if (taken)
+            {
+                var msg = IsEn(ctx)
+                    ? $"Port {lp} is already in use (another service, the DSH port, or a member instance). Please choose another."
+                    : $"端口 {lp} 已被占用（可能是其它服务、DSH 端口或成员实例），请换一个。";
+                return Results.Json(new { ok = false, error = msg, portInUse = true }, statusCode: 409);
+            }
+        }
         dsh.SaveLauncherPort(lp);
         if (lp != cur) { restart = true; _ = Task.Run(async () => { await Task.Delay(1500); RestartSelf(); }); }
     }
@@ -408,6 +423,18 @@ app.MapPost("/api/config", (ConfigRequest req, HttpContext ctx) =>
         });
     }
     return Results.Json(new { ok = true, url = dsh.ReadCfgUrl(), launcherPort = dsh.ReadLauncherPort(), externalUrl = dsh.ExternalUrl(), defaultLanguage = dsh.ReadDefaultLanguage(), restart, restartDsh, langChanged });
+});
+// GET /api/port-check?port=N -> is that port free for the launcher? (admin only)
+// Used by the UI to reject a busy launcher port BEFORE saving anything.
+app.MapGet("/api/port-check", (int port, HttpContext ctx) =>
+{
+    if (!(bool)ctx.Items["isAdmin"]!) return Results.Json(new { ok = false }, statusCode: 403);
+    var reason = "";
+    if (port < 1 || port > 65535) reason = "invalid";
+    else if (DshService.IsPortListening(port)) reason = "in-use";
+    else if (port == dsh.DefaultPort()) reason = "dsh-port";
+    else if (instMgr.List().Any(i => i.DshPort == port)) reason = "member-port";
+    return Results.Ok(new { ok = true, free = reason == "", reason });
 });
 app.MapGet("/api/update", () => new { current = dsh.CurrentVersion(), latest = dsh.NpmLatest() });
 
@@ -2019,6 +2046,7 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/logs") ||
         path.StartsWith("/api/token") ||
         path.StartsWith("/api/config") ||
+        path.StartsWith("/api/port-check") ||
         path == "/api/workspace" ||
         path.StartsWith("/api/browse") ||
         path.StartsWith("/api/files") ||
