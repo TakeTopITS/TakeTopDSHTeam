@@ -37,7 +37,7 @@ Linux   : bash start.sh
 
 > **On startup,** on Windows the elapsed time is shown live in the window title bar, and the browser opens automatically once it is ready — no need to refresh.
 
-Open `http://127.0.0.1:46001` → log in → click **Open DSH**.
+Open `http://127.0.0.1:46001` → log in (Account: admin  Password: 12345678)→ click **Open DSH**.
 
 Setup and usage: [USER_GUIDE_English.pdf](USER_GUIDE_English.pdf).
 

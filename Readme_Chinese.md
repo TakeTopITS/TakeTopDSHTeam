@@ -37,7 +37,7 @@ Linux   : bash start.sh
 
 > **启动时**，Windows 上窗口标题会实时显示已用时间，就绪后浏览器自动打开，无需手动刷新。
 
-打开 `http://127.0.0.1:46001` → 登录 → 点击 **Open DSH**。
+打开 `http://127.0.0.1:46001` → 登录（帐号：admin  密码：12345678） → 点击 **Open DSH**。
 
 安装与使用说明见 [USER_GUIDE_Chinese.pdf](USER_GUIDE_Chinese.pdf)。
 
