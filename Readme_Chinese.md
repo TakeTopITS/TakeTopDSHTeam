@@ -88,12 +88,9 @@ Linux   : bash start.sh
 - 领导可以给每个成员分派任务，成员之间也可以互相分派任务，任务的文档跟着任务流转，工作结果可以即时反馈！
 
 ![我的任务 —— 把任务名拖进 AI 对话框开始处理](assets/TaskHandleForCoding.png)
-
-![任务反馈 —— 每个任务保留富文本反馈与附件](assets/TaskFeedback.png)
-
--也可以把反馈记录描述和相应的文档拖入右边的DSH会话框让AI帮你处理
-
 ![我的任务 —— 继续分派、子任务树、编辑/删除](assets/MyTasksAssign.png)
+![任务反馈 —— 每个任务保留富文本反馈与附件](assets/TaskFeedback.png)
+-也可以把反馈记录描述和相应的文档拖入右边的DSH会话框让AI帮你处理
 
 ### 5. 任务分配 —— `/tasks`
 - 左侧是成员列表；选中某位成员即可在右侧查看其任务。

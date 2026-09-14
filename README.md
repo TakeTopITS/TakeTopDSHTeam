@@ -87,10 +87,11 @@ Each user sees tasks assigned to them:
 - Leaders can assign tasks to each member, and members can also assign tasks to one another. Task documents follow the task as it flows, and work results can be fed back in real time!
 
 ![My Tasks — drag a task name into the AI dialog to start on it](assets/TaskHandleForCoding.png)
+![My Tasks — Continue Assign, the subtask tree, and edit/delete](assets/MyTasksAssign.png)
 ![My Tasks — each task keeps its rich-text feedback and attachments](assets/TaskFeedback.png)
 -You can also drag the feedback description and related documents into the DSH chat box on the right for AI to process.！ 
 
-![My Tasks — Continue Assign, the subtask tree, and edit/delete](assets/MyTasksAssign.png)
+
 
 ### 5. Task Assignment — `/tasks`
 - Member list on the left; pick a member to see their tasks on the right.
