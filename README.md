@@ -88,6 +88,8 @@ Each user sees tasks assigned to them:
 
 ![My Tasks — drag a task name into the AI dialog to start on it](assets/TaskHandleForCoding.png)
 ![My Tasks — each task keeps its rich-text feedback and attachments](assets/TaskFeedback.png)
+-You can also drag the feedback description and related documents into the DSH chat box on the right for AI to process.！ 
+
 ![My Tasks — Continue Assign, the subtask tree, and edit/delete](assets/MyTasksAssign.png)
 
 ### 5. Task Assignment — `/tasks`

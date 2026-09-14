@@ -91,6 +91,8 @@ Linux   : bash start.sh
 
 ![任务反馈 —— 每个任务保留富文本反馈与附件](assets/TaskFeedback.png)
 
+-也可以把反馈记录描述和相应的文档拖入右边的DSH会话框让AI帮你处理
+
 ![我的任务 —— 继续分派、子任务树、编辑/删除](assets/MyTasksAssign.png)
 
 ### 5. 任务分配 —— `/tasks`
