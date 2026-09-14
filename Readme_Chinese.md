@@ -140,7 +140,6 @@ Linux   : bash start.sh
 
 - **下载** —— 在 **Releases** 页面获取最新发行版（或克隆本仓库）；一个包覆盖 Windows / macOS / Linux，离线安装。
 - **问题 / 反馈 / Bug** —— 在 GitHub 提 **Issue**。
-- **企业版（收费）与商业许可** —— service@taketopits.com
 
 关键词：`deepseek-harness` · `multi-user` · `self-hosted` · `ai-agent` · `llm` · `team-collaboration` · `sqlite`
 

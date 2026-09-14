@@ -139,7 +139,6 @@ Full **English / Chinese** toggle across the console, workbench, file manager, t
 
 - **Download** — grab the latest release from the **Releases** page (or clone this repository). One package covers Windows / macOS / Linux and installs offline.
 - **Questions, feedback, bugs** — open an **Issue** on GitHub.
-- **Enterprise edition (paid) & commercial licensing** — service@taketopits.com
 
 Topics: `deepseek-harness` · `multi-user` · `self-hosted` · `ai-agent` · `llm` · `team-collaboration` · `sqlite`
 
