@@ -8,20 +8,21 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 ## Highlights
 
-- 🧠 **Shared team experience** — one member's conversations, findings and files become reusable knowledge for the whole team, getting better the more you use it!
-- 👤 **Per-user isolation** — each user runs DSH under a dedicated sandboxed workspace; no cross-user workspace access.
-- 🖥️ **Split-screen workbench** — left pane = File Manager / My Tasks; right pane = the DSH chat.
-- 🔌 **Single entry, single port** — one launcher proxies to every member's private DSH, sharing one login URL.
-- ✅ **Task assignment & delegation** — assign tasks per member (rich text + images + attached files); delegate follow-ups with **Continue Assign**, and drill into the **parent / subtask tree** inline. Stored in a shared database.
-- 📁 **Built-in file manager** — upload, folders, tree browsing, zip/unzip, rename, move, delete, inline preview, download.
-- 🌐 **Bilingual UI** — full English / Chinese, supports all pages. Switch anytime!
-- 🚀 **One-click, offline install** — copy the folder and run; no compilation, no extra downloads.
-- 🧩 **Survives upgrades** — one-click upgrade, enjoy new features instantly!
-- 📦 **Cross-platform** — supports Windows / macOS / Linux. Safe and reliable!
+🧠 Team experience sharing — Every member's work experience becomes reusable knowledge for the whole team. The more it's used, the better it gets!
 
-> 🔓 **All source code is fully visible — no encrypted components.** The complete source of TakeTopDshTeam ships in this repository: the multi-user launcher (C#/.NET), the web UI (HTML/JS/CSS), the DSH integration and branding patches, and all start/build scripts. **No component is encrypted, obfuscated, or shipped as a black box** — you can read and audit every line before running it. The only pre-built pieces are the third-party runtimes (Node.js and the .NET runtime), which are open-source projects themselves. Use it with confidence.
+👤 Per-user isolation — Each user runs independently in a dedicated sandbox workspace. Users cannot access each other's workspace directories.
 
-> 🔒 **Self-hosted by design — not a cloud service.** We do **not** provide any cloud hosting or rental service. You download the release and install it locally on your own computer or server; accounts, sessions, files and LLM API key are stored on your own disk, and we never receive or hold your data — so your data stays fully under your control. (The only outbound connection is to the LLM provider you configure yourself.)
+🖥️ Split-screen workbench — Left side = File manager / My tasks; Right side = DSH conversation.
+
+🔌 Single entry point, single port — All members share one login URL, with one launcher reverse-proxying to each member's DSH.
+
+✅ Task assignment & dispatch — Admins assign tasks to members (rich text + images + attachments); supports "continue dispatching" for multi-level delegation, with inline expandable parent / subtask trees. All stored in a shared database.
+
+📁 Built-in file manager — Upload, folders, tree browsing, compress/decompress, rename, move, delete, online preview, download — right-click menu for everything.
+
+🌐 Bilingual interface — Full English / Chinese support across all pages, switch anytime!
+
+🚀 One-click, offline installation — Copy the folder and run; no compilation, no extra downloads.
 
 > **MIT License (open source).** Licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — you are free to use, modify and distribute it, including for commercial purposes, provided the copyright notice is retained. For larger teams that need **per-member token control** and **hierarchical member management**, we also offer a paid **Enterprise edition** (see below).
 
