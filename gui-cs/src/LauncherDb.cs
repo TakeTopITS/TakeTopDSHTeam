@@ -58,9 +58,9 @@ public static class LauncherDb
 
     private     static string ReadWorkspacePath(string root)
     {
-        return WorkspaceFrom(System.IO.Path.Combine(root, "config", "launcher.local.json"))
-            ?? WorkspaceFrom(System.IO.Path.Combine(root, "appsettings.json"))
-            ?? DshService.DefaultWorkspacePath(root);
+        // Only the install-dir pointer (or the portable default). appsettings.json is
+        // deliberately excluded so a repo-shipped template can never pick the workspace.
+        return DshService.ResolveWorkspacePath(root);
     }
 
     // Read a non-empty DshWeb.WorkspacePath from a config file, else null. The

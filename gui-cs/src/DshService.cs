@@ -1162,10 +1162,15 @@ public class DshService
     // default (<install>\WorkSpace).
     public static string ResolveWorkspacePath(string root)
     {
+        // Only the install-dir POINTER (config/launcher.local.json) or the portable
+        // default. appsettings.json intentionally does NOT take part: it ships in the
+        // repo and must never carry a machine-specific workspace path.
         return WorkspaceFrom(Path.Combine(root, "config", "launcher.local.json"))
-            ?? WorkspaceFrom(Path.Combine(root, "appsettings.json"))
             ?? DefaultWorkspacePath(root);
     }
+
+    // Public wrapper: read a non-empty DshWeb.WorkspacePath from a config file.
+    public static string? WorkspaceFromFile(string path) => WorkspaceFrom(path);
 
     private static string? WorkspaceFrom(string path)
     {

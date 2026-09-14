@@ -26,6 +26,9 @@ void __mark(string m)
 }
 try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "taketopds-startup.log"), ""); } catch { }
 __mark("begin");
+// One-time: move a workspace path that was set in appsettings.json into the
+// install-dir pointer, so appsettings no longer takes part in workspace resolution.
+MigrateWorkspacePointer(root);
 MigrateDataHomes(root);
 __mark("after MigrateDataHomes");
 
@@ -2933,6 +2936,34 @@ static async Task Pump(System.Net.WebSockets.WebSocket from, System.Net.WebSocke
         }
     }
     catch { /* pump ended */ }
+}
+
+// One-time migration: if the workspace was configured in appsettings.json (legacy
+// or manual edit), copy it into the install-dir pointer (config/launcher.local.json)
+// so appsettings can stop taking part in workspace resolution without stranding an
+// existing install on the default workspace.
+static void MigrateWorkspacePointer(string root)
+{
+    try
+    {
+        var pointer = Path.Combine(root, "config", "launcher.local.json");
+        if (DshService.WorkspaceFromFile(pointer) is { Length: > 0 }) return;      // already set
+        var fromApp = DshService.WorkspaceFromFile(Path.Combine(root, "appsettings.json"));
+        if (string.IsNullOrWhiteSpace(fromApp)) return;                            // nothing to migrate
+        Directory.CreateDirectory(Path.GetDirectoryName(pointer)!);
+        var node = (File.Exists(pointer)
+            ? System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(pointer)) as System.Text.Json.Nodes.JsonObject
+            : null) ?? new System.Text.Json.Nodes.JsonObject();
+        if (node["DshWeb"] is not System.Text.Json.Nodes.JsonObject web)
+        {
+            web = new System.Text.Json.Nodes.JsonObject();
+            node["DshWeb"] = web;
+        }
+        web["WorkspacePath"] = fromApp;
+        File.WriteAllText(pointer, node.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine($"[config] migrated workspace pointer from appsettings.json: {fromApp}");
+    }
+    catch (Exception ex) { Trace.WriteLine($"[config] workspace pointer migration failed: {ex.Message}"); }
 }
 
 static string FindRoot(string baseDir)
