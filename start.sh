@@ -84,6 +84,14 @@ if [ ! -f "$BIN" ]; then
 fi
 chmod +x "$BIN"
 
+# --- stop any running TakeTopDSH Team launcher (this edition or the other one,
+#     in ANY install folder) so this copy takes over cleanly. The scan runs
+#     INSIDE our own binary and only touches processes whose image path contains
+#     dsh-launcher/ - a same-named unrelated process is never killed. Opening the
+#     launcher from a browser never runs this script. -------------------------
+"$BIN" --stop-all || true
+sleep 2
+
 # --- apply the brand patch (deepseek -> TakeTopDSH) -------------------------
 # Re-applies on every start so the UI brand survives dsh upgrades. Idempotent.
 if [ -f "$NODE_BIN" ] && [ -f "$PROJ/patch-taketop-brand.cjs" ]; then
@@ -109,26 +117,13 @@ if [ "$DBCHECK" = "UPGRADE" ]; then
   echo ""
 fi
 
-# --- idempotent: if the launcher is already listening on :46001, just open it ---
-LAUNCHER_URL="http://127.0.0.1:46001"
-port_in_use() {
-  # Prefer `ss` (Linux); fall back to `lsof` (macOS/BSD).
-  if command -v ss >/dev/null 2>&1; then
-    ss -tln 2>/dev/null | grep -qE "[:.]46001[[:space:]]"
-  elif command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:46001 -sTCP:LISTEN >/dev/null 2>&1
-  else
-    (exec 3<>/dev/tcp/127.0.0.1/46001) >/dev/null 2>&1 && exec 3>&-
-  fi
+LAUNCHER_PORT="$(sed -n 's/.*"port":"\([0-9][0-9]*\)".*/\1/p' "$PROJ/config/launcher.runtime.json" 2>/dev/null | head -n1)"
+[ -n "$LAUNCHER_PORT" ] || LAUNCHER_PORT=46001
+LAUNCHER_URL="http://127.0.0.1:$LAUNCHER_PORT"
+open_browser() {
+  if command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; elif command -v open >/dev/null 2>&1; then open "$1"; else echo "[*] Open $1 in your browser."; fi
 }
-if port_in_use; then
-  echo "[*] Launcher already running. Opening $LAUNCHER_URL ..."
-  open_browser() {
-    if command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; elif command -v open >/dev/null 2>&1; then open "$1"; else echo "[*] Open $1 in your browser."; fi
-  }
-  open_browser "$LAUNCHER_URL"
-  exit 0
-fi
+
 
 echo "[*] Starting TakeTopDSH Team launcher ..."
 
@@ -146,4 +141,4 @@ if command -v setsid >/dev/null 2>&1; then
 else
   nohup "$BIN" >/dev/null 2>&1 &
 fi
-echo "[*] Started (PID $!). Open http://127.0.0.1:46001 in your browser."
+echo "[*] Started (PID $!). Open http://127.0.0.1:$LAUNCHER_PORT in your browser."

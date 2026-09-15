@@ -18,9 +18,6 @@ if %errorLevel% neq 0 (
     exit /b 0
 )
 
-REM ---- Already running? (checked by process image, no port needed) ----
-tasklist /FI "IMAGENAME eq TakeTopDshLauncher.exe" 2>nul | find /I "TakeTopDshLauncher.exe" >nul
-if not errorlevel 1 goto already
 
 REM ---- Build the launcher if it has not been built yet (needs the .NET SDK) ----
 if not exist "%LAUNCHER_EXE%" (
@@ -39,6 +36,13 @@ if not exist "%LAUNCHER_EXE%" (
         exit /b 1
     )
 )
+REM ---- Stop any running TakeTopDSH Team launcher (this edition or the other
+REM      one, in ANY install folder) so this copy takes over cleanly. The check
+REM      is done INSIDE our own exe and only touches processes whose image path
+REM      contains \dsh-launcher\ - a same-named unrelated process is never killed.
+REM      Opening the launcher from a browser never runs this script. ----
+if exist "%LAUNCHER_EXE%" "%LAUNCHER_EXE%" --stop-all
+timeout /t 2 /nobreak >nul
 
 REM ---- Apply brand patch (idempotent, non-fatal) ----
 if exist "%ROOT%node\node.exe" if exist "%ROOT%patch-taketop-brand.cjs" "%ROOT%node\node.exe" "%ROOT%patch-taketop-brand.cjs"
@@ -58,10 +62,9 @@ echo   ==================================================
 echo     Database upgrade required
 echo   ==================================================
 echo.
-echo   This database was created by an earlier version and is
-echo   missing the taketop_ prefixed table/column names.
-echo   Upgrading in place now (a backup is made first,
-echo   in .\database\backups).
+echo   This database was created by an older version of TakeTopDSH Team
+echo   (older program version and/or older table/column names).
+echo   Backing it up to .\database\backups and upgrading in place now.
 echo.
 echo   Backing up and upgrading the database ...
 "%LAUNCHER_EXE%" --db-upgrade
@@ -104,17 +107,6 @@ if %WAIT% geq 120 (
 timeout /t 1 /nobreak >nul
 goto waitloop
 
-:already
-title TakeTopDSH Team - already running
-call :open_url
-echo.
-echo   TakeTopDSH Team is already running. Opening the browser ...
-echo.
-echo   Login:  admin
-echo   (Closing this window does NOT stop the service.)
-echo.
-pause >nul
-exit /b 0
 
 :ready
 title TakeTopDSH Team - ready

@@ -46,6 +46,20 @@ if (args.Any(a => a.Equals("--db-upgrade", StringComparison.OrdinalIgnoreCase)))
     Environment.Exit(0);
 }
 
+// ---- --stop-all: stop every running TakeTopDSH Team launcher (this edition or
+//      the other one, ANY install folder) before this copy starts, so a freshly
+//      installed / upgraded build can take over. Only processes whose image path
+//      contains our own `dsh-launcher` folder are touched, so an unrelated
+//      process that happens to share the name is never killed. ----
+if (args.Any(a => a.Equals("--stop-all", StringComparison.OrdinalIgnoreCase)))
+{
+    var stopped = StopAllLaunchers();
+    Console.WriteLine(stopped > 0
+        ? $"Stopped {stopped} running launcher process(es)."
+        : "No running launcher found.");
+    Environment.Exit(0);
+}
+
 // One-time: move a workspace path that was set in appsettings.json into the
 // install-dir pointer, so appsettings no longer takes part in workspace resolution.
 MigrateWorkspacePointer(root);
@@ -3027,6 +3041,31 @@ static void MigrateWorkspacePointer(string root)
         Console.WriteLine($"[config] migrated workspace pointer from appsettings.json: {fromApp}");
     }
     catch (Exception ex) { Trace.WriteLine($"[config] workspace pointer migration failed: {ex.Message}"); }
+}
+
+// Stop every running TakeTopDSH Team launcher (both editions, any install dir).
+// Scoped to our own layout (…\dsh-launcher\<rid>\TakeTopDshLauncher[.exe]) so an
+// unrelated process with the same name is never touched.
+static int StopAllLaunchers()
+{
+    var me = Environment.ProcessId;
+    var count = 0;
+    foreach (var p in System.Diagnostics.Process.GetProcessesByName("TakeTopDshLauncher"))
+    {
+        try
+        {
+            if (p.Id == me) continue;
+            string? path = null;
+            try { path = p.MainModule?.FileName; } catch { }
+            if (string.IsNullOrWhiteSpace(path)) continue;                       // cannot verify -> leave it alone
+            if (path.IndexOf("dsh-launcher", StringComparison.OrdinalIgnoreCase) < 0) continue;
+            try { p.Kill(entireProcessTree: true); } catch { try { p.Kill(); } catch { } }
+            count++;
+        }
+        catch { }
+        finally { try { p.Dispose(); } catch { } }
+    }
+    return count;
 }
 
 static string FindRoot(string baseDir)

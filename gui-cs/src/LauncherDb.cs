@@ -78,6 +78,9 @@ public static class LauncherDb
             if (TableExists("users") && !TableExists("taketop_users")) return true;
             if (TableExists("tasks") && !TableExists("taketop_tasks")) return true;
             if (TableExists("feedback") && !TableExists("taketop_feedback")) return true;
+            // A different program version wrote this DB: back it up before touching it.
+            if (!string.Equals(ScalarStr(conn, $"SELECT taketop_value FROM taketop_meta WHERE taketop_key='{AppVersionKey}';"), AppVersion, StringComparison.OrdinalIgnoreCase))
+                return true;
             return false;
         }
         catch { return false; }
@@ -342,6 +345,60 @@ CREATE TABLE IF NOT EXISTS taketop_meta(taketop_key TEXT PRIMARY KEY, taketop_va
             Exec(conn, "CREATE INDEX IF NOT EXISTS taketop_ix_feedback_owner ON taketop_feedback(taketop_owner, taketop_task_uid);");
         }
         catch (Exception ex) { Console.WriteLine("[launcherdb] migrate: " + ex.Message); }
+        // Remember which program version wrote this database, so the next build
+        // can detect an upgrade and back the DB up BEFORE touching the data.
+        WriteAppVersion(conn);
+    }
+
+    // The launcher's own version (from the assembly), used to detect a program
+    // upgrade so the database can be backed up before the new build touches it.
+    public static string AppVersion
+    {
+        get
+        {
+            try { return typeof(LauncherDb).Assembly.GetName().Version?.ToString() ?? "0.0.0"; }
+            catch { return "0.0.0"; }
+        }
+    }
+
+    private const string AppVersionKey = "app_version";
+
+    private static string? ScalarStr(SqliteConnection conn, string sql)
+    {
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            var v = cmd.ExecuteScalar();
+            return v == null || v is DBNull ? null : Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch { return null; }
+    }
+
+    // The version recorded in the DB (null when written by an older build).
+    public static string? ReadAppVersion(string root)
+    {
+        try
+        {
+            var dbPath = PathFor(root);
+            if (!File.Exists(dbPath)) return null;
+            using var conn = OpenReadOnly(dbPath);
+            return ScalarStr(conn, $"SELECT taketop_value FROM taketop_meta WHERE taketop_key='{AppVersionKey}';");
+        }
+        catch { return null; }
+    }
+
+    private static void WriteAppVersion(SqliteConnection conn)
+    {
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO taketop_meta(taketop_key,taketop_value) VALUES($k,$v);";
+            cmd.Parameters.AddWithValue("$k", AppVersionKey);
+            cmd.Parameters.AddWithValue("$v", AppVersion);
+            cmd.ExecuteNonQuery();
+        }
+        catch { }
     }
 
     // Best-effort consistent snapshot taken right before a destructive schema
