@@ -151,7 +151,7 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 
 - **🧮 Per-member token control** — see and control each member's token usage.
 - **🏛️ Hierarchical (pyramid) member management** — a normal member can create and manage sub-members work, and each sub-member can, in turn, create further sub-members and manage their work, forming a pyramid-style management structure.
-- **📱 Mobile APP pages** — built-in touch-optimized mobile interface; access the workbench, file manager, and AI chat anytime, anywhere through your mobile phone.
+- **📱 Mobile APP pages** — built-in touch-optimized mobile interface; access the workbench and get all kinds of work done anytime, anywhere through your mobile phone.
 - **💬 Instant chat** — 1:1 and group chat, fully connected with the file manager, task manager and AI chat — communication without limits!
 - **🛠️ Support** — during the paid period we provide uninterrupted service and quickly help resolve any usage issues.
 
