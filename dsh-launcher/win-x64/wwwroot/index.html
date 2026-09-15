@@ -1144,7 +1144,7 @@ async function myInstStop() {
 function myInstOpen() {
   const inst = window._myInst;
   if (!inst) return;
-  window.location.href = '/work?inst=' + encodeURIComponent(inst.id);
+  window.location.href = '/taketop_work?inst=' + encodeURIComponent(inst.id);
 }
 
 // ================= File manager (per-user workspace) =================
@@ -2602,7 +2602,7 @@ async function instOpen(id) {
     const st = await fetch('/api/session-token');
     if (st.ok) {
       const d = await st.json();
-      window.location.href = '/work?inst=' + encodeURIComponent(id) + '&launcher_token=' + encodeURIComponent(d.token);
+      window.location.href = '/taketop_work?inst=' + encodeURIComponent(id) + '&launcher_token=' + encodeURIComponent(d.token);
       return;
     }
   } catch (e) { }
@@ -2617,7 +2617,7 @@ async function openWithToken() {
     if (r.ok) {
       const d = await r.json();
       // Split workspace page (no ?inst → default/own instance on the right pane).
-      window.location.href = '/work?launcher_token=' + encodeURIComponent(d.token);
+      window.location.href = '/taketop_work?launcher_token=' + encodeURIComponent(d.token);
     } else {
       window.location.href = '/';
     }

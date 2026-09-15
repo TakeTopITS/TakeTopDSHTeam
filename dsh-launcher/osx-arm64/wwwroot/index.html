@@ -1,21 +1,7 @@
-﻿<!--
+<!--
   TakeTopDshTeam — multi-user DeepSeek Harness platform
   Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
   EMail: service@taketopits.com
-
-  This software is licensed under the Business Source License 1.1 (BSL 1.1).
-  You may copy, modify, redistribute, and make non-production use; production
-  use is free for an organization with up to 10 users. Use by more than 10
-  users requires a commercial license. See LICENSE for the full terms and
-  LICENSE-COMMERCIAL.md for commercial licensing.
-
-  On the Change Date (2030-09-11) this version automatically converts to the
-  Apache License, Version 2.0. THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT
-  WARRANTY OF ANY KIND.
-
-  This software is the intellectual property of 泰顶拓鼎信息科技（上海）有限公司
-  (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.). All rights reserved.
-  A commercial license is also available; see LICENSE-COMMERCIAL.md.
 -->
 
 <!DOCTYPE html>
@@ -173,8 +159,6 @@
   <div class="card" data-admin>
     <h1 data-i18n="title">TakeTopDshTeam 启动器</h1>
     <div class="row">
-      <label data-i18n="port">端口</label>
-      <input id="port" type="number" value="46000" />
       <button id="startBtn" data-i18n="start">▶ 启动</button>
       <button id="stopBtn" class="danger" data-i18n="stop">■ 停止</button>
       <button id="openWebBtn" class="secondary" onclick="openWithToken()" data-i18n="openDsh" style="margin-left:42px;">打开DSH</button>
@@ -193,28 +177,26 @@
 
     <div id="tabConfig" class="tab-panel" style="padding:20px 24px;">
       <div class="row">
-        <label data-i18n="cfgUrl">appsettings URL</label>
-        <input id="cfgUrl" style="width: 260px" />
-        <button id="saveCfgBtn" class="secondary" data-i18n="save">保存</button>
-        <span id="cfgSaved" class="muted"></span>
+        <label data-i18n="workspace">工作区路径</label>
+        <input id="workspace" style="width: 280px" data-ph="workspacePh" />
+        <button id="browseWsBtn" class="secondary" data-i18n="browse">浏览</button>
+      </div>
+      <div id="wsDefaultWarn" data-i18n="wsDefaultWarn" style="display:none;margin:6px 0 2px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;white-space:pre-line"></div>
+      <div class="row">
+        <label data-i18n="launcherPort">Launcher port</label>
+        <input id="launcherPort" type="number" min="1" max="65535" style="width: 120px" />
       </div>
       <div class="row">
         <label data-i18n="extUrl">外部访问地址</label>
         <input id="extUrl" style="width: 260px" data-ph="extUrlPh" />
       </div>
       <div class="row">
-        <label data-i18n="workspace">工作区路径</label>
-        <input id="workspace" style="width: 280px" data-ph="workspacePh" />
-        <button id="browseWsBtn" class="secondary" data-i18n="browse">浏览</button>
-        <button id="saveWsBtn" class="secondary" data-i18n="save">保存</button>
-        <span id="wsSaved" class="muted"></span>
-      </div>
-      <div id="wsDefaultWarn" data-i18n="wsDefaultWarn" style="display:none;margin:6px 0 2px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;white-space:pre-line"></div>
-      <div class="row">
         <label data-i18n="defaultLang">缺省语言</label>
         <select id="defaultLangSel" style="width: 200px;"></select>
-        <button id="saveLangBtn" class="secondary" data-i18n="save">保存</button>
-        <span id="langSaved" class="muted"></span>
+      </div>
+      <div class="row" style="margin-top:14px;align-items:center;">
+        <button id="saveConfigBtn" data-i18n="save">保存</button>
+        <span id="configSaved" class="muted" style="margin-left:8px;"></span>
       </div>
       <div class="muted" style="margin-top:4px" id="configHint"></div>
     </div>
@@ -482,11 +464,49 @@ async function withLoading(btn, fn, done) {
   }
 }
 
+// Full-screen overlay while a restart is in progress, so the restart is visible.
+function showRestartOverlay(text, hint) {
+  let ov = document.getElementById('ttRestartOv');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'ttRestartOv';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(255,255,255,.94);font-size:15px;color:#334155';
+    ov.innerHTML = '<span class="spinner" style="width:32px;height:32px;border-width:3px"></span>'
+      + '<span id="ttRestartOvText"></span>'
+      + '<span id="ttRestartOvHint" style="font-size:13px;color:#6b7280;max-width:560px;text-align:center;line-height:1.6;"></span>'
+      + '<span id="ttRestartOvSec" style="font-size:12px;color:#94a3b8;font-variant-numeric:tabular-nums;"></span>';
+    document.body.appendChild(ov);
+    var t0 = Date.now();
+    ov.__iv = setInterval(function () { var e = document.getElementById('ttRestartOvSec'); if (e) e.textContent = Math.round((Date.now() - t0) / 1000) + 's'; }, 1000);
+  }
+  document.getElementById('ttRestartOvText').textContent = text;
+  var h = document.getElementById('ttRestartOvHint');
+  if (h) h.textContent = hint || '';
+}
+// Poll until the DSH reports "running" again (or timeout).
+async function waitForDshRunning(timeoutMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 500));
+    try { const st = await (await fetch('/api/status', { cache: 'no-store' })).json(); if (st && st.state === 'running') return true; } catch (e) {}
+  }
+  return false;
+}
+// Poll until a URL responds (the restarted launcher is back, e.g. on a new port).
+async function waitForUrl(url, timeoutMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 500));
+    try { const r = await fetch(url, { cache: 'no-store' }); if (r.ok) return true; } catch (e) {}
+  }
+  return false;
+}
+
 // ---- i18n ----
 const I18N = {
   zh: {
     title: "TakeTopDshTeam 启动器", port: "端口", start: "▶ 启动", stop: "■ 停止",
-    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "appsettings URL", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thTokens: "已用 Token", tokenTotalAll: "合计（含 admin）", thModel: "大模型", thAsOf: "截止时间", tokenTitle: "Token 用量", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录", loginFail: "用户名或密码错误",
+    openDsh: "打开DSH", configTitle: "配置", cfgUrl: "DSH 端口", dshHostHint: "（IP 固定 127.0.0.1）", savedRestarting: "已保存，正在重启…", restartingDsh: "DSH 正在重启，请稍候…", restartingLauncher: "启动器正在重启，请稍候…", restartHint: "切换工作区/端口会重启服务并重建数据目录，可能需要约 2 分钟；完成后会回到登录页，请重新登录。请勿关闭本页面。", restartDshHint: "DSH 正在按新配置重启，通常需要十几秒；完成后页面会自动刷新。", restartAffectsAll: "⚠ 保存后若涉及工作区/端口/外部地址/语言的变更，服务会自动重启，将中断所有正在使用的成员。", restartConfirm: "⚠ 此操作会自动重启服务，将中断所有正在使用的成员。确定继续？", launcherPort: "启动器端口", portRestartHint: "（重启后生效）", portBusy: "端口 {p} 已被占用（可能是其它服务、DSH 端口或成员实例），请换一个。", defaultLang: "界面语言", instTitle: "实例管理（多用户）",     instName: "用户名", instWs: "工作区", instPass: "密码", instCreate: "新建实例", instRunning: "运行中", instStopped: "已停止", instStart: "▶ 启动", instStop: "■ 停止", instOpen: "打开", instDelete: "删除", instCreated: "已创建实例", instError: "操作失败", instWsPh: "留空=自动按 全局工作区/用户名", thUser: "用户名", thPort: "端口", thWs: "工作区", thTokens: "已用 Token", tokenTotalAll: "合计（含 admin）", thModel: "大模型", thAsOf: "截止时间", tokenTitle: "Token 用量", thState: "状态", thOps: "操作", logout: "退出登录", loginTitle: "TakeTopDshTeam 登录", loginSub: "请输入用户名和密码", loginUserPh: "用户名", loginPassPh: "密码", loginBtn: "登录", loginFail: "用户名或密码错误",
     extUrl: "外部访问地址", extUrlPh: "如 http://服务器IP:8080，留空=不启用",
     workspace: "工作区路径", workspacePh: "如 /home/user/project 或 C:\\projects\\erp",
     wsDefaultWarn: "⚠ 尚未设置工作区：当前使用默认目录（发行版目录下的 WorkSpace）。升级/替换发行版时可能被覆盖，或与其它副本共用。请先设置专用工作区目录。",
@@ -527,7 +547,7 @@ const I18N = {
   },
   en: {
     title: "TakeTopDshTeam Launcher", port: "Port", start: "▶ Start", stop: "■ Stop",
-    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "appsettings URL", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thTokens: "Tokens used", tokenTotalAll: "Total (all members incl. admin)", thModel: "Model", thAsOf: "As of", tokenTitle: "Token Usage", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in", loginFail: "Invalid username or password",
+    openDsh: "Open DSH", configTitle: "Configuration", cfgUrl: "DSH port", dshHostHint: "(host fixed to 127.0.0.1)", savedRestarting: "Saved. Restarting...", restartingDsh: "Restarting DSH, please wait...", restartingLauncher: "Restarting the launcher, please wait...", restartHint: "Changing the workspace/port restarts the service and rebuilds data folders; this can take about 2 minutes. When it finishes you will be returned to the login page and asked to log in again. Please do not close this page.", restartDshHint: "DSH is restarting with the new settings; this usually takes a few seconds and the page refreshes automatically.", restartAffectsAll: "⚠ Saving may auto-restart the service (workspace / port / external URL / language) and will interrupt all members currently using it.", restartConfirm: "⚠ This will auto-restart the service and interrupt all members currently using it. Continue?", launcherPort: "Launcher port", portRestartHint: "(restart to take effect)", portBusy: "Port {p} is already in use (another service, the DSH port, or a member instance). Please choose another.", defaultLang: "Interface language", instTitle: "Instance Manager (multi-user)",     instName: "Username", instWs: "Workspace", instPass: "Password", instCreate: "Create instance", instRunning: "Running", instStopped: "Stopped", instStart: "▶ Start", instStop: "■ Stop", instOpen: "Open DSH", instDelete: "Delete", instCreated: "Instance created", instError: "Operation failed", instWsPh: "Leave empty = auto global workspace/username", thUser: "Username", thPort: "Port", thWs: "Workspace", thTokens: "Tokens used", tokenTotalAll: "Total (all members incl. admin)", thModel: "Model", thAsOf: "As of", tokenTitle: "Token Usage", thState: "State", thOps: "Actions", logout: "Logout", loginTitle: "TakeTopDshTeam Login", loginSub: "Enter username and password", loginUserPh: "Username", loginPassPh: "Password", loginBtn: "Log in", loginFail: "Invalid username or password",
     extUrl: "External URL", extUrlPh: "e.g. http://server-ip:8080, empty = disabled",
     workspace: "Workspace path", workspacePh: "e.g. /home/user/project or C:\\projects\\erp",
     wsDefaultWarn: "⚠ No workspace set: using the DEFAULT (the WorkSpace folder inside the release dir). It may be overwritten on upgrade or shared with other copies. Set a dedicated workspace directory first.",
@@ -761,9 +781,8 @@ async function loadConfig() {
   const c = await (await fetch('/api/config')).json();
   $('#rootPath').textContent = c.root;
   DshSelfRoot = c.root || '';   // remember this app's own dir (never selectable as workspace)
-  $('#cfgUrl').value = c.url;
+  if (c.launcherPort != null) { $('#launcherPort').value = c.launcherPort; window.__curLauncherPort = c.launcherPort; }
   $('#extUrl').value = c.externalUrl || '';
-  $('#port').value = String(c.url || '').split(':').pop() || 46000;
   // fill the admin "default language" dropdown and preselect the server default
   const langSelEl = $('#defaultLangSel');
   if (langSelEl && Array.isArray(c.languages) && c.languages.length) {
@@ -771,42 +790,28 @@ async function loadConfig() {
     langSelEl.innerHTML = items.map((it) => '<option value="' + it.code + '">' + it.label + '</option>').join('');
     langSelEl.value = items[0].code;
     window.__langItems = items;   // remember order for reordering on save
+    // Snapshot the loaded values so Save can tell whether anything actually
+    // changed (and therefore whether a restart is about to happen).
+    window.__cfgOrig = { port: c.launcherPort, ext: c.externalUrl || '', lang: items[0].code, ws: '' };
   }
   try {
     const w = await (await fetch('/api/workspace')).json();
     $('#workspace').value = w.workspace || '';
+    if (window.__cfgOrig) window.__cfgOrig.ws = w.workspace || '';
     globalWorkspacePath = w.workspace || '';
     workspaceIsDefault = !!w.isDefault;
     renderWsDefaultWarn();
-    if (workspaceIsDefault && location.pathname !== '/fm') showWsDefaultModal();
   } catch (e) { /* workspace endpoint optional */ }
 }
 
-// Warn while the admin has not chosen a dedicated workspace: the portable default
-// can be shared across clones/versions or overwritten on upgrade.
+// The portable default workspace is now a first-class choice: never nag the user
+// about it (no banner, no modal).
 function renderWsDefaultWarn() {
   const el = document.getElementById('wsDefaultWarn');
-  if (el) el.style.display = workspaceIsDefault ? '' : 'none';
+  if (el) el.style.display = 'none';
 }
 
-function showWsDefaultModal() {
-  if (document.getElementById('wsDefaultModal')) return;
-  const body = t('wsDefaultWarnBody').replace('{path}', globalWorkspacePath || '(default)');
-  const ov = document.createElement('div');
-  ov.id = 'wsDefaultModal';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
-  ov.innerHTML =
-    '<div style="background:#fff;max-width:540px;width:100%;border-radius:10px;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
-    + '<div style="font-size:16px;font-weight:600;color:#b91c1c;margin-bottom:8px">&#9888; ' + t('wsDefaultWarnTitle') + '</div>'
-    + '<div id="wsDefaultModalBody" style="font-size:13px;color:#334155;white-space:pre-line;line-height:1.7"></div>'
-    + '<div style="text-align:right;margin-top:14px"><button id="wsDefaultModalOk" style="padding:6px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px"></button></div>'
-    + '</div>';
-  document.body.appendChild(ov);
-  document.getElementById('wsDefaultModalBody').textContent = body;
-  const ok = document.getElementById('wsDefaultModalOk');
-  ok.textContent = t('wsDefaultOk');
-  ok.onclick = () => { ov.remove(); const w = document.getElementById('workspace'); if (w) w.focus(); };
-}
+function showWsDefaultModal() { /* disabled: default workspace is allowed */ }
 
 async function init() {
   // ---- "fm" standalone mode: used inside the /work split page's left pane.
@@ -835,60 +840,83 @@ async function init() {
   }
 
   $('#startBtn').onclick = () => withLoading($('#startBtn'), async () => {
-    const port = parseInt($('#port').value) || 46000;
     logCursor = 0; $('#logs').textContent = '';
-    await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port }) });
+    // No port here: the launcher starts DSH on the configured DSH port (config Url).
+    await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
     refresh();
   });
   $('#stopBtn').onclick = () => withLoading($('#stopBtn'), async () => { await fetch('/api/stop', { method: 'POST' }); refresh(); });
-  $('#saveCfgBtn').onclick = () => withLoading($('#saveCfgBtn'), async () => {
-    const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: $('#cfgUrl').value, externalUrl: $('#extUrl').value }) });
-    $('#cfgSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
-    setTimeout(() => $('#cfgSaved').textContent = '', 1500);
-  });
-  $('#saveWsBtn').onclick = () => withLoading($('#saveWsBtn'), async () => {
+  $('#saveConfigBtn').onclick = () => withLoading($('#saveConfigBtn'), async () => {
+    const msg = $('#configSaved'); const setMsg = (m) => { msg.textContent = m; };
     const v = $('#workspace').value;
-    if (isSelfDir(v)) {
-      $('#wsSaved').textContent = t('selfDirDenyMsg');
-      setTimeout(() => $('#wsSaved').textContent = '', 3000);
-      return;
+    if (isSelfDir(v)) { setMsg(t('selfDirDenyMsg')); setTimeout(() => setMsg(''), 3000); return; }
+    const p = parseInt($('#launcherPort').value, 10);
+    if (!(p > 0 && p <= 65535)) { setMsg(t('saveFail')); setTimeout(() => setMsg(''), 2000); return; }
+    const ext = $('#extUrl').value;
+    const chosen = $('#defaultLangSel').value;
+    // Any of these changing restarts the service (launcher or DSH) and drops every
+    // member currently using it — confirm before applying.
+    const o = window.__cfgOrig || {};
+    const willChange = (String(v || '').trim() !== String(o.ws || '').trim()) ||
+                       (p !== o.port) ||
+                       (String(ext || '').trim() !== String(o.ext || '').trim()) ||
+                       (chosen !== o.lang);
+    if (willChange && !confirm(t('restartConfirm'))) return;
+    // Pre-check the launcher port BEFORE saving anything, so a busy port can never
+    // half-apply (e.g. workspace saved + restart scheduled, then the port fails).
+    if (p !== o.port) {
+      try {
+        const pc = await (await fetch('/api/port-check?port=' + p, { cache: 'no-store' })).json();
+        if (pc && pc.ok && !pc.free) { setMsg(t('portBusy').replace('{p}', String(p))); setTimeout(() => setMsg(''), 5000); return; }
+      } catch (e) { /* if the check fails, fall through (server still validates) */ }
     }
-    const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: $('#workspace').value }) });
-    if (r.ok) {
+    // 1) Workspace path (also materializes the folder / reloads DB).
+    let wsRestart = false;
+    try {
+      const wr = await (await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: v }) })).json();
+      if (!wr || !wr.ok) { setMsg(t('saveFail')); setTimeout(() => setMsg(''), 2000); return; }
       workspaceIsDefault = !String(v || '').trim();
       renderWsDefaultWarn();
       if (!workspaceIsDefault) { const m = document.getElementById('wsDefaultModal'); if (m) m.remove(); }
-    }
-    $('#wsSaved').textContent = (r.ok ? t('saved') : t('saveFail'));
-    setTimeout(() => $('#wsSaved').textContent = '', 1500);
-  });
-  $('#saveLangBtn').onclick = () => withLoading($('#saveLangBtn'), async () => {
-    // Reorder the language list so the selected code becomes the first (default).
-    const chosen = $('#defaultLangSel').value;
+      wsRestart = !!wr.restart;
+    } catch (e) { setMsg(t('saveFail')); setTimeout(() => setMsg(''), 2000); return; }
+    // 2) Launcher port + External URL + default language (one request).
     const items = (window.__langItems || []).slice();
     const idx = items.findIndex((it) => it.code === chosen);
-    let ordered;
-    if (idx > 0) {
-      const chosenItem = items.splice(idx, 1)[0];
-      ordered = [chosenItem].concat(items);
-    } else {
-      ordered = items;
-    }
-    // Persist as "显示名:代码" with a canonical display name derived from the
-    // code (en->English, zh-cn->中文), so the saved file is always well-formed.
+    let ordered = items;
+    if (idx > 0) { const c = items.splice(idx, 1)[0]; ordered = [c].concat(items); }
     const raw = ordered.map((it) => langLabel(it.code) + ':' + it.code).join(',');
-    const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultLanguage: raw }) });
-    if (r.ok) {
-      $('#langSaved').textContent = t('saved');
-      setTimeout(() => $('#langSaved').textContent = '', 1500);
-      // apply immediately so the UI (and login gate) reflect the new default
-      applyLang(chosen);
-      await initLangSel($('#langSelect'), true);
-      const loginLS = $('#loginLangSel'); if (loginLS) await initLangSel(loginLS, false);
-    } else {
-      $('#langSaved').textContent = t('saveFail');
-      setTimeout(() => $('#langSaved').textContent = '', 1500);
+    let cfg = {};
+    try {
+      cfg = await (await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ launcherPort: p, externalUrl: $('#extUrl').value, defaultLanguage: raw }) })).json();
+    } catch (e) {}
+    if (!cfg || !cfg.ok) { setMsg(t('saveFail')); setTimeout(() => setMsg(''), 2000); return; }
+    // If the default language changed, switch the launcher UI to it and remember
+    // the choice (tt_lang), so it survives the restart/reload below.
+    if (cfg.langChanged) applyLang(chosen);
+    // 3) React to whatever needs restarting (launcher restart wins).
+    if (wsRestart || cfg.restart) {
+      const np = cfg.launcherPort || p;
+      showRestartOverlay(t('restartingLauncher'), t('restartHint'));
+      const npUrl = location.protocol + '//' + location.hostname + ':' + np + '/api/status';
+      await waitForUrl(npUrl, 90000);
+      // Launcher restarted → the in-memory session is gone; land on the login
+      // page (on the possibly-new port) so the user logs in again and the client
+      // state re-initializes against the restarted service.
+      location.href = location.protocol + '//' + location.hostname + ':' + np + '/';
+      return;
     }
+    if (cfg.restartDsh) {
+      showRestartOverlay(t('restartingDsh'), t('restartDshHint'));
+      await waitForDshRunning(90000);
+      location.reload();
+      return;
+    }
+    setMsg(t('saved'));
+    setTimeout(() => setMsg(''), 1500);
+    applyLang(chosen);
+    await initLangSel($('#langSelect'), true);
+    const loginLS = $('#loginLangSel'); if (loginLS) await initLangSel(loginLS, false);
   });
   $('#checkUpdateBtn').onclick = async () => {
     const btn = $('#checkUpdateBtn');
@@ -1116,7 +1144,7 @@ async function myInstStop() {
 function myInstOpen() {
   const inst = window._myInst;
   if (!inst) return;
-  window.location.href = '/work?inst=' + encodeURIComponent(inst.id);
+  window.location.href = '/taketop_work?inst=' + encodeURIComponent(inst.id);
 }
 
 // ================= File manager (per-user workspace) =================
@@ -2481,7 +2509,6 @@ async function loadInstances() {
         tr.style.borderBottom = '1px solid #eee';
         var ops = '';
         if (i.running) {
-          ops += '<button class="secondary" onclick="instOpen(\'' + esc(i.id) + '\')">' + t('instOpen') + '</button> ';
           ops += '<button class="secondary" onclick="instStop(this,\'' + esc(i.id) + '\')">' + t('instStop') + '</button> ';
         } else {
           ops += '<button onclick="instStart(this,\'' + esc(i.id) + '\')">' + t('instStart') + '</button> ';
@@ -2575,7 +2602,7 @@ async function instOpen(id) {
     const st = await fetch('/api/session-token');
     if (st.ok) {
       const d = await st.json();
-      window.location.href = '/work?inst=' + encodeURIComponent(id) + '&launcher_token=' + encodeURIComponent(d.token);
+      window.location.href = '/taketop_work?inst=' + encodeURIComponent(id) + '&launcher_token=' + encodeURIComponent(d.token);
       return;
     }
   } catch (e) { }
@@ -2590,7 +2617,7 @@ async function openWithToken() {
     if (r.ok) {
       const d = await r.json();
       // Split workspace page (no ?inst → default/own instance on the right pane).
-      window.location.href = '/work?launcher_token=' + encodeURIComponent(d.token);
+      window.location.href = '/taketop_work?launcher_token=' + encodeURIComponent(d.token);
     } else {
       window.location.href = '/';
     }

@@ -91,6 +91,24 @@ if [ -f "$NODE_BIN" ] && [ -f "$PROJ/patch-taketop-brand.cjs" ]; then
   "$NODE_BIN" "$PROJ/patch-taketop-brand.cjs" || echo "[!] brand patch skipped (non-fatal)"
 fi
 
+# --- DB preflight: a DB from an earlier release may still use the old
+#     (un-prefixed) table/column names. Detect it, then back up and rename
+#     everything to the `taketop_` names automatically (no prompt). -----------
+DBCHECK="$("$BIN" --db-check 2>/dev/null || true)"
+if [ "$DBCHECK" = "UPGRADE" ]; then
+  echo ""
+  echo "  =================================================="
+  echo "    Database upgrade required"
+  echo "  =================================================="
+  echo ""
+  echo "  This database was created by an earlier version and lacks the"
+  echo "  taketop_ prefixed table/column names. Upgrading in place now"
+  echo "  (a backup is written to ./database/backups first)."
+  echo ""
+  "$BIN" --db-upgrade || { echo "[!] database upgrade failed"; exit 1; }
+  echo ""
+fi
+
 # --- idempotent: if the launcher is already listening on :46001, just open it ---
 LAUNCHER_URL="http://127.0.0.1:46001"
 port_in_use() {

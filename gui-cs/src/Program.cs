@@ -26,6 +26,26 @@ void __mark(string m)
 }
 try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "taketopds-startup.log"), ""); } catch { }
 __mark("begin");
+
+// ---- DB pre-upgrade modes (invoked by start.bat / start.sh before launch) ----
+// `--db-check`   : "UPGRADE" + exit 2 when the DB still uses the pre-`taketop_`
+//                  naming (an older install / earlier release), else "OK" + exit 0.
+// `--db-upgrade` : back the DB up into <dbdir>/backups/ then run the rename upgrade.
+if (args.Any(a => a.Equals("--db-check", StringComparison.OrdinalIgnoreCase)))
+{
+    var need = LauncherDb.NeedsUpgrade(root);
+    Console.WriteLine(need ? "UPGRADE" : "OK");
+    Environment.Exit(need ? 2 : 0);
+}
+if (args.Any(a => a.Equals("--db-upgrade", StringComparison.OrdinalIgnoreCase)))
+{
+    var bak = LauncherDb.UpgradeDatabase(root);
+    Console.WriteLine(bak is null
+        ? "No database to upgrade (fresh install)."
+        : "Database upgraded. Backup: " + bak);
+    Environment.Exit(0);
+}
+
 // One-time: move a workspace path that was set in appsettings.json into the
 // install-dir pointer, so appsettings no longer takes part in workspace resolution.
 MigrateWorkspacePointer(root);
@@ -1980,6 +2000,21 @@ app.Use(async (ctx, next) =>
         catch { }
     }
 
+    // Back-compat: the pre-taketop page routes 302 to the new prefixed ones so
+    // old bookmarks / open tabs keep working.
+    foreach (var (from, to) in new (string, string)[]
+    {
+        ("/work", "/taketop_work"), ("/tasks", "/taketop_tasks"),
+    })
+    {
+        if (path.Equals(from, StringComparison.OrdinalIgnoreCase) ||
+            path.Equals(from + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Response.Redirect(to + (ctx.Request.QueryString.HasValue ? ctx.Request.QueryString.Value : ""));
+            return;
+        }
+    }
+
     // Management page lives under /admin — never proxied. Any authenticated user
     // may visit it (they need it to change their password / open their own DSH);
     // admin-only cards/actions are gated inside the page by role.
@@ -2005,9 +2040,9 @@ app.Use(async (ctx, next) =>
     // Workspace split page (/work) and the standalone file-manager pane (/fm).
     // Both belong to the launcher (never proxied). Any authenticated user may load
     // them; the file manager is scoped per-user on the server (ResolveUserWorkspace).
-    if (path == "/work" || path == "/work/" || path.StartsWith("/work/") ||
+    if (path == "/taketop_work" || path == "/taketop_work/" || path.StartsWith("/taketop_work/") ||
         path == "/fm" || path == "/fm/" || path.StartsWith("/fm/") ||
-        path == "/tasks" || path == "/tasks/" || path.StartsWith("/tasks/"))
+        path == "/taketop_tasks" || path == "/taketop_tasks/" || path.StartsWith("/taketop_tasks/"))
     {
         if (user == null) { ctx.Response.Redirect("/"); return; }
         ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
@@ -2015,8 +2050,8 @@ app.Use(async (ctx, next) =>
         ctx.Response.Headers["Expires"] = "0";
         ctx.Response.ContentType = "text/html; charset=utf-8";
         var baseName = path.StartsWith("/fm", StringComparison.OrdinalIgnoreCase) ? "index.html"
-            : path.StartsWith("/tasks", StringComparison.OrdinalIgnoreCase) ? "tasks.html"
-            : "work.html";
+            : path.StartsWith("/taketop_tasks", StringComparison.OrdinalIgnoreCase) ? "taketop_tasks.html"
+            : "taketop_work.html";
         var file = wwwroot is null ? null : Path.Combine(wwwroot, baseName);
         if (file is null || !System.IO.File.Exists(file))
         {
@@ -2078,7 +2113,7 @@ app.Use(async (ctx, next) =>
         {
             var sessTok = ctx.Request.Cookies["tt_session"];
             var q = string.IsNullOrEmpty(sessTok) ? "" : "?launcher_token=" + Uri.EscapeDataString(sessTok);
-            ctx.Response.Redirect("/work" + q);
+            ctx.Response.Redirect("/taketop_work" + q);
             return;
         }
     }

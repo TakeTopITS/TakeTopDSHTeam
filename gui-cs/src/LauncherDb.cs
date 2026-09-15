@@ -63,6 +63,117 @@ public static class LauncherDb
         return DshService.ResolveWorkspacePath(root);
     }
 
+    // ---- Pre-upgrade check / upgrade (used by start scripts before launching) ----
+    // True when the DB exists but is still in the pre-`taketop_` naming (tables
+    // without the prefix). A missing DB (fresh install) is NOT an upgrade case.
+    public static bool NeedsUpgrade(string root)
+    {
+        try
+        {
+            var dbPath = PathFor(root);
+            if (!File.Exists(dbPath)) return false;
+            using var conn = OpenReadOnly(dbPath);
+            bool TableExists(string t) =>
+                Scalar(conn, $"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{t}';") > 0;
+            if (TableExists("users") && !TableExists("taketop_users")) return true;
+            if (TableExists("tasks") && !TableExists("taketop_tasks")) return true;
+            if (TableExists("feedback") && !TableExists("taketop_feedback")) return true;
+            return false;
+        }
+        catch { return false; }
+    }
+
+    // Back up the DB into <dbdir>/backups/, then run the in-place schema upgrade
+    // (opening the DB triggers EnsureSchema's rename migration). Returns the backup path.
+    public static string? UpgradeDatabase(string root)
+    {
+        var dbPath = PathFor(root);
+        if (!File.Exists(dbPath)) return null;
+        string? bak = null;
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(dbPath)!;
+            var bakDir = System.IO.Path.Combine(dir, "backups");
+            System.IO.Directory.CreateDirectory(bakDir);
+            bak = System.IO.Path.Combine(bakDir, $"taketopDSHTeam-{DateTime.Now:yyyyMMdd-HHmmss}.db");
+            try { File.Copy(dbPath, bak, overwrite: false); } catch { bak = null; }
+        }
+        catch { bak = null; }
+        using (var conn = Open(dbPath)) { }
+        return bak;
+    }
+
+    // ---- Legacy → `taketop_` rename migration ----
+    // Older databases use un-prefixed table/column names. Rename them IN PLACE
+    // (SQLite RENAME keeps the data) before the CREATE TABLE IF NOT EXISTS block,
+    // so a fresh DB just creates the new schema and an existing one is upgraded
+    // without data loss.
+    private static void MigrateLegacyToTaketop(SqliteConnection conn)
+    {
+        var tables = new (string From, string To)[]
+        {
+            ("users", "taketop_users"),
+            ("instances", "taketop_instances"),
+            ("tasks", "taketop_tasks"),
+            ("task_files", "taketop_task_files"),
+            ("feedback", "taketop_feedback"),
+            ("feedback_files", "taketop_feedback_files"),
+            ("meta", "taketop_meta"),
+        };
+        var renamed = new List<string>();
+        foreach (var (from, to) in tables)
+        {
+            if (!TableExists(conn, from) || TableExists(conn, to)) continue;
+            Exec(conn, $"ALTER TABLE {from} RENAME TO {to};");
+            renamed.Add(to);
+        }
+        foreach (var (_, table) in tables)
+        {
+            if (!TableExists(conn, table)) continue;
+            foreach (var col in TableColumns(conn, table))
+            {
+                if (col.StartsWith("taketop_", StringComparison.OrdinalIgnoreCase)) continue;
+                var target = "taketop_" + col;
+                if (ColumnExists(conn, table, target)) continue;
+                Exec(conn, $"ALTER TABLE {table} RENAME COLUMN {col} TO {target};");
+            }
+        }
+        // Indexes follow a renamed table but keep their old names; drop them and
+        // let the CREATE INDEX statements below recreate them with new names.
+        foreach (var ix in new[] { "ix_tasks_owner_seq", "ix_feedback_owner" })
+            Exec(conn, $"DROP INDEX IF EXISTS {ix};");
+        if (renamed.Count > 0)
+            Console.WriteLine("[launcherdb] renamed legacy tables -> " + string.Join(", ", renamed));
+    }
+
+    private static bool TableExists(SqliteConnection conn, string table)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$n;";
+        cmd.Parameters.AddWithValue("$n", table);
+        var v = cmd.ExecuteScalar();
+        return v != null && v is not DBNull && Convert.ToInt64(v) > 0;
+    }
+
+    private static bool ColumnExists(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name=$c;";
+        cmd.Parameters.AddWithValue("$c", column);
+        var v = cmd.ExecuteScalar();
+        return v != null && v is not DBNull && Convert.ToInt64(v) > 0;
+    }
+
+    private static List<string> TableColumns(SqliteConnection conn, string table)
+    {
+        var cols = new List<string>();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT name FROM pragma_table_info('{table}');";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) cols.Add(r.GetString(0));
+        return cols;
+    }
+
     // Read a non-empty DshWeb.WorkspacePath from a config file, else null. The
     // gitignored launcher.local.json takes precedence over appsettings.json, so the
     // DB path follows the workspace the admin set in the UI.
@@ -132,61 +243,62 @@ public static class LauncherDb
 
     private static void EnsureSchema(SqliteConnection conn)
     {
+        MigrateLegacyToTaketop(conn);
         Exec(conn, @"
-CREATE TABLE IF NOT EXISTS users(
-  username      TEXT PRIMARY KEY,
-  password_hash TEXT NOT NULL DEFAULT '',
-  salt          TEXT NOT NULL DEFAULT '',
-  iterations    INTEGER NOT NULL DEFAULT 100000,
-  admin         INTEGER NOT NULL DEFAULT 0,
-  instance_id   TEXT NOT NULL DEFAULT ''
+CREATE TABLE IF NOT EXISTS taketop_users(
+  taketop_username      TEXT PRIMARY KEY,
+  taketop_password_hash TEXT NOT NULL DEFAULT '',
+  taketop_salt          TEXT NOT NULL DEFAULT '',
+  taketop_iterations    INTEGER NOT NULL DEFAULT 100000,
+  taketop_admin         INTEGER NOT NULL DEFAULT 0,
+  taketop_instance_id   TEXT NOT NULL DEFAULT ''
 );
-CREATE TABLE IF NOT EXISTS instances(
-  id          TEXT PRIMARY KEY,
-  name        TEXT NOT NULL DEFAULT '',
-  dsh_port    INTEGER NOT NULL DEFAULT 0,
-  workspace   TEXT NOT NULL DEFAULT '',
-  os_password TEXT,
-  token_url   TEXT NOT NULL DEFAULT '',
-  running     INTEGER NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS taketop_instances(
+  taketop_id          TEXT PRIMARY KEY,
+  taketop_name        TEXT NOT NULL DEFAULT '',
+  taketop_dsh_port    INTEGER NOT NULL DEFAULT 0,
+  taketop_workspace   TEXT NOT NULL DEFAULT '',
+  taketop_os_password TEXT,
+  taketop_token_url   TEXT NOT NULL DEFAULT '',
+  taketop_running     INTEGER NOT NULL DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS tasks(
-  uid         TEXT NOT NULL,
-  owner       TEXT NOT NULL,
-  seq         INTEGER NOT NULL DEFAULT 0,
-  name        TEXT NOT NULL DEFAULT '',
-  type        TEXT NOT NULL DEFAULT '',
-  content     TEXT NOT NULL DEFAULT '',
-  status      TEXT NOT NULL DEFAULT 'pending',
-  assigned_at TEXT NOT NULL DEFAULT '',
-  created_by  TEXT NOT NULL DEFAULT '',
-  parent_uid  TEXT NOT NULL DEFAULT '',
-  PRIMARY KEY(uid)
+CREATE TABLE IF NOT EXISTS taketop_tasks(
+  taketop_uid         TEXT NOT NULL,
+  taketop_owner       TEXT NOT NULL,
+  taketop_seq         INTEGER NOT NULL DEFAULT 0,
+  taketop_name        TEXT NOT NULL DEFAULT '',
+  taketop_type        TEXT NOT NULL DEFAULT '',
+  taketop_content     TEXT NOT NULL DEFAULT '',
+  taketop_status      TEXT NOT NULL DEFAULT 'pending',
+  taketop_assigned_at TEXT NOT NULL DEFAULT '',
+  taketop_created_by  TEXT NOT NULL DEFAULT '',
+  taketop_parent_uid  TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(taketop_uid)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ix_tasks_owner_seq ON tasks(owner, seq);
-CREATE TABLE IF NOT EXISTS task_files(
-  uid   TEXT NOT NULL,
-  idx   INTEGER NOT NULL,
-  rel   TEXT NOT NULL,
-  PRIMARY KEY(uid, idx)
+CREATE UNIQUE INDEX IF NOT EXISTS taketop_ix_tasks_owner_seq ON taketop_tasks(taketop_owner, taketop_seq);
+CREATE TABLE IF NOT EXISTS taketop_task_files(
+  taketop_uid   TEXT NOT NULL,
+  taketop_idx   INTEGER NOT NULL,
+  taketop_rel   TEXT NOT NULL,
+  PRIMARY KEY(taketop_uid, taketop_idx)
 );
-CREATE TABLE IF NOT EXISTS feedback(
-  uid      TEXT PRIMARY KEY,
-  owner    TEXT NOT NULL,
-  task_uid TEXT NOT NULL DEFAULT '',
-  date     TEXT NOT NULL DEFAULT '',
-  by_user  TEXT NOT NULL DEFAULT '',
-  content  TEXT NOT NULL DEFAULT '',
-  time     TEXT NOT NULL DEFAULT '',
-  files    TEXT NOT NULL DEFAULT ''
+CREATE TABLE IF NOT EXISTS taketop_feedback(
+  taketop_uid      TEXT PRIMARY KEY,
+  taketop_owner    TEXT NOT NULL,
+  taketop_task_uid TEXT NOT NULL DEFAULT '',
+  taketop_date     TEXT NOT NULL DEFAULT '',
+  taketop_by_user  TEXT NOT NULL DEFAULT '',
+  taketop_content  TEXT NOT NULL DEFAULT '',
+  taketop_time     TEXT NOT NULL DEFAULT '',
+  taketop_files    TEXT NOT NULL DEFAULT ''
 );
-CREATE TABLE IF NOT EXISTS feedback_files(
-  feedback_uid TEXT NOT NULL,
-  idx          INTEGER NOT NULL,
-  name         TEXT NOT NULL,
-  PRIMARY KEY(feedback_uid, idx)
+CREATE TABLE IF NOT EXISTS taketop_feedback_files(
+  taketop_feedback_uid TEXT NOT NULL,
+  taketop_idx          INTEGER NOT NULL,
+  taketop_name         TEXT NOT NULL,
+  PRIMARY KEY(taketop_feedback_uid, taketop_idx)
 );
-CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS taketop_meta(taketop_key TEXT PRIMARY KEY, taketop_value TEXT NOT NULL DEFAULT '');
 ");
         // Migrations for databases created before the column existed. Each is
         // guarded by a pragma_table_info check so it is safe to run every open.
@@ -198,27 +310,27 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             // Ensure feedback.task_uid exists BEFORE the task migration so the
             // migration can fill it in on the same pass (older databases have only
             // the per-owner seq column).
-            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('feedback') WHERE name='task_uid';") == 0)
-                Exec(conn, "ALTER TABLE feedback ADD COLUMN task_uid TEXT NOT NULL DEFAULT '';");
-            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='uid';") == 0)
+            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('taketop_feedback') WHERE name='taketop_task_uid';") == 0)
+                Exec(conn, "ALTER TABLE taketop_feedback ADD COLUMN taketop_task_uid TEXT NOT NULL DEFAULT '';");
+            if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('taketop_tasks') WHERE name='taketop_uid';") == 0)
             {
                 // Take a consistent snapshot of the whole database before the
                 // destructive rebuild (tasks/task_files are dropped and recreated),
                 // so an interrupted upgrade can always be recovered by hand.
                 BackupBeforeMigration(conn);
-                if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_task';") == 0)
-                    Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_task INTEGER NOT NULL DEFAULT 0;");
-                if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='parent_owner';") == 0)
-                    Exec(conn, "ALTER TABLE tasks ADD COLUMN parent_owner TEXT NOT NULL DEFAULT '';");
+                if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('taketop_tasks') WHERE name='taketop_parent_task';") == 0)
+                    Exec(conn, "ALTER TABLE taketop_tasks ADD COLUMN taketop_parent_task INTEGER NOT NULL DEFAULT 0;");
+                if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('taketop_tasks') WHERE name='taketop_parent_owner';") == 0)
+                    Exec(conn, "ALTER TABLE taketop_tasks ADD COLUMN taketop_parent_owner TEXT NOT NULL DEFAULT '';");
                 MigrateTasksToUid(conn);
             }
             // Back-fill feedback.task_uid for rows imported before the column
             // existed (works while the legacy `seq` column is still present).
             try
             {
-                Exec(conn, @"UPDATE feedback SET task_uid = (SELECT t.uid FROM tasks t WHERE t.owner=feedback.owner AND t.seq=feedback.seq)
-                             WHERE (task_uid IS NULL OR task_uid='')
-                               AND EXISTS (SELECT 1 FROM tasks t WHERE t.owner=feedback.owner AND t.seq=feedback.seq);");
+                Exec(conn, @"UPDATE taketop_feedback SET taketop_task_uid = (SELECT t.taketop_uid FROM taketop_tasks t WHERE t.taketop_owner=taketop_feedback.taketop_owner AND t.taketop_seq=taketop_feedback.taketop_seq)
+                             WHERE (taketop_task_uid IS NULL OR taketop_task_uid='')
+                               AND EXISTS (SELECT 1 FROM taketop_tasks t WHERE t.taketop_owner=taketop_feedback.taketop_owner AND t.taketop_seq=taketop_feedback.taketop_seq);");
             }
             catch { }
             // Move feedback off the old INTEGER AUTOINCREMENT id onto a uid primary
@@ -227,7 +339,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             MigrateFeedbackToUid(conn);
             // Created here (not in the schema script) because on an old database the
             // feedback table exists without task_uid until the ALTER above runs.
-            Exec(conn, "CREATE INDEX IF NOT EXISTS ix_feedback_owner ON feedback(owner, task_uid);");
+            Exec(conn, "CREATE INDEX IF NOT EXISTS taketop_ix_feedback_owner ON taketop_feedback(taketop_owner, taketop_task_uid);");
         }
         catch (Exception ex) { Console.WriteLine("[launcherdb] migrate: " + ex.Message); }
     }
@@ -258,7 +370,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     // call on every open: it no-ops once `feedback.uid` exists.
     private static void MigrateFeedbackToUid(SqliteConnection conn)
     {
-        if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('feedback') WHERE name='uid';") > 0) return;
+        if (Scalar(conn, "SELECT COUNT(*) FROM pragma_table_info('taketop_feedback') WHERE name='taketop_uid';") > 0) return;
         BackupBeforeMigration(conn);
 
         // Old attachment rows are keyed by the numeric feedback id.
@@ -266,7 +378,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         try
         {
             using var fcmd = conn.CreateCommand();
-            fcmd.CommandText = "SELECT fid, idx, name FROM feedback_files ORDER BY fid, idx;";
+            fcmd.CommandText = "SELECT taketop_fid, taketop_idx, taketop_name FROM taketop_feedback_files ORDER BY taketop_fid, taketop_idx;";
             using var fr = fcmd.ExecuteReader();
             while (fr.Read())
             {
@@ -281,29 +393,29 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         using (var cmd = conn.CreateCommand())
         {
             // task_uid was added above (if missing); `seq`, if still present, is dropped.
-            cmd.CommandText = "SELECT id, owner, COALESCE(task_uid,''), date, by_user, content, time, COALESCE(files,'') FROM feedback;";
+            cmd.CommandText = "SELECT taketop_id, taketop_owner, COALESCE(taketop_task_uid,''), taketop_date, taketop_by_user, taketop_content, taketop_time, COALESCE(taketop_files,'') FROM taketop_feedback;";
             using var r = cmd.ExecuteReader();
             while (r.Read())
                 rows.Add((r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetString(5), r.GetString(6), r.GetString(7)));
         }
 
         using var tx = conn.BeginTransaction();
-        ExecTx(conn, tx, "DROP TABLE IF EXISTS feedback_new;");
-        ExecTx(conn, tx, @"CREATE TABLE feedback_new(
-  uid      TEXT PRIMARY KEY,
-  owner    TEXT NOT NULL,
-  task_uid TEXT NOT NULL DEFAULT '',
-  date     TEXT NOT NULL DEFAULT '',
-  by_user  TEXT NOT NULL DEFAULT '',
-  content  TEXT NOT NULL DEFAULT '',
-  time     TEXT NOT NULL DEFAULT '',
-  files    TEXT NOT NULL DEFAULT '');");
-        ExecTx(conn, tx, "DROP TABLE IF EXISTS feedback_files_new;");
-        ExecTx(conn, tx, @"CREATE TABLE feedback_files_new(
-  feedback_uid TEXT NOT NULL,
-  idx          INTEGER NOT NULL,
-  name         TEXT NOT NULL,
-  PRIMARY KEY(feedback_uid, idx));");
+        ExecTx(conn, tx, "DROP TABLE IF EXISTS taketop_feedback_new;");
+        ExecTx(conn, tx, @"CREATE TABLE taketop_feedback_new(
+  taketop_uid      TEXT PRIMARY KEY,
+  taketop_owner    TEXT NOT NULL,
+  taketop_task_uid TEXT NOT NULL DEFAULT '',
+  taketop_date     TEXT NOT NULL DEFAULT '',
+  taketop_by_user  TEXT NOT NULL DEFAULT '',
+  taketop_content  TEXT NOT NULL DEFAULT '',
+  taketop_time     TEXT NOT NULL DEFAULT '',
+  taketop_files    TEXT NOT NULL DEFAULT '');");
+        ExecTx(conn, tx, "DROP TABLE IF EXISTS taketop_feedback_files_new;");
+        ExecTx(conn, tx, @"CREATE TABLE taketop_feedback_files_new(
+  taketop_feedback_uid TEXT NOT NULL,
+  taketop_idx          INTEGER NOT NULL,
+  taketop_name         TEXT NOT NULL,
+  PRIMARY KEY(taketop_feedback_uid, taketop_idx));");
 
         var idToUid = new Dictionary<long, string>();
         foreach (var row in rows)
@@ -313,7 +425,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             using (var ins = conn.CreateCommand())
             {
                 ins.Transaction = tx;
-                ins.CommandText = "INSERT INTO feedback_new(uid,owner,task_uid,date,by_user,content,time,files) VALUES($u,$o,$t,$d,$b,$c,$tm,$f);";
+                ins.CommandText = "INSERT INTO taketop_feedback_new(taketop_uid,taketop_owner,taketop_task_uid,taketop_date,taketop_by_user,taketop_content,taketop_time,taketop_files) VALUES($u,$o,$t,$d,$b,$c,$tm,$f);";
                 ins.Parameters.AddWithValue("$u", uid);
                 ins.Parameters.AddWithValue("$o", row.Owner);
                 ins.Parameters.AddWithValue("$t", row.TaskUid);
@@ -330,7 +442,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 {
                     using var inf = conn.CreateCommand();
                     inf.Transaction = tx;
-                    inf.CommandText = "INSERT INTO feedback_files_new(feedback_uid,idx,name) VALUES($u,$i,$n);";
+                    inf.CommandText = "INSERT INTO taketop_feedback_files_new(taketop_feedback_uid,taketop_idx,taketop_name) VALUES($u,$i,$n);";
                     inf.Parameters.AddWithValue("$u", uid);
                     inf.Parameters.AddWithValue("$i", idx);
                     inf.Parameters.AddWithValue("$n", name);
@@ -338,10 +450,10 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 }
             }
         }
-        ExecTx(conn, tx, "DROP TABLE feedback;");
-        ExecTx(conn, tx, "ALTER TABLE feedback_new RENAME TO feedback;");
-        ExecTx(conn, tx, "DROP TABLE feedback_files;");
-        ExecTx(conn, tx, "ALTER TABLE feedback_files_new RENAME TO feedback_files;");
+        ExecTx(conn, tx, "DROP TABLE taketop_feedback;");
+        ExecTx(conn, tx, "ALTER TABLE taketop_feedback_new RENAME TO taketop_feedback;");
+        ExecTx(conn, tx, "DROP TABLE taketop_feedback_files;");
+        ExecTx(conn, tx, "ALTER TABLE taketop_feedback_files_new RENAME TO taketop_feedback_files;");
         tx.Commit();
         Console.WriteLine("[launcherdb] migrated feedback to uid primary key");
     }
@@ -376,7 +488,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         var rows = new List<(string Owner, int Seq, string Name, string Type, string Content, string Status, string At, string By, int PT, string PO)>();
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT owner,seq,name,type,content,status,assigned_at,created_by,parent_task,parent_owner FROM tasks;";
+            cmd.CommandText = "SELECT taketop_owner,taketop_seq,taketop_name,taketop_type,taketop_content,taketop_status,taketop_assigned_at,taketop_created_by,taketop_parent_task,taketop_parent_owner FROM taketop_tasks;";
             using var r = cmd.ExecuteReader();
             while (r.Read())
                 rows.Add((r.GetString(0), r.GetInt32(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetString(5),
@@ -388,7 +500,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         var files = new List<(string Owner, int Seq, int Idx, string Rel)>();
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT owner,seq,idx,rel FROM task_files;";
+            cmd.CommandText = "SELECT taketop_owner,taketop_seq,taketop_idx,taketop_rel FROM taketop_task_files;";
             using var r = cmd.ExecuteReader();
             while (r.Read()) files.Add((r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
         }
@@ -397,30 +509,30 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         try
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id,owner,seq FROM feedback;";
+            cmd.CommandText = "SELECT taketop_id,taketop_owner,taketop_seq FROM taketop_feedback;";
             using var r = cmd.ExecuteReader();
             while (r.Read()) fbs.Add((r.GetInt64(0), r.GetString(1), r.GetInt32(2)));
         }
         catch { }
 
-        Exec(conn, "DROP TABLE IF EXISTS tasks_uid_new;");
-        Exec(conn, @"CREATE TABLE tasks_uid_new(
-  uid         TEXT NOT NULL,
-  owner       TEXT NOT NULL,
-  seq         INTEGER NOT NULL DEFAULT 0,
-  name        TEXT NOT NULL DEFAULT '',
-  type        TEXT NOT NULL DEFAULT '',
-  content     TEXT NOT NULL DEFAULT '',
-  status      TEXT NOT NULL DEFAULT 'pending',
-  assigned_at TEXT NOT NULL DEFAULT '',
-  created_by  TEXT NOT NULL DEFAULT '',
-  parent_uid  TEXT NOT NULL DEFAULT '',
-  PRIMARY KEY(uid));");
+        Exec(conn, "DROP TABLE IF EXISTS taketop_tasks_uid_new;");
+        Exec(conn, @"CREATE TABLE taketop_tasks_uid_new(
+  taketop_uid         TEXT NOT NULL,
+  taketop_owner       TEXT NOT NULL,
+  taketop_seq         INTEGER NOT NULL DEFAULT 0,
+  taketop_name        TEXT NOT NULL DEFAULT '',
+  taketop_type        TEXT NOT NULL DEFAULT '',
+  taketop_content     TEXT NOT NULL DEFAULT '',
+  taketop_status      TEXT NOT NULL DEFAULT 'pending',
+  taketop_assigned_at TEXT NOT NULL DEFAULT '',
+  taketop_created_by  TEXT NOT NULL DEFAULT '',
+  taketop_parent_uid  TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(taketop_uid));");
         foreach (var t in rows)
         {
             var uid = map[t.Owner + "#" + t.Seq];
             var parentUid = (t.PT > 0 && map.TryGetValue(t.PO + "#" + t.PT, out var p)) ? p : "";
-            Exec(conn, "INSERT INTO tasks_uid_new(uid,owner,seq,name,type,content,status,assigned_at,created_by,parent_uid) VALUES($u,$o,$s,$n,$ty,$c,$st,$a,$b,$p);", c =>
+            Exec(conn, "INSERT INTO taketop_tasks_uid_new(taketop_uid,taketop_owner,taketop_seq,taketop_name,taketop_type,taketop_content,taketop_status,taketop_assigned_at,taketop_created_by,taketop_parent_uid) VALUES($u,$o,$s,$n,$ty,$c,$st,$a,$b,$p);", c =>
             {
                 c.Parameters.AddWithValue("$u", uid);
                 c.Parameters.AddWithValue("$o", t.Owner);
@@ -434,29 +546,29 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 c.Parameters.AddWithValue("$p", parentUid);
             });
         }
-        Exec(conn, "DROP TABLE tasks;");
-        Exec(conn, "ALTER TABLE tasks_uid_new RENAME TO tasks;");
-        Exec(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_tasks_owner_seq ON tasks(owner, seq);");
+        Exec(conn, "DROP TABLE taketop_tasks;");
+        Exec(conn, "ALTER TABLE taketop_tasks_uid_new RENAME TO taketop_tasks;");
+        Exec(conn, "CREATE UNIQUE INDEX IF NOT EXISTS taketop_ix_tasks_owner_seq ON taketop_tasks(taketop_owner, taketop_seq);");
 
-        Exec(conn, "DROP TABLE IF EXISTS task_files_uid_new;");
-        Exec(conn, "CREATE TABLE task_files_uid_new(uid TEXT NOT NULL, idx INTEGER NOT NULL, rel TEXT NOT NULL, PRIMARY KEY(uid, idx));");
+        Exec(conn, "DROP TABLE IF EXISTS taketop_task_files_uid_new;");
+        Exec(conn, "CREATE TABLE taketop_task_files_uid_new(taketop_uid TEXT NOT NULL, taketop_idx INTEGER NOT NULL, taketop_rel TEXT NOT NULL, PRIMARY KEY(taketop_uid, taketop_idx));");
         foreach (var f in files)
         {
             if (!map.TryGetValue(f.Owner + "#" + f.Seq, out var uid)) continue;
-            Exec(conn, "INSERT INTO task_files_uid_new(uid,idx,rel) VALUES($u,$i,$r);", c =>
+            Exec(conn, "INSERT INTO taketop_task_files_uid_new(taketop_uid,taketop_idx,taketop_rel) VALUES($u,$i,$r);", c =>
             {
                 c.Parameters.AddWithValue("$u", uid);
                 c.Parameters.AddWithValue("$i", f.Idx);
                 c.Parameters.AddWithValue("$r", f.Rel);
             });
         }
-        Exec(conn, "DROP TABLE task_files;");
-        Exec(conn, "ALTER TABLE task_files_uid_new RENAME TO task_files;");
+        Exec(conn, "DROP TABLE taketop_task_files;");
+        Exec(conn, "ALTER TABLE taketop_task_files_uid_new RENAME TO taketop_task_files;");
 
         foreach (var fb in fbs)
         {
             if (!map.TryGetValue(fb.Owner + "#" + fb.Seq, out var uid)) continue;
-            Exec(conn, "UPDATE feedback SET task_uid=$u WHERE id=$id;", c =>
+            Exec(conn, "UPDATE taketop_feedback SET taketop_task_uid=$u WHERE taketop_id=$id;", c =>
             {
                 c.Parameters.AddWithValue("$u", uid);
                 c.Parameters.AddWithValue("$id", fb.Id);
@@ -483,7 +595,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     {
         var list = new List<LauncherUserRow>();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT username,password_hash,salt,iterations,admin,instance_id FROM users;";
+        cmd.CommandText = "SELECT taketop_username,taketop_password_hash,taketop_salt,taketop_iterations,taketop_admin,taketop_instance_id FROM taketop_users;";
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
@@ -505,12 +617,12 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     private static void WriteUsers(SqliteConnection conn, List<LauncherUserRow> users)
     {
         using var tx = conn.BeginTransaction();
-        using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM users;"; del.ExecuteNonQuery(); }
+        using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM taketop_users;"; del.ExecuteNonQuery(); }
         foreach (var u in users ?? new List<LauncherUserRow>())
         {
             using var ins = conn.CreateCommand();
             ins.Transaction = tx;
-            ins.CommandText = "INSERT OR REPLACE INTO users(username,password_hash,salt,iterations,admin,instance_id) VALUES($u,$p,$s,$i,$a,$id);";
+            ins.CommandText = "INSERT OR REPLACE INTO taketop_users(taketop_username,taketop_password_hash,taketop_salt,taketop_iterations,taketop_admin,taketop_instance_id) VALUES($u,$p,$s,$i,$a,$id);";
             ins.Parameters.AddWithValue("$u", u.Username ?? "");
             ins.Parameters.AddWithValue("$p", u.PasswordHash ?? "");
             ins.Parameters.AddWithValue("$s", u.Salt ?? "");
@@ -540,7 +652,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     {
         var list = new List<LauncherInstanceRow>();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id,name,dsh_port,workspace,os_password,token_url,running FROM instances;";
+        cmd.CommandText = "SELECT taketop_id,taketop_name,taketop_dsh_port,taketop_workspace,taketop_os_password,taketop_token_url,taketop_running FROM taketop_instances;";
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
@@ -563,12 +675,12 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     private static void WriteInstances(SqliteConnection conn, List<LauncherInstanceRow> instances)
     {
         using var tx = conn.BeginTransaction();
-        using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM instances;"; del.ExecuteNonQuery(); }
+        using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM taketop_instances;"; del.ExecuteNonQuery(); }
         foreach (var it in instances ?? new List<LauncherInstanceRow>())
         {
             using var ins = conn.CreateCommand();
             ins.Transaction = tx;
-            ins.CommandText = "INSERT OR REPLACE INTO instances(id,name,dsh_port,workspace,os_password,token_url,running) VALUES($id,$n,$p,$w,$op,$tk,$r);";
+            ins.CommandText = "INSERT OR REPLACE INTO taketop_instances(taketop_id,taketop_name,taketop_dsh_port,taketop_workspace,taketop_os_password,taketop_token_url,taketop_running) VALUES($id,$n,$p,$w,$op,$tk,$r);";
             ins.Parameters.AddWithValue("$id", it.Id ?? "");
             ins.Parameters.AddWithValue("$n", it.Name ?? "");
             ins.Parameters.AddWithValue("$p", it.DshPort);
@@ -602,7 +714,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         var filesByUid = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         using (var fcmd = conn.CreateCommand())
         {
-            fcmd.CommandText = "SELECT tf.uid, tf.rel FROM task_files tf JOIN tasks t ON t.uid = tf.uid WHERE t.owner=$o ORDER BY tf.uid, tf.idx;";
+            fcmd.CommandText = "SELECT tf.taketop_uid, tf.taketop_rel FROM taketop_task_files tf JOIN taketop_tasks t ON t.taketop_uid = tf.taketop_uid WHERE t.taketop_owner=$o ORDER BY tf.taketop_uid, tf.taketop_idx;";
             fcmd.Parameters.AddWithValue("$o", owner);
             using var fr = fcmd.ExecuteReader();
             while (fr.Read())
@@ -614,7 +726,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         }
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT uid,seq,name,type,content,status,assigned_at,created_by,parent_uid FROM tasks WHERE owner=$o ORDER BY seq DESC;";
+            cmd.CommandText = "SELECT taketop_uid,taketop_seq,taketop_name,taketop_type,taketop_content,taketop_status,taketop_assigned_at,taketop_created_by,taketop_parent_uid FROM taketop_tasks WHERE taketop_owner=$o ORDER BY taketop_seq DESC;";
             cmd.Parameters.AddWithValue("$o", owner);
             using var r = cmd.ExecuteReader();
             while (r.Read())
@@ -645,7 +757,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         {
             del.Transaction = tx;
             // Remove this owner's tasks and their files (files are keyed by task uid).
-            del.CommandText = "DELETE FROM task_files WHERE uid IN (SELECT uid FROM tasks WHERE owner=$o); DELETE FROM tasks WHERE owner=$o;";
+            del.CommandText = "DELETE FROM taketop_task_files WHERE taketop_uid IN (SELECT taketop_uid FROM taketop_tasks WHERE taketop_owner=$o); DELETE FROM taketop_tasks WHERE taketop_owner=$o;";
             del.Parameters.AddWithValue("$o", owner);
             del.ExecuteNonQuery();
         }
@@ -655,7 +767,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             using (var ins = conn.CreateCommand())
             {
                 ins.Transaction = tx;
-                ins.CommandText = "INSERT INTO tasks(uid,owner,seq,name,type,content,status,assigned_at,created_by,parent_uid) VALUES($uid,$o,$seq,$name,$type,$content,$status,$at,$by,$parentUid);";
+                ins.CommandText = "INSERT INTO taketop_tasks(taketop_uid,taketop_owner,taketop_seq,taketop_name,taketop_type,taketop_content,taketop_status,taketop_assigned_at,taketop_created_by,taketop_parent_uid) VALUES($uid,$o,$seq,$name,$type,$content,$status,$at,$by,$parentUid);";
                 ins.Parameters.AddWithValue("$uid", t.Uid);
                 ins.Parameters.AddWithValue("$o", owner);
                 ins.Parameters.AddWithValue("$seq", t.Seq);
@@ -673,7 +785,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             {
                 using var inf = conn.CreateCommand();
                 inf.Transaction = tx;
-                inf.CommandText = "INSERT INTO task_files(uid,idx,rel) VALUES($uid,$idx,$rel);";
+                inf.CommandText = "INSERT INTO taketop_task_files(taketop_uid,taketop_idx,taketop_rel) VALUES($uid,$idx,$rel);";
                 inf.Parameters.AddWithValue("$uid", t.Uid);
                 inf.Parameters.AddWithValue("$idx", idx++);
                 inf.Parameters.AddWithValue("$rel", f ?? "");
@@ -704,7 +816,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         var filesByUid = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         using (var fcmd = conn.CreateCommand())
         {
-            fcmd.CommandText = "SELECT ff.feedback_uid, ff.name FROM feedback_files ff JOIN feedback f ON f.uid=ff.feedback_uid WHERE f.owner=$o ORDER BY ff.feedback_uid, ff.idx;";
+            fcmd.CommandText = "SELECT ff.taketop_feedback_uid, ff.taketop_name FROM taketop_feedback_files ff JOIN taketop_feedback f ON f.taketop_uid=ff.taketop_feedback_uid WHERE f.taketop_owner=$o ORDER BY ff.taketop_feedback_uid, ff.taketop_idx;";
             fcmd.Parameters.AddWithValue("$o", owner);
             using var fr = fcmd.ExecuteReader();
             while (fr.Read())
@@ -716,7 +828,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         }
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT uid,task_uid,date,by_user,content,time,files FROM feedback WHERE owner=$o ORDER BY task_uid, time;";
+            cmd.CommandText = "SELECT taketop_uid,taketop_task_uid,taketop_date,taketop_by_user,taketop_content,taketop_time,taketop_files FROM taketop_feedback WHERE taketop_owner=$o ORDER BY taketop_task_uid, taketop_time;";
             cmd.Parameters.AddWithValue("$o", owner);
             using var r = cmd.ExecuteReader();
             while (r.Read())
@@ -755,11 +867,11 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         using (var df = conn.CreateCommand())
         {
             df.Transaction = tx;
-            df.CommandText = "DELETE FROM feedback_files WHERE feedback_uid IN (SELECT uid FROM feedback WHERE owner=$o);";
+            df.CommandText = "DELETE FROM taketop_feedback_files WHERE taketop_feedback_uid IN (SELECT taketop_uid FROM taketop_feedback WHERE taketop_owner=$o);";
             df.Parameters.AddWithValue("$o", owner);
             df.ExecuteNonQuery();
         }
-        using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM feedback WHERE owner=$o;"; del.Parameters.AddWithValue("$o", owner); del.ExecuteNonQuery(); }
+        using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM taketop_feedback WHERE taketop_owner=$o;"; del.Parameters.AddWithValue("$o", owner); del.ExecuteNonQuery(); }
 
         foreach (var kv in dict ?? new Dictionary<string, List<FeedbackEntry>>())
         {
@@ -771,7 +883,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 using (var ins = conn.CreateCommand())
                 {
                     ins.Transaction = tx;
-                    ins.CommandText = "INSERT INTO feedback(uid,owner,task_uid,date,by_user,content,time,files) VALUES($fuid,$o,$uid,$date,$by,$content,$time,$files);";
+                    ins.CommandText = "INSERT INTO taketop_feedback(taketop_uid,taketop_owner,taketop_task_uid,taketop_date,taketop_by_user,taketop_content,taketop_time,taketop_files) VALUES($fuid,$o,$uid,$date,$by,$content,$time,$files);";
                     ins.Parameters.AddWithValue("$fuid", fuid);
                     ins.Parameters.AddWithValue("$o", owner);
                     ins.Parameters.AddWithValue("$uid", kv.Key ?? "");
@@ -787,7 +899,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
                 {
                     using var inf = conn.CreateCommand();
                     inf.Transaction = tx;
-                    inf.CommandText = "INSERT INTO feedback_files(feedback_uid,idx,name) VALUES($f,$idx,$name);";
+                    inf.CommandText = "INSERT INTO taketop_feedback_files(taketop_feedback_uid,taketop_idx,taketop_name) VALUES($f,$idx,$name);";
                     inf.Parameters.AddWithValue("$f", fuid);
                     inf.Parameters.AddWithValue("$idx", idx++);
                     inf.Parameters.AddWithValue("$name", name ?? "");
@@ -809,12 +921,12 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
         var key = "legacy_imported:" + owner;
         if (MetaHas(conn, key)) return;
 
-        if (Scalar(conn, "SELECT COUNT(*) FROM tasks WHERE owner=$o;", c => c.Parameters.AddWithValue("$o", owner)) == 0)
+        if (Scalar(conn, "SELECT COUNT(*) FROM taketop_tasks WHERE taketop_owner=$o;", c => c.Parameters.AddWithValue("$o", owner)) == 0)
         {
             var tasks = ReadLegacyTasks(legacyDbPath, legacyTasksXml);
             if (tasks.Count > 0) WriteTasks(conn, owner, tasks);
         }
-        if (Scalar(conn, "SELECT COUNT(*) FROM feedback WHERE owner=$o;", c => c.Parameters.AddWithValue("$o", owner)) == 0)
+        if (Scalar(conn, "SELECT COUNT(*) FROM taketop_feedback WHERE taketop_owner=$o;", c => c.Parameters.AddWithValue("$o", owner)) == 0)
         {
             var fb = ReadLegacyFeedback(legacyDbPath, legacyFeedbackXml);
             if (fb.Count > 0)
@@ -835,13 +947,13 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
     private static bool MetaHas(SqliteConnection conn, string key)
     {
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT 1 FROM meta WHERE key=$k;";
+        cmd.CommandText = "SELECT 1 FROM taketop_meta WHERE taketop_key=$k;";
         cmd.Parameters.AddWithValue("$k", key);
         return cmd.ExecuteScalar() != null;
     }
 
     private static void MetaSet(SqliteConnection conn, string key)
-        => Exec(conn, "INSERT OR REPLACE INTO meta(key,value) VALUES($k,'1');", c => c.Parameters.AddWithValue("$k", key));
+        => Exec(conn, "INSERT OR REPLACE INTO taketop_meta(taketop_key,taketop_value) VALUES($k,'1');", c => c.Parameters.AddWithValue("$k", key));
 
     // ================= One-time migration from the old stores =================
 
@@ -856,12 +968,12 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
 
         using (var conn = Open(central))
         {
-            if (Scalar(conn, "SELECT COUNT(*) FROM users;") == 0)
+            if (Scalar(conn, "SELECT COUNT(*) FROM taketop_users;") == 0)
             {
                 var users = ReadUsersFromFile(old);
                 if (users.Count > 0) WriteUsers(conn, users);
             }
-            if (Scalar(conn, "SELECT COUNT(*) FROM instances;") == 0)
+            if (Scalar(conn, "SELECT COUNT(*) FROM taketop_instances;") == 0)
             {
                 var instances = ReadInstancesFromFile(old);
                 if (instances.Count > 0) WriteInstances(conn, instances);
@@ -937,7 +1049,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             using var conn = OpenReadOnly(dbPath);
             using (var fcmd = conn.CreateCommand())
             {
-                fcmd.CommandText = "SELECT seq, rel FROM task_files ORDER BY seq, idx;";
+                fcmd.CommandText = "SELECT taketop_seq, taketop_rel FROM taketop_task_files ORDER BY taketop_seq, taketop_idx;";
                 using var fr = fcmd.ExecuteReader();
                 while (fr.Read())
                 {
@@ -948,7 +1060,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             }
             using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT seq,name,type,content,status,assigned_at,created_by FROM tasks ORDER BY seq DESC;";
+                cmd.CommandText = "SELECT taketop_seq,taketop_name,taketop_type,taketop_content,taketop_status,taketop_assigned_at,taketop_created_by FROM taketop_tasks ORDER BY taketop_seq DESC;";
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {
@@ -991,7 +1103,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             var filesByFid = new Dictionary<long, List<string>>();
             using (var fcmd = conn.CreateCommand())
             {
-                fcmd.CommandText = "SELECT fid, name FROM feedback_files ORDER BY fid, idx;";
+                fcmd.CommandText = "SELECT taketop_fid, taketop_name FROM taketop_feedback_files ORDER BY taketop_fid, taketop_idx;";
                 try
                 {
                     using var fr = fcmd.ExecuteReader();
@@ -1006,7 +1118,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAUL
             }
             using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT id,seq,date,by_user,content,time,files FROM feedback ORDER BY seq, time;";
+                cmd.CommandText = "SELECT taketop_id,taketop_seq,taketop_date,taketop_by_user,taketop_content,taketop_time,taketop_files FROM taketop_feedback ORDER BY taketop_seq, taketop_time;";
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {

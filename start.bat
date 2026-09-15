@@ -43,6 +43,39 @@ if not exist "%LAUNCHER_EXE%" (
 REM ---- Apply brand patch (idempotent, non-fatal) ----
 if exist "%ROOT%node\node.exe" if exist "%ROOT%patch-taketop-brand.cjs" "%ROOT%node\node.exe" "%ROOT%patch-taketop-brand.cjs"
 
+REM ---- Preflight: a DB copied over from an earlier release may still use the
+REM      old (un-prefixed) table/column names. Detect it, then back up and
+REM      rename everything to the `taketop_` names automatically (no prompt). ----
+set "DBCHECK_FILE=%ROOT%config\.dbcheck.tmp"
+del /q "%DBCHECK_FILE%" >nul 2>&1
+"%LAUNCHER_EXE%" --db-check > "%DBCHECK_FILE%" 2>nul
+set "DBCHECK="
+set /p DBCHECK=<"%DBCHECK_FILE%"
+del /q "%DBCHECK_FILE%" >nul 2>&1
+if /I not "%DBCHECK%"=="UPGRADE" goto dbcheck_done
+echo.
+echo   ==================================================
+echo     Database upgrade required
+echo   ==================================================
+echo.
+echo   This database was created by an earlier version and is
+echo   missing the taketop_ prefixed table/column names.
+echo   Upgrading in place now (a backup is made first,
+echo   in .\database\backups).
+echo.
+echo   Backing up and upgrading the database ...
+"%LAUNCHER_EXE%" --db-upgrade
+if errorlevel 1 goto dbcheck_fail
+echo.
+goto dbcheck_done
+
+:dbcheck_fail
+echo   ERROR: database upgrade failed. See the message above.
+pause
+exit /b 1
+
+:dbcheck_done
+
 REM ---- Drop any stale endpoint, then start ----
 del /q "%RUNTIME%" >nul 2>&1
 set "DSH_OPEN_BROWSER=0"
