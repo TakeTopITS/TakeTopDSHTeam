@@ -2253,6 +2253,10 @@ app.Use(async (ctx, next) =>
                 return;
             }
             proxyPort = inst2.DshPort;
+            // Repair the instance's own workspace RECORD when it is missing (the folder
+            // alone is not enough - DSH resolves the workspace from workspace.json, so a
+            // missing record leaves it on the non-selectable "Choose workspace" hero).
+            instMgr.EnsureInstanceWorkspaceSeeded(inst2);
             // The instance's DSH may still be starting up. Show the "starting" spinner
             // (auto-refresh) instead of a raw proxy/connection error.
             if (!DshService.IsDshReady(proxyPort)) { await WriteDshStarting(ctx); return; }
@@ -2327,6 +2331,7 @@ app.Use(async (ctx, next) =>
                 return;
             }
             proxyPort = inst.DshPort;
+            instMgr.EnsureInstanceWorkspaceSeeded(inst);
             workspaceId = ReadWorkspaceId(inst.DshHome);
             var t = inst.TokenUrl;
             if (!string.IsNullOrEmpty(t) && t.IndexOf("token=", StringComparison.Ordinal) >= 0)
@@ -2680,6 +2685,16 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
                 continue;
             }
             ctx.Response.Headers[h.Key] = h.Value.ToArray();
+        }
+
+        // Content-hashed bundles (/assets/<name>-<hash>.js|css): the DSH sends NO cache
+        // headers, so every page load re-downloads ~400 KB (gzipped) - the dominant cost
+        // over a slow public link. The hash makes these URLs content-addressed, so they
+        // can be cached "forever" with no risk of stale code.
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                path, @"^/assets/[^/]+-[A-Za-z0-9_\-]{6,}\.(?:js|css)$"))
+        {
+            ctx.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
         }
 
         // Re-issue each DSH cookie with SameSite=Lax via ASP.NET Core's cookie

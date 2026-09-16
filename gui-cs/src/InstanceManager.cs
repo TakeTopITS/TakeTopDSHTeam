@@ -1192,7 +1192,11 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(workspacePath)) return false;
+            if (string.IsNullOrWhiteSpace(workspacePath))
+            {
+                LogWorkspace(root, "[seed] skipped: no workspace configured for this instance");
+                return false;
+            }
             var nativePath = Path.GetFullPath(workspacePath);
             var storagesDir = Path.Combine(dshHome, "storages");
             Directory.CreateDirectory(storagesDir);
@@ -1221,7 +1225,11 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
                 }
                 catch { /* rewrite below */ }
             }
-            if (hasTarget) return false;
+            if (hasTarget)
+            {
+                LogWorkspace(root, $"ok   {dshHome} -> {nativePath} (record already valid)");
+                return false;
+            }
 
             var wsId = Guid.NewGuid().ToString();
             var sessionId = "session-" + Guid.NewGuid().ToString();
@@ -1238,13 +1246,74 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
             """;
             File.WriteAllText(wsFile, wsJson);
             Trace.WriteLine($"[workspace] seeded workspace -> {nativePath}");
+            LogWorkspace(root, $"NEW  {dshHome} -> {nativePath} (workspace record seeded)");
             return true;
         }
         catch (Exception ex)
         {
             Trace.WriteLine($"[workspace] workspace ensure failed: {ex.Message}");
+            LogWorkspace(root, $"FAIL {dshHome}: {ex.Message}");
             return false;
         }
+    }
+
+    // Repair attempts are rate-limited per instance so a DSH that keeps rewriting
+    // (or dropping) its own workspace record can never cause a repair/restart loop.
+    private static readonly ConcurrentDictionary<string, DateTime> _wsSeedAt =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Called on the DSH proxy path for a member. The folder existing is NOT enough:
+    // DSH resolves the workspace from its own storages/workspace.json RECORD, and a
+    // missing/invalid record leaves it on the non-selectable "Choose workspace" hero
+    // ("Into the Unknown") no matter how many times the user retries. This repairs
+    // the record, and - only when it actually had to write - restarts that instance
+    // once so the already-running DSH picks it up.
+    public bool EnsureInstanceWorkspaceSeeded(Instance inst)
+    {
+        try
+        {
+            if (inst == null || string.IsNullOrWhiteSpace(inst.Workspace)) return false;
+            var now = DateTime.UtcNow;
+            if (_wsSeedAt.TryGetValue(inst.Id, out var last) &&
+                (now - last) < TimeSpan.FromMinutes(5)) return false;
+            _wsSeedAt[inst.Id] = now;
+
+            var wrote = EnsureAdminWorkspace(_root, inst.DshHome, inst.Workspace, inst.Name ?? inst.Id);
+            if (!wrote) return false;
+
+            LogWorkspace(_root, $"[proxy-seed] {inst.Id}: workspace record was missing -> seeded");
+            if (inst.Proc is { HasExited: false })
+            {
+                LogWorkspace(_root, $"[proxy-seed] {inst.Id}: DSH running -> restarting once to load it");
+                Task.Run(() =>
+                {
+                    try { Stop(inst); Thread.Sleep(500); Start(inst); }
+                    catch (Exception ex) { LogWorkspace(_root, $"[proxy-seed] {inst.Id}: restart failed: {ex.Message}"); }
+                });
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogWorkspace(_root, $"[proxy-seed] {inst.Id}: failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    // Append one line to <root>\logs\launcher.log (best effort, size-capped) so the
+    // workspace self-heal can be diagnosed later from the filesystem alone - the
+    // in-memory log and Trace output are both invisible in a headless install.
+    public static void LogWorkspace(string root, string msg)
+    {
+        try
+        {
+            var file = Path.Combine(root, "logs", "launcher.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var fi = new FileInfo(file);
+            if (fi.Exists && fi.Length > 4 * 1024 * 1024) File.Delete(file);
+            File.AppendAllText(file, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}{Environment.NewLine}");
+        }
+        catch { /* best effort */ }
     }
 
     // Remove the "添加工作区" (add workspace) affordance from DSH's workspace
