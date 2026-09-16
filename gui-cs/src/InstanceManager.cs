@@ -764,6 +764,20 @@ public class InstanceManager
             // even for an already-running instance (takes effect on its next start).
             ApplyLocale(inst);
 
+            // Seed this instance's OWN workspace.json into its OWN DSH store, and do
+            // it BEFORE the "already running" early return below. A DSH started by any
+            // other path - boot auto-restore, an earlier visit, the console's own
+            // auto-start - used to skip this entirely and then sat forever on the
+            // non-selectable "Choose workspace" hero screen ("Into the Unknown"),
+            // because the seeded record is what the client auto-opens.
+            // Idempotent and cheap: it returns immediately once the record exists.
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(inst.Workspace))
+                    EnsureAdminWorkspace(_root, inst.DshHome, inst.Workspace, inst.Name ?? inst.Id);
+            }
+            catch { /* best effort */ }
+
             if (inst.Proc is { HasExited: false }) return;
 
             // Reclaim a stale process (and its OS-user child tree) on this instance's
@@ -1174,11 +1188,11 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
     // currently-configured global workspace path, seeding a blank session so DSH
     // auto-opens it. Always replaces any prior record, so the admin's workspace
     // tracks the workspace-path field whenever it changes.
-    public static void EnsureAdminWorkspace(string root, string dshHome, string workspacePath, string title)
+    public static bool EnsureAdminWorkspace(string root, string dshHome, string workspacePath, string title)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(workspacePath)) return;
+            if (string.IsNullOrWhiteSpace(workspacePath)) return false;
             var nativePath = Path.GetFullPath(workspacePath);
             var storagesDir = Path.Combine(dshHome, "storages");
             Directory.CreateDirectory(storagesDir);
@@ -1207,7 +1221,7 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
                 }
                 catch { /* rewrite below */ }
             }
-            if (hasTarget) return;
+            if (hasTarget) return false;
 
             var wsId = Guid.NewGuid().ToString();
             var sessionId = "session-" + Guid.NewGuid().ToString();
@@ -1223,11 +1237,13 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
             }
             """;
             File.WriteAllText(wsFile, wsJson);
-            Trace.WriteLine($"[workspace] admin default dsh workspace -> {nativePath}");
+            Trace.WriteLine($"[workspace] seeded workspace -> {nativePath}");
+            return true;
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"[workspace] admin workspace ensure failed: {ex.Message}");
+            Trace.WriteLine($"[workspace] workspace ensure failed: {ex.Message}");
+            return false;
         }
     }
 

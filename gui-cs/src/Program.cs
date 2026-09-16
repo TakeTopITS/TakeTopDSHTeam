@@ -699,8 +699,37 @@ app.MapPost("/api/instances/{id}/start", (string id, HttpContext ctx) =>
     if (inst == null) return Results.NotFound(new { ok = false, error = "instance not found" });
     if (!CanAccess(ctx, inst.Id))
         return Results.Json(new { ok = false, error = L(ctx, "无权操作") }, statusCode: 403);
+    // Seed THIS instance's workspace into ITS DSH store, and do it BEFORE the
+    // "already running" shortcut below. An instance started by any other path
+    // (boot auto-restore, an earlier visit, the console's own auto-start) would
+    // otherwise never get a workspace and would sit on the non-selectable
+    // "Choose workspace" hero screen. Idempotent: returns false when already seeded.
+    var seeded = false;
+    try
+    {
+        if (!string.IsNullOrWhiteSpace(inst.Workspace))
+            seeded = InstanceManager.EnsureAdminWorkspace(root, inst.DshHome, inst.Workspace, inst.Name ?? inst.Id);
+    }
+    catch { /* best effort */ }
+
     if (inst.Proc is { HasExited: false })
-        return Results.Ok(new { ok = true, running = true, dshPort = inst.DshPort });
+    {
+        if (!seeded)
+            return Results.Ok(new { ok = true, running = true, dshPort = inst.DshPort });
+
+        // The record was just (re)seeded, but a live DSH keeps its storage in
+        // memory - restart it once so the workspace actually becomes visible.
+        // One-off: the next call sees it already seeded and just returns.
+        instMgr.Stop(inst);
+        inst.Starting = true;
+        _ = Task.Run(() =>
+        {
+            try { instMgr.Start(inst); }
+            catch (Exception ex) { inst.Logs.Enqueue("[start] " + ex.Message); }
+            finally { inst.Starting = false; }
+        });
+        return Results.Ok(new { ok = true, accepted = true, restarted = true, dshPort = inst.DshPort });
+    }
 
     // Defer the slow part (creating the OS user, granting icacls permissions, and
     // launching dsh under a fresh user profile) to a background task so the HTTP

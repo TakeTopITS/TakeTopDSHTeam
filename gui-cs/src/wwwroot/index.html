@@ -2529,12 +2529,13 @@ async function loadInstances() {
     }, t('noInstances'));
     if (isAdmin) {
       try {
-        const tr2 = await (await fetch('/api/tokenUsage')).json();
-        const foot = document.createElement('div');
-        foot.className = 'muted';
-        foot.style.cssText = 'margin-top:6px;font-size:13px;';
-        foot.textContent = t('tokenTotalAll') + ': ' + fmtTokens(tr2.total);
-        box.appendChild(foot);
+      const tr2 = await (await fetch('/api/tokenUsage')).json();
+      const foot = document.createElement('div');
+      foot.className = 'muted tt-inst-total';
+      foot.style.cssText = 'margin-top:6px;font-size:13px;';
+      foot.textContent = t('tokenTotalAll') + ': ' + fmtTokens(tr2.total);
+      box.appendChild(foot);
+      try { const all = box.querySelectorAll('.tt-inst-total'); for (let k = 0; k < all.length - 1; k++) all[k].remove(); } catch (e) {}
       } catch (e) {}
     }
     } catch (renderErr) { console.error('[LIST] render error:', renderErr); box.textContent = 'render error: ' + renderErr.message; }
