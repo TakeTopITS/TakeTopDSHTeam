@@ -182,6 +182,28 @@ var app = builder.Build();
 // (the proxy bridges it to the instance's WebSocket). Must run before app.Use.
 app.UseWebSockets();
 
+// First visit gets the ADMIN-CHOSEN language, not the browser's. Every page only
+// reads the tt_lang cookie, so seeding it from DshWeb.DefaultLanguage makes the very
+// first page open in the configured language; a user switching the dropdown writes
+// the same cookie and therefore wins from then on (an existing cookie is untouched).
+app.Use(async (ctx, next) =>
+{
+    try
+    {
+        if (!ctx.Request.Cookies.ContainsKey("tt_lang"))
+        {
+            var def = dsh.ReadDefaultLanguage();
+            var code = string.IsNullOrWhiteSpace(def)
+                ? "en"
+                : (def.Split(',').FirstOrDefault()?.Split(':').LastOrDefault()?.Trim() ?? "en");
+            if (!string.IsNullOrWhiteSpace(code))
+                ctx.Response.Cookies.Append("tt_lang", code, new CookieOptions { Path = "/", IsEssential = true });
+        }
+    }
+    catch { /* best effort */ }
+    await next();
+});
+
 // ---- Auth middleware: all /api/* (except login) require a valid session ----
 app.Use(async (ctx, next) =>
 {
