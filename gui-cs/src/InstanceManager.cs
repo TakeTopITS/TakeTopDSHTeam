@@ -463,6 +463,84 @@ public class InstanceManager
         ? Path.Combine(root, "node", "node_modules", "@deepseek-ai", "dsh")
         : Path.Combine(root, "node", PlatformSubDir(), "lib", "node_modules", "@deepseek-ai", "dsh");
 
+    // Platform-correct bundled node runtime ("node" = fall back to PATH). Static twin of
+    // NodeExe() so the workspace/session seeder can use it too.
+    private static string NodeExeFor(string root)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var win = Path.Combine(root, "node", "node.exe");
+            return File.Exists(win) ? win : "node";
+        }
+        var sub = PlatformSubDir();
+        var p = Path.Combine(root, "node", sub, "bin", "node");
+        return File.Exists(p) ? p : "node";
+    }
+
+    // Origins a member DSH should trust, mirroring DshService.TrustedHosts(): (a) the
+    // instance's own loopback (the launcher proxies to 127.0.0.1:<instPort>), (b) the
+    // launcher's loopback (a browser ON the server), and (c) the configured external URL
+    // authority (the reverse proxy). Only host:port forms are emitted - that is the shape
+    // DSH accepts and the shape the admin's (working) DSH already used.
+    private static IReadOnlyList<string> TrustedHostsFor(string root, int instPort)
+    {
+        var list = new List<string>();
+        void Add(string? h)
+        {
+            if (string.IsNullOrWhiteSpace(h)) return;
+            h = h.Trim();
+            if (h.Length == 0 || list.Contains(h, StringComparer.OrdinalIgnoreCase)) return;
+            list.Add(h);
+        }
+        try
+        {
+            if (instPort > 0) { Add($"127.0.0.1:{instPort}"); Add($"localhost:{instPort}"); }
+
+            string? ext = null;
+            var lp = 0;
+            var ws = Path.Combine(root, "WorkSpace");
+            var localCfg = Path.Combine(root, "config", "launcher.local.json");
+            if (File.Exists(localCfg))
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(localCfg));
+                if (doc.RootElement.TryGetProperty("DshWeb", out var w))
+                {
+                    if (w.TryGetProperty("ExternalUrl", out var e)) ext = e.GetString();
+                    if (w.TryGetProperty("WorkspacePath", out var wp) && !string.IsNullOrWhiteSpace(wp.GetString()))
+                        ws = wp.GetString()!;
+                }
+            }
+            var wsCfg = Path.Combine(ws, "config", "launcher.json");
+            if (File.Exists(wsCfg))
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(wsCfg));
+                if (doc.RootElement.TryGetProperty("DshWeb", out var w))
+                {
+                    if (string.IsNullOrEmpty(ext) && w.TryGetProperty("ExternalUrl", out var e)) ext = e.GetString();
+                    if (w.TryGetProperty("LauncherPort", out var p))
+                    {
+                        if (p.ValueKind == JsonValueKind.Number) lp = p.GetInt32();
+                        else int.TryParse(p.ToString(), out lp);
+                    }
+                }
+            }
+            if (lp <= 0)
+            {
+                var rt = Path.Combine(root, "config", "launcher.runtime.json");
+                if (File.Exists(rt))
+                {
+                    using var doc = JsonDocument.Parse(File.ReadAllText(rt));
+                    if (doc.RootElement.TryGetProperty("port", out var p)) int.TryParse(p.ToString(), out lp);
+                }
+            }
+            if (!string.IsNullOrEmpty(ext) && Uri.TryCreate(ext, UriKind.Absolute, out var uri))
+                Add(uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}");
+            if (lp > 0) { Add($"127.0.0.1:{lp}"); Add($"localhost:{lp}"); }
+        }
+        catch { }
+        return list;
+    }
+
     // Create a new instance with a fresh .dsh home + auto-allocated port.
     // If osPassword is provided, a dedicated OS user is created for isolation.
     public Instance Create(string id, string name, string workspace, string? osPassword = null, int basePort = 0)
@@ -820,6 +898,17 @@ public class InstanceManager
             psi.ArgumentList.Add("--port");
             psi.ArgumentList.Add(inst.DshPort.ToString());
             psi.ArgumentList.Add("--no-open");
+            // Same trusted origins the admin's DSH gets (DshService adds these). The DSH
+            // validates the Host/Origin of its own API + WebSocket calls, so a member
+            // instance without an entry for the address the browser/proxy actually uses
+            // answers with an EMPTY workspace list and its pane sits on the
+            // "Choose workspace" hero - which is exactly why only members were affected
+            // while the admin's own DSH (which got these flags) was fine.
+            foreach (var th in TrustedHostsFor(_root, inst.DshPort))
+            {
+                psi.ArgumentList.Add("--trusted-host");
+                psi.ArgumentList.Add(th);
+            }
             psi.Environment["DSH_HOME"] = inst.DshHome;
 
             if (!string.IsNullOrEmpty(inst.OsPassword))
@@ -852,8 +941,14 @@ public class InstanceManager
                 if (osUserReady)
                 {
                     var env = new Dictionary<string, string> { ["DSH_HOME"] = inst.DshHome };
+                    var osArgs = new List<string> { "--expose-internals", bin, "--profile", "web", "--port", inst.DshPort.ToString(), "--no-open" };
+                    foreach (var th in TrustedHostsFor(_root, inst.DshPort))
+                    {
+                        osArgs.Add("--trusted-host");
+                        osArgs.Add(th);
+                    }
                     proc = OsUserManager.StartAsUser(inst.Id, node,
-                        ["--expose-internals", bin, "--profile", "web", "--port", inst.DshPort.ToString(), "--no-open"],
+                        osArgs.ToArray(),
                         inst.DshHome, env, inst.OsPassword);
                 }
                 // If OS user creation or StartAsUser failed, fall back to launching
@@ -1144,10 +1239,14 @@ public class InstanceManager
     {
         try
         {
-            var node = Path.Combine(root, "node", "node.exe");
-            if (!File.Exists(node))
+            // Resolve the bundled node for THIS platform: node/node.exe on Windows,
+            // node/<platform>/bin/node on Linux/macOS. The old hard-coded "node.exe"
+            // made this whole step a silent no-op off Windows (and on Windows whenever
+            // node/ had not been copied), leaving the workspace unopenable.
+            var node = NodeExeFor(root);
+            if (string.IsNullOrEmpty(node) || (node != "node" && !File.Exists(node)))
             {
-                Trace.WriteLine("[workspace] node.exe not found; skipping blank-session seed");
+                LogWorkspace(root, "[seed] node runtime not found; skipping blank-session seed");
                 return;
             }
             var helper = Path.Combine(Path.GetTempPath(), "taketopds_seed.js");
@@ -1225,11 +1324,24 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
                 }
                 catch { /* rewrite below */ }
             }
-            if (hasTarget)
+            // The record alone is NOT enough: if the blank session it points at is gone
+            // (e.g. it was seeded while the bundled node runtime was missing - that step
+            // used to be skipped silently), DSH still shows the "Choose workspace" hero.
+            var hasRealSession = false;
+            try
+            {
+                var sessDir = Path.Combine(dshHome, "sessions");
+                if (Directory.Exists(sessDir))
+                    hasRealSession = Directory.EnumerateFiles(sessDir, "session.jsonl*", SearchOption.AllDirectories).Any();
+            }
+            catch { }
+            if (hasTarget && hasRealSession)
             {
                 LogWorkspace(root, $"ok   {dshHome} -> {nativePath} (record already valid)");
                 return false;
             }
+            if (hasTarget)
+                LogWorkspace(root, $"stale {dshHome}: record present but no session on disk -> re-seeding");
 
             var wsId = Guid.NewGuid().ToString();
             var sessionId = "session-" + Guid.NewGuid().ToString();
