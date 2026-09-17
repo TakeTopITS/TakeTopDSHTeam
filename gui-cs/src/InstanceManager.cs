@@ -596,28 +596,53 @@ public class InstanceManager
             // Create OS user for isolation (if password provided). If user creation
             // fails (e.g. password rejected / elevated launcher missing), keep the
             // instance so the admin can later reset the password to auto-create it.
+            //
+            // Done in the BACKGROUND: it creates an account, walks the tree with icacls
+            // and on Windows performs one logon to build the profile, so it must never
+            // block the HTTP request that created the instance - and a failure has to be
+            // visible instead of silently swallowed. Start() re-runs it on demand if the
+            // member is started before this pass ends.
             if (!string.IsNullOrEmpty(osPassword))
             {
-                try
+                _ = Task.Run(() =>
                 {
-                    // Ensure workspace directory exists before setting permissions.
-                    if (!string.IsNullOrWhiteSpace(workspace))
-                        Directory.CreateDirectory(workspace);
-
-                    var osUser = OsUserManager.CreateUser(id, osPassword);
-                    if (osUser != null)
+                    try
                     {
+                        if (!string.IsNullOrWhiteSpace(workspace))
+                            Directory.CreateDirectory(workspace);
+
+                        OsUserManager.CreateUser(id, osPassword);
+
                         var docsDir = Path.Combine(workspace, "..", "adminroot", "sharedata");
                         OsUserManager.SetPermissions(id, workspace, docsDir, dshHome, _root);
+
+                        // Make the OS-level isolation real (see HardenMemberAcl).
+                        if (OperatingSystem.IsWindows())
+                        {
+                            try { LogWorkspace(_root, $"[isolation] {id}: acl -> {OsUserManager.HardenMemberAcl(id, workspace, dshHome)}"); }
+                            catch (Exception aex) { LogWorkspace(_root, $"[isolation] {id}: acl hardening failed: {aex.Message}"); }
+                        }
+
+                        // Create the Windows profile ONCE here (a single logon), so the
+                        // first start does not have to and so it exists before anything
+                        // could create a plain directory of the same name.
+                        if (OperatingSystem.IsWindows())
+                        {
+                            try { OsUserManager.EnsureWindowsProfile(id, osPassword); }
+                            catch (Exception pex) { LogWorkspace(_root, $"[isolation] {id}: profile pre-create failed: {pex.Message}"); }
+                        }
+
                         // Mark as permissioned so Start() skips the slow icacls
                         // re-traversal (Create already set full permissions).
                         _permissionedOsUsers.TryAdd(id, true);
+                        LogWorkspace(_root, $"[isolation] {id}: OS account ready, isolated");
                     }
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine($"[instance] create OS user for '{id}' failed (instance kept): {ex.Message}");
-                }
+                    catch (Exception ex)
+                    {
+                        LogWorkspace(_root, $"[isolation] {id}: OS account setup failed - this member will run WITHOUT isolation: {ex.Message}");
+                        try { inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [isolation] setup failed - running WITHOUT isolation: {ex.Message}"); } catch { }
+                    }
+                });
             }
 
             Save();
@@ -947,13 +972,18 @@ public class InstanceManager
                             var docsDir = Path.Combine(inst.Workspace, "..", "adminroot", "sharedata");
                             if (!string.IsNullOrWhiteSpace(inst.Workspace)) Directory.CreateDirectory(inst.Workspace);
                             OsUserManager.SetPermissions(inst.Id, inst.Workspace, docsDir, inst.DshHome, _root);
+                            // (Re)apply the ACL hardening, so members created before this
+                            // change get it on their next start.
+                            if (OperatingSystem.IsWindows())
+                                LogWorkspace(_root, $"[isolation] {inst.Id}: acl -> {OsUserManager.HardenMemberAcl(inst.Id, inst.Workspace, inst.DshHome)}");
                             _permissionedOsUsers.TryAdd(inst.Id, true);
                             osUserReady = true;
                         }
                     }
                     catch (Exception ex)
                     {
-                        Trace.WriteLine($"[start:{inst.Id}] OS user creation failed: {ex.Message}");
+                        LogWorkspace(_root, $"[isolation] {inst.Id}: OS account setup failed on start ({sw.ElapsedMilliseconds}ms) - running WITHOUT isolation: {ex.Message}");
+                        try { inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [isolation] setup failed - running WITHOUT isolation: {ex.Message}"); } catch { }
                     }
                     Trace.WriteLine($"[start:{inst.Id}] OS user setup done in {sw.ElapsedMilliseconds}ms");
                 }
@@ -975,7 +1005,10 @@ public class InstanceManager
                 // If OS user creation or StartAsUser failed, fall back to launching
                 // DSH directly (no OS-level isolation) so the instance can still start.
                 if (proc == null)
-                    Trace.WriteLine($"[start:{inst.Id}] OS user unavailable, falling back to direct launch");
+                {
+                    LogWorkspace(_root, $"[isolation] {inst.Id}: OS account unavailable - started WITHOUT isolation");
+                    try { inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [isolation] unavailable - started WITHOUT isolation"); } catch { }
+                }
             }
 
             if (proc == null)

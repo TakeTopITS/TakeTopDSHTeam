@@ -193,6 +193,19 @@ public class AuthService
         return true;
     }
 
+    // Password policy for every account (admin and members), same rule as the
+    // Enterprise edition: at least 8 characters, mixing letters and digits. The
+    // optional prefix keeps the change/reset wording ("新密码…"). Returns null when
+    // the password is acceptable.
+    private static string? PasswordRule(string? password, string prefix = "")
+    {
+        if (string.IsNullOrEmpty(password) || password.Length < 8)
+            return prefix + "密码至少8位";
+        if (!password.Any(char.IsLetter) || !password.Any(char.IsDigit))
+            return prefix + "密码必须同时包含字母和数字";
+        return null;
+    }
+
     public string? CreateUser(string username, string password, string instanceId, bool admin = false)
     {
         username = username.ToLowerInvariant();
@@ -200,8 +213,8 @@ public class AuthService
         {
             if (!IsValidUsername(username))
                 return "账号须以字母开头，仅含字母/数字/._-，不含汉字或纯数字";
-            if (string.IsNullOrEmpty(password) || password.Length < 6)
-                return "密码至少6位";
+            if (PasswordRule(password) is { } pwErr)
+                return pwErr;
             if (_users.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
                 return "账号已存在";
             var salt = GenerateSalt();
@@ -264,7 +277,7 @@ public class AuthService
             var u = Find(username);
             if (u == null) return "用户不存在";
             if (!Verify(username, oldPassword)) return "旧密码错误";
-            if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6) return "新密码至少6位";
+            if (PasswordRule(newPassword, "新") is { } cpErr) return cpErr;
             var salt = GenerateSalt();
             u.Salt = Convert.ToBase64String(salt);
             u.Iterations = 100000;
@@ -280,7 +293,7 @@ public class AuthService
     {
         lock (_gate)
         {
-            if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6) return "新密码至少6位";
+            if (PasswordRule(newPassword, "新") is { } npErr) return npErr;
             var u = Find(username);
             if (u == null)
             {

@@ -2321,7 +2321,11 @@ function fmDragStart(ev) {
   const name = row.dataset.name || '';
   fmDragSource = { path: path, name: name };
   const pre = dshComposerHasText() ? ', ' : '';
-  try { ev.dataTransfer.setData('text/plain', pre + '"' + path + '"'); } catch (e) {}
+  // Folders carry a trailing "/" so the DSH side can tell a directory from a file
+  // (same rule as the enterprise edition and the mobile file manager).
+  const isDir = row.dataset.type === 'dir';
+  const dragPath = (isDir && path && path.charAt(path.length - 1) !== '/') ? path + '/' : path;
+  try { ev.dataTransfer.setData('text/plain', pre + '"' + dragPath + '"'); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-path', path); } catch (e) {}
   try { ev.dataTransfer.setData('application/x-tt-fm-name', name); } catch (e) {}
   try { ev.dataTransfer.effectAllowed = 'copyMove'; } catch (e) {}

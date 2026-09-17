@@ -6,6 +6,7 @@
 // (TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.). All rights reserved.
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
 namespace TakeTopDshLauncher;
@@ -123,35 +124,163 @@ public static class OsUserManager
     }
 
     // ──────────────────── WINDOWS IMPLEMENTATION ──────────────
+    //
+    // Account changes go through netapi32, NOT net.exe. `net user` refuses a password
+    // longer than 14 characters on the command line and quietly switches to an
+    // interactive prompt - with no console attached that prompt never returns, so the
+    // call hangs until the caller's 30s timeout kills it and the account is silently
+    // never created. NetUserAdd/NetUserSetInfo have no length limit, never prompt, and
+    // are ~40ms.
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct USER_INFO_1
+    {
+        [MarshalAs(UnmanagedType.LPWStr)] public string? usri1_name;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? usri1_password;
+        public uint usri1_password_age;
+        public uint usri1_priv;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? usri1_home_dir;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? usri1_comment;
+        public uint usri1_flags;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? usri1_script_path;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct USER_INFO_1003
+    {
+        [MarshalAs(UnmanagedType.LPWStr)] public string? usri1003_password;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct LOCALGROUP_MEMBERS_INFO_3
+    {
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lgrmi3_domainandname;
+    }
+
+    private const uint USER_PRIV_USER = 1;          // ordinary user (not admin)
+    private const uint UF_SCRIPT = 0x0001;
+    private const uint UF_DONT_EXPIRE_PASSWD = 0x00010000;
+    private const int NERR_Success = 0;
+    private const int NERR_UserNotFound = 2221;
+    private const int NERR_UserExists = 2224;
+
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetUserAdd(string? servername, uint level, IntPtr buf, out uint parmErr);
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetUserSetInfo(string? servername, string username, uint level, IntPtr buf, out uint parmErr);
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetUserDel(string? servername, string username);
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetUserGetInfo(string? servername, string username, uint level, out IntPtr bufptr);
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetLocalGroupAddMembers(string? servername, string groupname, uint level, IntPtr buf, uint totalentries);
+    [DllImport("netapi32.dll")]
+    private static extern int NetApiBufferFree(IntPtr buffer);
+
+    private static IntPtr AllocStruct<T>(T value) where T : struct
+    {
+        var p = Marshal.AllocHGlobal(Marshal.SizeOf<T>());
+        Marshal.StructureToPtr(value, p, false);
+        return p;
+    }
+
+    /// <summary>
+    /// Cut a member's PRIVATE trees off from the directories' inherited "everybody may
+    /// read" ACEs and re-grant them to just that member plus the service. Without this the
+    /// account-level isolation is only cosmetic: the workspaces inherit
+    /// BUILTIN\Users:(RX) / Authenticated Users:(M) from the drive root, so every member
+    /// can read - and write - every other member's files (verified 2026-09-18). Shared
+    /// trees are deliberately left alone: members are meant to read those.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    public static string HardenMemberAcl(string id, string workspace, string dshHome)
+    {
+        var user = OsUser(id);
+        var parts = new List<string>();
+        var grant = $"\"SYSTEM:(OI)(CI)F\" \"Administrators:(OI)(CI)F\" \"{user}:(OI)(CI)F\"";
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(workspace) && Directory.Exists(workspace))
+            {
+                // /T so the files already inside lose the inherited broad ACEs too.
+                RunCmd("icacls", $"\"{workspace}\" /inheritance:r /T /C /Q", throwOnError: false);
+                RunCmd("icacls", $"\"{workspace}\" /grant {grant} /T /C /Q", throwOnError: false);
+                parts.Add("workspace=hardened");
+            }
+            if (!string.IsNullOrWhiteSpace(dshHome) && Directory.Exists(dshHome))
+            {
+                // No /T: .dsh\profiles\node_modules holds junctions into the shared tree
+                // and /T would walk tens of thousands of files; children inherit from here.
+                RunCmd("icacls", $"\"{dshHome}\" /inheritance:r /Q", throwOnError: false);
+                RunCmd("icacls", $"\"{dshHome}\" /grant {grant} /Q", throwOnError: false);
+                parts.Add(".dsh=hardened");
+                var instDir = Path.GetDirectoryName(dshHome);
+                if (!string.IsNullOrWhiteSpace(instDir) && Directory.Exists(instDir))
+                {
+                    RunCmd("icacls", $"\"{instDir}\" /inheritance:r /Q", throwOnError: false);
+                    RunCmd("icacls", $"\"{instDir}\" /grant {grant} /Q", throwOnError: false);
+                    parts.Add("instanceDir=hardened");
+                }
+            }
+        }
+        catch (Exception ex) { parts.Add("EX " + ex.Message); }
+        return parts.Count == 0 ? "nothing-to-do" : string.Join(" ", parts);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static int SetWindowsPassword(string user, string password)
+    {
+        var p = AllocStruct(new USER_INFO_1003 { usri1003_password = password });
+        try { return NetUserSetInfo(null, user, 1003, p, out _); }
+        finally { Marshal.FreeHGlobal(p); }
+    }
 
     [SupportedOSPlatform("windows")]
     private static string CreateWindowsUser(string user, string password)
     {
-        // If the OS user already exists, DO NOT delete it: deleting destroys its
-        // profile, and the next CreateProcessWithLogonW then reloads a fresh
-        // profile (~60-95s per start). Keep the profile, just ensure the password
-        // and group membership are correct.
-        var exists = RunCmd("net", $"user {user}", throwOnError: false).ExitCode == 0;
-        if (!exists)
+        // If the account already exists, DO NOT delete it: deleting destroys its
+        // profile (and the whole point of the user is to carry a stable profile).
+        // Just make sure the password and group membership are correct.
+        var info = new USER_INFO_1
         {
-            // Create user with no expiration, password never expires
-            var result = RunCmd("net", $"user {user} {password} /add /expires:never /passwordchg:no");
-            if (result.ExitCode != 0) throw new Exception($"net user failed: {result.Output}");
-        }
-        else
-        {
-            // Refresh password (harmless if unchanged) so creds stay in sync.
-            RunCmd("net", $"user {user} {password}", throwOnError: false);
-        }
-        // Add to "Users" group (not Administrators)
-        RunCmd("net", $"localgroup Users {user} /add", throwOnError: false);
+            usri1_name = user,
+            usri1_password = password,
+            usri1_priv = USER_PRIV_USER,
+            usri1_home_dir = null,
+            usri1_comment = "TakeTopDSH Team restricted instance user",
+            usri1_flags = UF_SCRIPT | UF_DONT_EXPIRE_PASSWD,
+            usri1_script_path = null,
+        };
+        var p = AllocStruct(info);
+        int rc;
+        try { rc = NetUserAdd(null, 1, p, out _); }
+        finally { Marshal.FreeHGlobal(p); }
+
+        if (rc == NERR_UserExists) rc = SetWindowsPassword(user, password);
+        if (rc != NERR_Success) throw new Exception($"NetUserAdd('{user}') failed: {rc}");
+
+        // Add to the local "Users" group (never Administrators). Already-a-member is
+        // not an error, so the result is deliberately ignored.
+        var pm = AllocStruct(new LOCALGROUP_MEMBERS_INFO_3 { lgrmi3_domainandname = user });
+        try { NetLocalGroupAddMembers(null, "Users", 3, pm, 1); }
+        finally { Marshal.FreeHGlobal(pm); }
+
         return user;
     }
 
     [SupportedOSPlatform("windows")]
     private static bool DeleteWindowsUser(string user)
     {
-        return RunCmd("net", $"user {user} /delete", throwOnError: false).ExitCode == 0;
+        var rc = NetUserDel(null, user);
+        return rc == NERR_Success || rc == NERR_UserNotFound;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool WindowsUserExists(string user)
+    {
+        var rc = NetUserGetInfo(null, user, 0, out var buf);
+        if (buf != IntPtr.Zero) NetApiBufferFree(buf);
+        return rc == NERR_Success;
     }
 
     [SupportedOSPlatform("windows")]
@@ -192,24 +321,83 @@ public static class OsUserManager
         // 6. Specifically deny write on docs (belt and suspenders)
         RunCmd("icacls", $"\"{docsDir}\" /deny {user}:(OI)(CI)WD /T /Q", throwOnError: false);
 
-        // 7. Ensure the restricted user has a profile + temp area (node/dsh need
-        //    USERPROFILE/TEMP; a freshly-created local user has no profile until
-        //    first logon, which breaks node bootstrap). Profile dirs are small,
-        //    so /T is fine here.
-        var profile = $"C:\\Users\\{user}";
-        var temp = Path.Combine(profile, "AppData", "Local", "Temp");
+        // 7. Do NOT hand-create "C:\Users\<user>" any more. Doing that (with a made-up
+        //    AppData\Local\Temp and no registry hive) made Windows treat the name as
+        //    taken and put the REAL profile in "C:\Users\<user>.<MACHINE>", so the
+        //    profile paths we handed the child never matched where the profile really
+        //    lived. The real profile is created once, properly, by EnsureWindowsProfile
+        //    (a single logon-with-profile) when the member is created.
+
+        return true;
+    }
+
+    // Resolve the REAL profile directory Windows assigned to this OS user - either
+    // "C:\Users\<user>" or, when a plain directory of that name already exists,
+    // "C:\Users\<user>.<MACHINE>". Read from the registry so we never have to guess.
+    [SupportedOSPlatform("windows")]
+    public static string? WindowsProfilePath(string user)
+    {
         try
         {
-            Directory.CreateDirectory(temp);
-            Directory.CreateDirectory(Path.Combine(profile, "AppData", "Roaming"));
-            RunCmd("icacls", $"\"{profile}\" /grant {user}:(OI)(CI)F /T /Q", throwOnError: false);
+            var r = RunCmd("reg", "query \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList\" /s /v ProfileImagePath", throwOnError: false);
+            if (r.ExitCode != 0) return null;
+            string? fallback = null;
+            foreach (var raw in r.Output.Split('\n'))
+            {
+                var line = raw.Trim();
+                var i = line.IndexOf("ProfileImagePath", StringComparison.OrdinalIgnoreCase);
+                if (i < 0) continue;
+                var rest = line.Substring(i + "ProfileImagePath".Length).Trim();
+                var sp = rest.IndexOfAny(new[] { ' ', '\t' });
+                if (sp >= 0)
+                {
+                    rest = rest.Substring(sp).Trim();
+                    if (rest.StartsWith("REG_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sp = rest.IndexOfAny(new[] { ' ', '\t' });
+                        if (sp < 0) continue;
+                        rest = rest.Substring(sp).Trim();
+                    }
+                }
+                if (rest.Length == 0) continue;
+                var leaf = Path.GetFileName(rest.TrimEnd('\\'));
+                if (string.Equals(leaf, user, StringComparison.OrdinalIgnoreCase)) return rest;
+                if (leaf.StartsWith(user + ".", StringComparison.OrdinalIgnoreCase)) fallback ??= rest;
+            }
+            return fallback;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Make sure this OS user has a real Windows profile (registry hive + home dir).
+    /// If it does not exist yet, one logon-with-profile is enough to create it
+    /// (measured at well under a second); after that every start simply reuses it.
+    /// Returns the profile path, or null when it could not be created.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    public static string? EnsureWindowsProfile(string id, string password)
+    {
+        var user = OsUser(id);
+        var have = WindowsProfilePath(user);
+        if (have != null) return have;
+        try
+        {
+            var sys = Environment.SystemDirectory;
+            var proc = StartWindowsAsUser(user, Path.Combine(sys, "cmd.exe"),
+                new[] { "/c", "exit" }, sys, new Dictionary<string, string>(), password);
+            if (proc != null)
+            {
+                Trace.WriteLine($"[osuser] creating profile for {user}");
+                proc.Start();
+                proc.WaitForExit(60000);
+            }
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"[osuser] profile setup for {user} failed: {ex.Message}");
+            Trace.WriteLine($"[osuser] profile create for {user} failed: {ex.Message}");
         }
-
-        return true;
+        return WindowsProfilePath(user);
     }
 
     [SupportedOSPlatform("windows")]
@@ -248,15 +436,24 @@ public static class OsUserManager
         // anything to stderr. The profile is created on first use and then reused.
         psi.LoadUserProfile = true;
 
-        // Set environment variables (the target user's profile/temp — node/dsh
-        // needs these to bootstrap; without them the process exits immediately).
-        psi.Environment["USERPROFILE"] = $"C:\\Users\\{user}";
-        psi.Environment["HOMEDRIVE"] = "C:";
-        psi.Environment["HOMEPATH"] = $"\\Users\\{user}";
-        psi.Environment["TEMP"] = $"C:\\Users\\{user}\\AppData\\Local\\Temp";
-        psi.Environment["TMP"] = $"C:\\Users\\{user}\\AppData\\Local\\Temp";
-        psi.Environment["APPDATA"] = $"C:\\Users\\{user}\\AppData\\Roaming";
-        psi.Environment["LOCALAPPDATA"] = $"C:\\Users\\{user}\\AppData\\Local";
+        // Point the child at its REAL profile (resolved from the registry) instead of a
+        // guessed "C:\Users\<user>". When there is no profile yet - or it cannot be
+        // resolved - fall back to the instance's own .dsh dir, which that user already
+        // owns, so the child still gets a usable HOME/TEMP. node/dsh need these to
+        // bootstrap; without them the process exits immediately.
+        var profile = WindowsProfilePath(user);
+        var home = profile ?? workingDir;
+        var temp = profile != null ? Path.Combine(profile, "AppData", "Local", "Temp")
+                                   : Path.Combine(workingDir, "tmp");
+        try { Directory.CreateDirectory(temp); } catch { }
+        var root = Path.GetPathRoot(home) ?? "C:\\";
+        psi.Environment["USERPROFILE"] = home;
+        psi.Environment["HOMEDRIVE"] = root.TrimEnd('\\');
+        psi.Environment["HOMEPATH"] = home.Length >= root.Length ? home.Substring(root.Length - 1) : "\\";
+        psi.Environment["TEMP"] = temp;
+        psi.Environment["TMP"] = temp;
+        psi.Environment["APPDATA"] = profile != null ? Path.Combine(profile, "AppData", "Roaming") : home;
+        psi.Environment["LOCALAPPDATA"] = profile != null ? Path.Combine(profile, "AppData", "Local") : home;
         if (env != null)
         {
             foreach (var kvp in env)
@@ -285,12 +482,21 @@ public static class OsUserManager
     [UnsupportedOSPlatform("windows")]
     private static string CreateLinuxUser(string user, string password)
     {
-        // Delete if exists
-        RunBash($"userdel -r {user} 2>/dev/null || true");
-        // Create user with home directory
-        var result = RunBash($"useradd -m -s /bin/bash {user}");
-        if (result.ExitCode != 0 && !result.Output.Contains("already exists"))
-            throw new Exception($"useradd failed: {result.Output}");
+        // If the account already exists, DO NOT delete it: `userdel -r` also removes its
+        // home directory, and that home IS this user's profile (DSH state, the node module
+        // links, the member's own files). Windows keeps its account for exactly the same
+        // reason. Only refresh the password (and make sure the shell is usable).
+        var exists = RunBash($"id -u {user} 2>/dev/null", throwOnError: false).ExitCode == 0;
+        if (!exists)
+        {
+            var result = RunBash($"useradd -m -s /bin/bash {user}");
+            if (result.ExitCode != 0 && !result.Output.Contains("already exists"))
+                throw new Exception($"useradd failed: {result.Output}");
+        }
+        else
+        {
+            RunBash($"usermod -s /bin/bash {user}", throwOnError: false);
+        }
         // Set password via chpasswd, single-quote-escaping both parts so a password
         // containing a quote, space, $, etc. cannot break out of the command.
         RunBash($"echo '{ShellQuote(user)}:{ShellQuote(password)}' | chpasswd");
@@ -300,16 +506,26 @@ public static class OsUserManager
     [UnsupportedOSPlatform("windows")]
     private static string CreateMacUser(string user, string password)
     {
-        // macOS uses dscl
-        RunBash($"sudo dscl . -delete /Users/{user} 2>/dev/null || true");
-        var uid = 501 + new Random().Next(1000, 9000);
-        RunBash($"sudo dscl . -create /Users/{user}");
-        RunBash($"sudo dscl . -create /Users/{user} UserShell /bin/bash");
-        RunBash($"sudo dscl . -create /Users/{user} RealName \"{user}\"");
-        RunBash($"sudo dscl . -create /Users/{user} UniqueID {uid}");
-        RunBash($"sudo dscl . -create /Users/{user} PrimaryGroupID 20");
-        RunBash($"sudo dscl . -create /Users/{user} NFSHomeDirectory /Users/{user}");
-        RunBash($"sudo createhomedir -c -u {user}");
+        // Same rule as Linux: keep an existing account (and its home = its profile) instead
+        // of deleting and recreating it. Recreating also handed out a NEW random UniqueID on
+        // every start, which left the existing files owned by a no-longer-existing uid.
+        var exists = RunBash($"id -u {user} 2>/dev/null", throwOnError: false).ExitCode == 0;
+        if (!exists)
+        {
+            var uid = 501 + new Random().Next(1000, 9000);
+            RunBash($"sudo dscl . -create /Users/{user}");
+            RunBash($"sudo dscl . -create /Users/{user} UserShell /bin/bash");
+            RunBash($"sudo dscl . -create /Users/{user} RealName \"{user}\"");
+            RunBash($"sudo dscl . -create /Users/{user} UniqueID {uid}");
+            RunBash($"sudo dscl . -create /Users/{user} PrimaryGroupID 20");
+            RunBash($"sudo dscl . -create /Users/{user} NFSHomeDirectory /Users/{user}");
+        }
+        else
+        {
+            RunBash($"sudo dscl . -create /Users/{user} UserShell /bin/bash", throwOnError: false);
+        }
+        // (Re)create the home only when missing; createhomedir is a no-op if it exists.
+        RunBash($"sudo createhomedir -c -u {user}", throwOnError: false);
         // dscl takes the password as a plain positional arg; wrap in double quotes
         // and escape any embedded double quotes / backslashes so spaces don't split.
         RunBash($"sudo dscl . -passwd /Users/{user} \"{ShellQuoteDbl(password)}\"");
@@ -354,8 +570,16 @@ public static class OsUserManager
         // 5. Set workspace permissions (owner full, others nothing)
         RunBash($"chmod -R 700 \"{workspace}\"");
 
-        // 6. Set .dsh permissions (owner full, others read)
-        RunBash($"chmod -R 755 \"{dshHome}\"");
+        // 6. Set .dsh permissions: OWNER ONLY. It holds this member's DSH state
+        //    (storages/workspace.json, sessions/); with 755 every other member's account
+        //    on the box could read it. The launcher runs as root, so it is unaffected.
+        RunBash($"chmod -R 700 \"{dshHome}\"");
+
+        // 6b. The folder that CONTAINS .dsh must stay traversable (the member's DSH walks
+        //     into it) but need not be listable: 711 = traverse only, no directory listing.
+        var instDir = Path.GetDirectoryName(dshHome);
+        if (!string.IsNullOrWhiteSpace(instDir) && Directory.Exists(instDir))
+            RunBash($"chmod 711 \"{instDir}\"", throwOnError: false);
 
         return true;
     }
