@@ -1,4 +1,4 @@
-﻿// TakeTopDshTeam — multi-user DeepSeek Harness platform
+// TakeTopDshTeam — multi-user DeepSeek Harness platform
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
@@ -26,12 +26,20 @@ public class InstanceManager
         public string Workspace { get; set; } = "";   // admin-set workspace dir
         public string DshHome { get; set; } = "";     // this instance's .dsh dir
         public string? OsPassword { get; set; }       // OS user password for isolation
+        // In-memory only: set once the OS-user launch has proven impossible in THIS
+        // launcher process (see the fallback in Start). The instance then runs
+        // un-isolated instead of being permanently unable to start.
+        [JsonIgnore] public bool IsolationUnavailable { get; set; }
         public int LauncherMarker { get; set; } = 0;  // not used; dsh uses --port
         public bool Running { get; set; }
 
         // True while a start (OS user + process launch) is in progress. Not persisted;
         // used by the proxy to show a "starting" page instead of a "not running" error.
         [JsonIgnore] public bool Starting { get; set; }
+
+        // True while WE are stopping this process (Stop / shutdown). The watchdog uses it
+        // to tell a deliberate stop from a crash and then stays quiet. Not persisted.
+        [JsonIgnore] public bool Stopping { get; set; }
 
         [JsonIgnore] public Process? Proc { get; set; }
         [JsonIgnore] public ConcurrentQueue<string> Logs { get; } = new();
@@ -49,6 +57,13 @@ public class InstanceManager
     // each member instance's settings.yaml follows the admin's 缺省语言.
     public Func<string>? DefaultLocaleProvider { get; set; }
     private readonly object _gate = new();
+
+    // ---- watchdog: a member DSH that dies on its own is restarted automatically ----
+    // Consecutive restart attempts per instance (reset once a process stays up a while).
+    private readonly Dictionary<string, int> _wdTries = new(StringComparer.OrdinalIgnoreCase);
+    private volatile bool _shuttingDown;
+    // Called from the app's shutdown hook so exits during shutdown are not 'crashes'.
+    public void BeginShutdown() { _shuttingDown = true; }
     private readonly List<Instance> _instances = new();
     // Static cache: OS users already created + permissions set, so the slow
     // icacls recursion over node_modules runs only once per user, not every start.
@@ -829,6 +844,7 @@ public class InstanceManager
     {
         lock (_gate)
         {
+            inst.Stopping = false;     // a fresh start is never a deliberate stop
             var sw = System.Diagnostics.Stopwatch.StartNew();
             inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] {inst.Id} port={inst.DshPort} workspace={inst.Workspace}");
             Trace.WriteLine($"[start:{inst.Id}] beginning start sequence");
@@ -911,7 +927,11 @@ public class InstanceManager
             }
             psi.Environment["DSH_HOME"] = inst.DshHome;
 
-            if (!string.IsNullOrEmpty(inst.OsPassword))
+            // Set when this attempt actually used the OS-user (isolated) launcher, so
+            // the early-exit watchdog below knows a direct relaunch is the remedy.
+            var launchedIsolated = false;
+
+            if (!string.IsNullOrEmpty(inst.OsPassword) && !inst.IsolationUnavailable)
             {
                 // Ensure the dedicated OS user exists and permissions are set ONCE
                 // (the icacls recursion over node_modules is slow but persistent).
@@ -950,6 +970,7 @@ public class InstanceManager
                     proc = OsUserManager.StartAsUser(inst.Id, node,
                         osArgs.ToArray(),
                         inst.DshHome, env, inst.OsPassword);
+                    launchedIsolated = proc != null;
                 }
                 // If OS user creation or StartAsUser failed, fall back to launching
                 // DSH directly (no OS-level isolation) so the instance can still start.
@@ -976,22 +997,121 @@ public class InstanceManager
             try { File.Delete(diagPath); } catch { }
             Task.Run(async () =>
             {
-                try { await Task.Delay(5000); } catch { }
-                if (proc is { HasExited: true })
+                try { await Task.Delay(6000); } catch { }
+                if (proc is not { HasExited: true }) return;
+                try
                 {
-                    try
-                    {
-                        var err = string.Join("\n", inst.Logs.Where(l => l.StartsWith("[ERR]")));
-                        File.WriteAllText(diagPath, $"[{DateTime.Now:HH:mm:ss}] dsh as OS user exited code={proc.ExitCode}\n{err}\n---tail---\n{string.Join("\n", inst.Logs.TakeLast(40))}");
-                    }
-                    catch { }
+                    var err = string.Join("\n", inst.Logs.Where(l => l.StartsWith("[ERR]")));
+                    File.WriteAllText(diagPath, $"[{DateTime.Now:HH:mm:ss}] dsh exited code={proc.ExitCode} isolated={launchedIsolated}\n{err}\n---tail---\n{string.Join("\n", inst.Logs.TakeLast(40))}");
                 }
+                catch { }
+
+                // The OS-user launch can be impossible in some hosts - most notably when
+                // the launcher itself runs as a session-0 service/SYSTEM task: a
+                // CreateProcessWithLogonW child of a *different* user then has no usable
+                // window station and node dies during DLL init with 0xC0000142
+                // (STATUS_DLL_INIT_FAILED, exit code -1073741502) before it can emit any
+                // stderr. Isolation is a hardening measure, not a requirement, so rather
+                // than leaving the member with a permanent "starting up" spinner we
+                // relaunch once WITHOUT isolation (same account as the launcher) and
+                // remember that decision for the lifetime of this launcher process.
+                if (!launchedIsolated) return;
+                inst.IsolationUnavailable = true;
+                inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] OS-user isolation unavailable (exit {proc.ExitCode}); relaunching without isolation");
+                Trace.WriteLine($"[start:{inst.Id}] isolated launch failed (exit {proc.ExitCode}); falling back to direct launch");
+                inst.Starting = true;
+                try { Start(inst); }
+                catch (Exception ex) { inst.Logs.Enqueue("[start] " + ex.Message); }
+                finally { inst.Starting = false; }
             });
 
             inst.Proc = proc;
             inst.Running = true;
             Save();
+
         }
+    }
+
+    // ---- watchdog (poll based) ---------------------------------------------
+    // Member DSHs are launched as their own OS user, where process-exit events are not
+    // dependable, so instead of waiting for an event we simply verify that every
+    // instance we believe is running is still listening on its port. If it is not, the
+    // instance is restarted with a growing backoff (5s, 30s, 2min) and after three
+    // consecutive failures we give up and write the reason into the instance log.
+    System.Threading.Timer? _wdTimer;
+    readonly Dictionary<string, DateTime> _wdLastRestart = new(StringComparer.OrdinalIgnoreCase);
+    // Instances the watchdog has actually seen listening - only those may be restarted.
+    readonly HashSet<string> _wdGuarded = new(StringComparer.OrdinalIgnoreCase);
+    // Instances whose restart is in flight: the poll must not count them again while
+    // the DSH is coming up (its port stays closed for ~15-20s, which would otherwise
+    // look like a second, immediate failure).
+    readonly HashSet<string> _wdRestarting = new(StringComparer.OrdinalIgnoreCase);
+
+    public void StartWatchdog()
+    {
+        if (_wdTimer != null) return;
+        _wdTimer = new System.Threading.Timer(_ => WatchdogTick(), null, 10000, 10000);
+        LogWorkspace(_root, "[watchdog] started (poll every 10s)");
+    }
+
+    void WatchdogTick()
+    {
+        try
+        {
+            if (_shuttingDown) return;
+            List<Instance> list;
+            lock (_gate) list = _instances.ToList();
+            foreach (var inst in list)
+            {
+                if (inst.Stopping || inst.Starting) { continue; }
+                bool alive;
+                try { alive = DshService.IsPortInUse(inst.DshPort); } catch { alive = true; }
+                if (alive)
+                {
+                    // Remember that this instance is meant to be up; only then may we
+                    // restart it later. A long healthy period clears the backoff.
+                    _wdGuarded.Add(inst.Id);
+                    _wdRestarting.Remove(inst.Id);   // it is up again
+                    if (_wdLastRestart.TryGetValue(inst.Id, out var lr) && (DateTime.UtcNow - lr).TotalSeconds > 120)
+                        _wdTries[inst.Id] = 0;
+                    continue;
+                }
+                if (!_wdGuarded.Contains(inst.Id)) continue;   // stopped / never seen up
+                if (_wdRestarting.Contains(inst.Id)) continue;  // a restart is already running
+                var tries = _wdTries.TryGetValue(inst.Id, out var t) ? t + 1 : 1;
+                _wdTries[inst.Id] = tries;
+                _wdLastRestart[inst.Id] = DateTime.UtcNow;
+                _wdRestarting.Add(inst.Id);
+                var delay = tries <= 1 ? 5 : (tries == 2 ? 30 : 120);
+                if (tries > 3)
+                {
+                    _wdGuarded.Remove(inst.Id);
+                    _wdRestarting.Remove(inst.Id);
+                    inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [watchdog] DSH is not listening (port {inst.DshPort}); giving up after 3 restarts - press Start to start it again");
+                    LogWorkspace(_root, $"[watchdog] {inst.Id}: giving up after 3 restarts");
+                    continue;
+                }
+                inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [watchdog] DSH is not listening (port {inst.DshPort}); restarting in {delay}s (attempt {tries}/3)");
+                LogWorkspace(_root, $"[watchdog] {inst.Id}: port {inst.DshPort} not listening -> restart in {delay}s (attempt {tries}/3)");
+                _ = Task.Run(async () =>
+                {
+                    try { await Task.Delay(delay * 1000); } catch { }
+                    try
+                    {
+                        var skip = false;
+                        lock (_gate) { if (_shuttingDown || inst.Stopping) skip = true; }
+                        if (!skip && !DshService.IsPortInUse(inst.DshPort)) Start(inst);
+                    }
+                    catch (Exception ex)
+                    {
+                        try { inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [watchdog] restart failed: {ex.Message}"); } catch { }
+                        try { LogWorkspace(_root, $"[watchdog] {inst.Id}: restart failed: {ex.Message}"); } catch { }
+                    }
+                    finally { _wdRestarting.Remove(inst.Id); }
+                });
+            }
+        }
+        catch { }
     }
 
     private void CaptureToken(Instance inst, string line)
@@ -1012,6 +1132,9 @@ public class InstanceManager
     {
         lock (_gate)
         {
+            inst.Stopping = true;      // watchdog: this exit is intentional
+            _wdGuarded.Remove(inst.Id);
+            _wdRestarting.Remove(inst.Id);
             if (inst.Proc is { HasExited: false }) { try { inst.Proc.Kill(true); } catch { } try { inst.Proc.WaitForExit(5000); } catch { } }
             // Also force-kill the whole tree by port, in case the OS-user child
             // (which the launcher doesn't hold a handle to) is still running.

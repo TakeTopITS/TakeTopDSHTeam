@@ -241,6 +241,13 @@ public static class OsUserManager
         foreach (char c in password) securePwd.AppendChar(c);
         psi.Password = securePwd;
 
+        // Load the target user's profile for the child (CreateProcessWithLogonW
+        // LOGON_WITH_PROFILE). Without it the child gets a token but NO profile
+        // hive, and node.exe can die during DLL initialization with 0xC0000142
+        // (STATUS_DLL_INIT_FAILED, exit code -1073741502) before it can write
+        // anything to stderr. The profile is created on first use and then reused.
+        psi.LoadUserProfile = true;
+
         // Set environment variables (the target user's profile/temp — node/dsh
         // needs these to bootstrap; without them the process exits immediately).
         psi.Environment["USERPROFILE"] = $"C:\\Users\\{user}";

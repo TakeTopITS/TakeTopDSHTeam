@@ -22,11 +22,34 @@
   .layout { display: flex; height: calc(100% - 49px); }
   .members { width: 220px; border-right: 1px solid #d5d9df; background: #fff; overflow: auto; }
   .members h3 { margin: 0; padding: 10px 14px; font-size: 13px; color: #6b7280; border-bottom: 1px solid #eef0f3; }
-  .member { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f5f6f8; font-size: 14px; }
+  .member { display: flex; align-items: center; gap: 4px; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f5f6f8; font-size: 14px; }
+  .member .mtog { width: 14px; flex: 0 0 14px; text-align: center; color: #94a3b8; font-size: 11px; }
+  .member .mlbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .member:hover { background: #f5f7fa; }
   .member.active { background: #eef4ff; color: #1d4ed8; font-weight: 600; }
-  .tasks { flex: 1; padding: 14px 18px; overflow: auto; }
-  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .treepick { position: relative; }
+  .treepick-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 1px solid #c8ccd2; border-radius: 6px; background: #fff; color: #1c1e21; font-size: 14px; cursor: pointer; text-align: left; }
+  .treepick-btn:hover { background: #f8fafc; }
+  .treepick-caret { color: #6b7280; font-size: 11px; }
+  .treepick-menu { display: none; position: absolute; z-index: 10050; left: 0; right: 0; top: calc(100% + 2px); max-height: 280px; overflow: auto; background: #fff; border: 1px solid #d5d9df; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.18); padding: 4px; }
+  .treepick-menu.open { display: block; }
+  .tpn { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+  .tpn:hover { background: #f2f6ff; }
+  .tpn.sel { background: #eef4ff; color: #1d4ed8; font-weight: 600; }
+  .tptog { width: 14px; flex: 0 0 14px; color: #94a3b8; font-size: 11px; text-align: center; }
+  .tplbl { overflow: hidden; text-overflow: ellipsis; }
+.tasks { flex: 1; padding: 14px 18px; overflow: auto; }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+/* Member picker: a select-like button that opens the tree in a pop-up panel. */
+.mem-picker { position: relative; display: inline-block; }
+.mem-pick { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 190px; padding: 6px 10px; border: 1px solid #c8ccd2; border-radius: 6px; background: #fff; color: #1c1e21; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.mem-pick:hover { border-color: #2563eb; }
+.mem-pick .car { color: #94a3b8; }
+.mem-panel { display: none; position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; min-width: 280px; max-height: 60vh; overflow: auto; background: #fff; border: 1px solid #d5d9df; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.14); }
+.mem-panel.open { display: block; }
+.mem-panel-h { position: sticky; top: 0; background: #fff; padding: 8px 14px; font-size: 12.5px; font-weight: 700; color: #6b7280; border-bottom: 1px solid #eef0f3; }
+/* the old left column is gone; keep its rules harmless for the moved tree */
+.members { display: none; }
   .toolbar .hint { color: #6b7280; font-size: 13px; }
   .toolbar .sp { flex: 1; }
   button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; }
@@ -86,13 +109,18 @@
   </div>
 
   <div class="layout">
-    <div class="members">
-      <h3 id="memberTitle">成员</h3>
-      <div id="memberList"></div>
-    </div>
     <div class="tasks">
       <div class="toolbar">
         <span class="hint" id="curMember"></span>
+        <!-- The member tree lives in a pop-up panel opened from here (it used to be a
+             full-height column on the left). -->
+        <div class="mem-picker">
+          <button type="button" id="memberPickBtn" class="mem-pick"><span id="memberPickTxt"></span><span class="car">▾</span></button>
+          <div class="mem-panel" id="memberPanel">
+            <div class="mem-panel-h" id="memberTitle">成员</div>
+            <div id="memberList"></div>
+          </div>
+        </div>
         <span class="sp"></span>
         <button id="addTaskBtn">添加任务</button>
       </div>
@@ -133,7 +161,11 @@
         </div>
       </div>
       <div class="field"><label id="lblAssignee">受理人</label>
-        <select id="fAssignee"></select>
+        <div class="treepick">
+          <button type="button" id="fAssigneeBtn" class="treepick-btn"><span id="fAssigneeLabel">--</span><span class="treepick-caret">▼</span></button>
+          <div id="fAssigneeMenu" class="treepick-menu"></div>
+          <input type="hidden" id="fAssignee" />
+        </div>
       </div>
       <div class="field"><label id="lblName">任务名称</label><input id="fName" /></div>
       <div class="field"><label id="lblContent">任务内容</label>
@@ -196,12 +228,15 @@
 <script src="/vendor/exceljs.min.js"></script>
 <script type="module" src="/vendor/pptx-loader.js"></script>
 <script src="/vendor/preview.js"></script>
+<!-- Drag support + ⣿ grips: task names, the preview layer, the feedback layer and
+     attachment names can be dragged into the DSH dialog (this edition has no chat), -->
+<script src="/vendor/tttaskdrag.js"></script>
 
 <script>
 (function () {
   var I18N = {
     zh: {
-      back:"← 返回", title:"任务分派", members:"成员", add:"添加任务", cur:"当前成员：",
+      back:"← 返回", title:"任务分派", members:"成员", add:"添加任务", cur:"受理人：",
       thSeq:"序号", thType:"任务类型", thName:"任务名称", thCreator:"创建者", thAssigned:"分派时间", thStatus:"状态", thFiles:"相关文件", thAssign:"继续分派", thAssignee:"受理人", thOps:"操作",
       edit:"编辑", del:"删除", feedback:"反馈", fbContent:"反馈内容", fbRecord:"反馈记录", fbNo:"序号", fbBy:"反馈人", fbTime:"时间", fbFiles:"附件", fbEmpty:"暂无反馈", fbRequired:"请填写反馈内容", empty:"暂无任务", modalAdd:"添加任务", modalEdit:"编辑任务",
       lblType:"任务类型", lblName:"任务名称", lblContent:"任务内容", lblAssigned:"分派时间", lblStatus:"状态", lblFiles:"相关文件（可多选）", lblAssignee:"受理人", chooseFiles:"选择文件",
@@ -213,7 +248,7 @@
       errLoad:"加载失败：", errSave:"保存失败", errUpload:"上传失败"
     },
     en: {
-      back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Current member: ",
+      back:"← Back", title:"Task Assignment", members:"Members", add:"Add Task", cur:"Assignee: ",
       thSeq:"No.", thType:"Type", thName:"Name", thCreator:"Created By", thAssigned:"Assigned At", thContent:"Content", thStatus:"Status", thFiles:"Files", thAssign:"Continue Assign", thAssignee:"Assignee", thOps:"Actions",
       edit:"Edit", del:"Delete", feedback:"Feedback", fbContent:"Content", fbRecord:"Feedback records", fbNo:"No.", fbBy:"By", fbTime:"Time", fbFiles:"Files", fbEmpty:"No feedback yet", fbRequired:"Please enter feedback", empty:"No tasks", modalAdd:"Add Task", modalEdit:"Edit Task",
       lblType:"Type", lblName:"Name", lblContent:"Content", lblAssigned:"Assigned At", lblStatus:"Status", lblFiles:"Files (multi-select)", lblAssignee:"Assignee", chooseFiles:"Choose files",
@@ -230,6 +265,16 @@
   // Display name: strip the "~xxxxxxxx" random token the uploader may have added
   // to keep filenames unique; the stored path keeps it.
   function dispName(n){ return String(n==null?'':n).replace(/~[0-9a-f]{8}(\.[^.\\/\\\\]*)?$/i, '$1'); }
+  // Stored as the user CODE; shown as the user NAME (fall back to the code).
+  function dispUser(code) {
+    code = String(code == null ? '' : code);
+    if (!code) return '';
+    var out = code;
+    for (var i = 0; i < members.length; i++) {
+      if (String(members[i].id).toLowerCase() === code.toLowerCase()) { out = String(members[i].userName || members[i].name || code); break; }
+    }
+    return out.replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+  }
   function withToken(u){ if(launcherToken && /\/api\/(files|feedback)/.test(u)){ u += (u.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(launcherToken); } return u; }
   // Stored content keeps clean attachment URLs (server strips any token on save);
   // when opened with a launcher_token, add it to stored <img> attachment srcs so
@@ -302,6 +347,7 @@
   var pendingFiles = []; // [{name, rel}]
   var myName = '';
   var PAGE_SIZE = 25;
+  var TASK_PAGE_SIZE = 10;   // the task table pages 10 rows at a time
   var taskPage = 1;      // current server-side page
   var taskTotal = 0;     // total records from server
 
@@ -342,7 +388,7 @@
     }
     render();
   }
-  fetch('/api/auth/me').then(function(r){return r.json()}).then(function(d){myName=(d.username||'').toLowerCase(); if (tasks && tasks.length) renderTasks();}).catch(function(){});
+  fetch('/api/auth/me').then(function(r){return r.json()}).then(function(d){myName=(d.userCode||'').toLowerCase(); if (tasks && tasks.length) renderTasks();}).catch(function(){});
 
   function req(method, url, body) {
     var opt = { method: method, headers: { 'Content-Type': 'application/json' } };
@@ -352,18 +398,10 @@
 
   async function loadMembers() {
     try {
+      if (!myName) { try { var me = await req('GET', '/api/auth/me'); myName = (me.userCode || '').toLowerCase(); } catch(e) {} }
       var d = await req('GET', '/api/members');
-      members = (d.members || []).map(function(x){ return { id:x.id, name:x.name, admin:x.admin }; });
-      // "All" overview for collaboration: show tasks created by every member.
-      members.unshift({ id:'', name: lang==='en'?'All':'全部', admin:false });
-      var box = $('#memberList'); box.innerHTML = '';
-      members.forEach(function(m){
-        var el = document.createElement('div');
-        el.className = 'member' + (m.id === curMember ? ' active' : '');
-        el.textContent = m.name;
-        el.onclick = function(){ curMember = m.id; taskPage = 1; loadMembers(); loadTasks(); };
-        box.appendChild(el);
-      });
+      members = (d.members || []).map(function(x){ return { id:x.id, name:x.name, userName:(x.userName || x.name), admin:x.admin, createdBy:(x.createdBy || '') }; });
+      renderMemberSidebar();
       if (curMember === undefined || curMember === null) curMember = '';
       $('#curMember').textContent = t('cur') + (curMember || '-');
       refreshAssigneeOptions();
@@ -371,25 +409,166 @@
     } catch(e) { console.error('members', e); }
   }
 
-  // Fill the modal's "assignee" dropdown with every real member (the assignee
-  // becomes the new task's owner). The pseudo "All" entry (empty id) is skipped.
-  function refreshAssigneeOptions(selected) {
-    var sel = $('#fAssignee'); if (!sel) return;
-    var prev = (selected !== undefined) ? selected : sel.value;
-    var opts = members.filter(function(m){ return m.id !== ''; });
-    sel.innerHTML = opts.map(function(m){
-      return '<option value="' + m.id + '">' + m.name + '</option>';
-    }).join('');
-    // Keep the current owner selectable even when it is not in the member list
-    // (e.g. a deleted instance), so saving never silently re-assigns the task.
-    if (prev && !opts.some(function(m){ return m.id === prev; })) {
-      var o = document.createElement('option');
-      o.value = prev; o.textContent = prev;
-      sel.insertBefore(o, sel.firstChild);
+  // Left sidebar: collapsible, scoped member tree (same rules as the picker).
+  var memCollapsed = {};   // member id -> true when its children are hidden
+  function renderMemberSidebar() {
+    var box = $('#memberList'); if (!box) return;
+    box.innerHTML = '';
+    // "All" overview for collaboration: show tasks created by every member.
+    var allEl = document.createElement('div');
+    allEl.className = 'member' + (curMember === '' ? ' active' : '');
+    allEl.textContent = (lang==='en'?'All':'全部');
+    allEl.onclick = function(){ curMember = ''; taskPage = 1; loadMembers(); loadTasks(); };
+    box.appendChild(allEl);
+    // Hierarchical, scoped member tree: only the viewer's superior(s),
+    // colleagues (same creator) and the viewer's own descendants.
+    function rows(ns, depth) {
+      ns.forEach(function(n){
+        var key = String(n.m.id).toLowerCase();
+        var hasKids = n.children && n.children.length > 0;
+        var collapsed = !!memCollapsed[key];
+        var el = document.createElement('div');
+        el.className = 'member' + (n.m.id === curMember ? ' active' : '');
+        el.style.paddingLeft = (14 + depth * 16) + 'px';
+        var tog = document.createElement('span');
+        tog.className = 'mtog';
+        tog.textContent = hasKids ? (collapsed ? '▸' : '▾') : '';
+        if (hasKids) tog.onclick = function(ev){ ev.stopPropagation(); memCollapsed[key] = !memCollapsed[key]; renderMemberSidebar(); };
+        var lbl = document.createElement('span');
+        lbl.className = 'mlbl';
+        lbl.textContent = memberLabel(n.m);
+        el.appendChild(tog); el.appendChild(lbl);
+        el.onclick = function(){ curMember = n.m.id; taskPage = 1; loadMembers(); loadTasks(); };
+        box.appendChild(el);
+        if (hasKids && !collapsed) rows(n.children, depth + 1);
+      });
     }
-    if (prev) sel.value = prev;
-    if (!sel.value && curMember) sel.value = curMember;
+    rows(memberTreeNodes(members, (myName || '').toLowerCase()), 0);
   }
+
+  // Scoped member tree (nested) for the viewer:
+  //   - the viewer's ancestor chain (superiors),
+  //   - the viewer's colleagues (same creator),
+  //   - the viewer's own descendants (recursively).
+  // Admin (the root) sees everyone. Returns [{ m, children:[...] }] (roots first).
+  function memberTreeNodes(all, viewer) {
+    var byId = {}, children = {};
+    all.forEach(function(m){ byId[String(m.id).toLowerCase()] = m; });
+    all.forEach(function(m){ var p = String(m.createdBy || '').toLowerCase(); (children[p] = children[p] || []).push(m); });
+    var visible = {};
+    var cur = viewer, guard = 0;
+    while (cur && guard++ < 200) {
+      visible[cur] = true;
+      var mm = byId[cur];
+      var parent = mm ? String(mm.createdBy || '').toLowerCase() : '';
+      if (!parent || parent === cur) break;
+      cur = parent;
+    }
+    (function desc(id){
+      (children[id] || []).forEach(function(c){ var k = String(c.id).toLowerCase(); if (!visible[k]) { visible[k] = true; desc(k); } });
+    })(viewer);
+    var vp = byId[viewer] ? String(byId[viewer].createdBy || '').toLowerCase() : '';
+    (children[vp] || []).forEach(function(c){ visible[String(c.id).toLowerCase()] = true; });
+    function nodesFor(id){
+      return (children[id] || []).slice().sort(function(a,b){ return String(a.id).localeCompare(String(b.id)); })
+        .filter(function(c){ return visible[String(c.id).toLowerCase()]; })
+        .map(function(c){ return { m: c, children: nodesFor(String(c.id).toLowerCase()) }; });
+    }
+    var roots = all.filter(function(m){
+      var k = String(m.id).toLowerCase();
+      if (!visible[k]) return false;
+      var p = String(m.createdBy || '').toLowerCase();
+      return !(p && visible[p]);
+    }).sort(function(a,b){ return String(a.id).localeCompare(String(b.id)); });
+    return roots.map(function(r){ return { m: r, children: nodesFor(String(r.id).toLowerCase()) }; });
+  }
+
+  // Flatten the scoped tree to [{ m, depth }] for the sidebar list.
+  function memberTree(all, viewer) {
+    var out = [];
+    (function walk(ns, depth){ ns.forEach(function(n){ out.push({ m: n.m, depth: depth }); walk(n.children, depth + 1); }); })(memberTreeNodes(all, viewer), 0);
+    return out;
+  }
+
+  // Display label for a member: "code(name)" (falls back to whichever exists).
+  function memberLabel(m) {
+    if (!m) return '';
+    var id = String(m.id || ''), nm = String(m.name || '');
+    return (id && nm && nm !== id) ? (id + '(' + nm + ')') : (id || nm);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Assignee picker: a collapsible member TREE (same scoping as the left list).
+  // The hidden #fAssignee input keeps the selected code so the rest of the form
+  // code can keep reading/writing .value unchanged.
+  var tpCollapsed = {};   // node id -> true when collapsed (default: expanded)
+
+  function setAssigneeValue(code) {
+    var inp = $('#fAssignee'); if (!inp) return;
+    inp.value = code || '';
+    var lbl = $('#fAssigneeLabel');
+    if (lbl) {
+      var m = null, key = String(code || '').toLowerCase();
+      for (var i = 0; i < members.length; i++) { if (String(members[i].id).toLowerCase() === key) { m = members[i]; break; } }
+      lbl.textContent = m ? memberLabel(m) : (code || '--');
+    }
+  }
+  function toggleAssigneeMenu(force) {
+    var menu = $('#fAssigneeMenu'); if (!menu) return;
+    var open = (force !== undefined) ? force : !menu.classList.contains('open');
+    if (open) renderAssigneePicker();
+    menu.classList.toggle('open', open);
+  }
+  function renderAssigneePicker() {
+    var menu = $('#fAssigneeMenu'); if (!menu) return;
+    var nodes = memberTreeNodes(members, (myName || '').toLowerCase());
+    var cur = ($('#fAssignee') && $('#fAssignee').value) || '';
+    // Keep a not-in-tree current owner (e.g. a deleted instance) selectable.
+    var curKey = String(cur).toLowerCase();
+    var found = false;
+    (function has(ns){ ns.forEach(function(n){ if (String(n.m.id).toLowerCase() === curKey) found = true; has(n.children); }); })(nodes);
+    if (cur && !found) nodes.unshift({ m: { id: cur, name: cur }, children: [] });
+    var html = '';
+    (function rows(ns, depth){
+      ns.forEach(function(n){
+        var key = String(n.m.id).toLowerCase();
+        var hasKids = n.children && n.children.length > 0;
+        var collapsed = !!tpCollapsed[key];
+        var sel = (String(n.m.id).toLowerCase() === curKey) ? ' sel' : '';
+        html += '<div class="tpn' + sel + '" data-id="' + escHtml(n.m.id) + '" style="padding-left:' + (8 + depth * 16) + 'px">'
+             + '<span class="tptog" data-tog="' + escHtml(n.m.id) + '">' + (hasKids ? (collapsed ? '▸' : '▾') : '') + '</span>'
+             + '<span class="tplbl">' + escHtml(memberLabel(n.m)) + '</span></div>';
+        if (hasKids && !collapsed) rows(n.children, depth + 1);
+      });
+    })(nodes, 0);
+    menu.innerHTML = html;
+    Array.prototype.forEach.call(menu.querySelectorAll('.tptog'), function(t){
+      t.onclick = function(ev){ ev.stopPropagation(); var k = String(t.getAttribute('data-tog')).toLowerCase(); tpCollapsed[k] = !tpCollapsed[k]; renderAssigneePicker(); };
+    });
+    Array.prototype.forEach.call(menu.querySelectorAll('.tpn'), function(r){
+      r.onclick = function(){ setAssigneeValue(r.getAttribute('data-id')); toggleAssigneeMenu(false); };
+    });
+  }
+
+  // Build the assignee tree and select `selected` (defaults to the current value).
+  function refreshAssigneeOptions(selected) {
+    if (!$('#fAssignee')) return;
+    var prev = (selected !== undefined) ? selected : $('#fAssignee').value;
+    setAssigneeValue(prev || '');
+    if (!$('#fAssignee').value) {
+      if (curMember) setAssigneeValue(curMember);
+      else {
+        // No member selected: default to the first node (parity with the old
+        // <select>, which auto-selected its first option).
+        var ns = memberTreeNodes(members, (myName || '').toLowerCase());
+        if (ns[0]) setAssigneeValue(ns[0].m.id);
+      }
+    }
+    renderAssigneePicker();
+  }
+  window.TT_SET_ASSIGNEE = setAssigneeValue;
 
   var expandedKeys = {}; // task uid -> true when its subtasks are shown
 
@@ -399,6 +578,10 @@
     var st = t('st');
     var tr = document.createElement('tr');
     tr.setAttribute('data-key', taskRowKey(task));
+    // Attributes the drag helper needs: the task's ordinal (for feedback-attachment
+    // paths) and its owner (the workspace that really holds the files).
+    tr.setAttribute('data-seq', task.seq == null ? '' : String(task.seq));
+    tr.setAttribute('data-member', String(task.member || curMember || ''));
     var indent = depth ? 'padding-left:' + (14 + depth * 18) + 'px;' : '';
     // Edit/Delete are only for tasks the current user created AND that have no
     // sub-tasks. A parent task (childCount > 0) hides them so delegating work
@@ -415,8 +598,8 @@
       + '<td style="text-align:center;">' + ((task.childCount > 0) ? '<button type="button" class="sub-toggle" title="' + t('expand') + '" style="width:20px;height:20px;line-height:17px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer;">+</button>' : '') + '</td>'
       + '<td><button class="fb-btn" style="padding:3px 10px;border:0;border-radius:5px;background:#2563eb;color:#fff;font-size:11px;cursor:pointer;">' + t('feedback') + '</button></td>'
       + '<td><button class="asg-btn" data-task="' + (task.uid || '') + '" style="padding:3px 10px;border:0;border-radius:5px;background:#0ea5e9;color:#fff;font-size:11px;cursor:pointer;">' + t('thAssign') + '</button></td>'
-      + '<td>' + (task.member || '') + '</td>'
-      + '<td>' + (task.createdBy || '') + '</td>'
+      + '<td>' + dispUser(task.member) + '</td>'
+      + '<td>' + dispUser(task.createdBy) + '</td>'
       + '<td>' + (task.assignedAt || '') + '</td>'
       + '<td><span class="st ' + (task.status||'pending') + '">' + (st[task.status] || st.pending) + '</span></td>'
       + '<td><ul class="files-list">' + (task.files||[]).map(function(f){
@@ -536,11 +719,11 @@
 
   // Server-side pagination: clicking a page button refetches that page from the API.
   function renderServerPager(tableWrap) {
-    var pages = Math.max(1, Math.ceil(taskTotal / PAGE_SIZE));
+    var pages = Math.max(1, Math.ceil(taskTotal / TASK_PAGE_SIZE));
     if (taskPage > pages) taskPage = pages;
     var pag = tableWrap.querySelector('.tt-pager');
     if (!pag) { pag = document.createElement('div'); pag.className = 'tt-pager'; pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:12px;'; tableWrap.appendChild(pag); }
-    if (taskTotal <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+    if (taskTotal <= TASK_PAGE_SIZE) { pag.innerHTML = ''; return; }
     var html = '<span style="font-size:12px;color:#6b7280;margin-right:8px;">' + taskTotal + ' items</span>';
     html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> ';
     for (var p = 1; p <= pages; p++) {
@@ -560,8 +743,16 @@
   }
 
   async function loadTasks() {
-    var url = curMember ? '/api/tasks?inst=' + encodeURIComponent(curMember) + '&scope=assignment' : '/api/tasks';
-    url += (curMember ? '&' : '?') + 'page=' + taskPage + '&pageSize=' + PAGE_SIZE + '&_=' + Date.now();
+    // This table is "Tasks I created": with a member selected we want the tasks I
+    // created AND assigned to that member (inst + scope=assignment); with "All" we
+    // want EVERY task I created, wherever it lives - that is scope=created. A plain
+    // /api/tasks here showed other people's tasks too.
+    var url = curMember
+      ? '/api/tasks?inst=' + encodeURIComponent(curMember) + '&scope=assignment'
+      : '/api/tasks?scope=created';
+    // The separator must follow the URL actually built: in the All case the base URL
+    // already has '?scope=created', so adding '?' produced a bogus scope value.
+    url += (url.indexOf('?') >= 0 ? '&' : '?') + 'page=' + taskPage + '&pageSize=' + TASK_PAGE_SIZE + '&_=' + Date.now();
     var d = await req('GET', url);
     tasks = d.tasks || [];
     if (typeof d.total === 'number') taskTotal = d.total;
@@ -600,7 +791,7 @@
     // re-assigned to another member.
     var asg = task ? (task.member || editingMember || curMember) : (pendingAssignee || curMember);
     refreshAssigneeOptions(asg);
-    $('#fAssignee').disabled = false;
+    if ($('#fAssigneeBtn')) $('#fAssigneeBtn').disabled = false;
     pendingFiles = (task && task.files) ? task.files.slice() : [];
     $('#fFilesLabel').textContent = '';
     renderChips();
@@ -620,7 +811,7 @@
     openModal(null);
     if (task.type) { $('#fType').value = task.type; refreshTypeDropdown(task.type); }
     $('#fName').value = (task.name || '') + (lang === 'en' ? ' - follow-up' : ' - 后续');
-    $('#fAssignee').value = pendingAssignee || $('#fAssignee').value;
+    setAssigneeValue(pendingAssignee || $('#fAssignee').value);
   }
   window.openContinueAssign = openContinueAssign;
 
@@ -721,7 +912,7 @@ var fbModal2=null;
 var fb2PendingFiles=[];
 var fb2Inst=''; var fb2Uid=''; var fb2Seq=0;
 function ensureFb2(){ if(fbModal2) return;
-  fbModal2=document.createElement("div"); fbModal2.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10001;display:none;align-items:center;justify-content:center;";
+  fbModal2=document.createElement("div"); fbModal2.id="fbModal2"; fbModal2.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10001;display:none;align-items:center;justify-content:center;";
   fbModal2.innerHTML='<div style="background:#fff;border-radius:10px;width:min(760px,96vw);max-height:90vh;padding:20px 24px;display:flex;flex-direction:column;overflow-y:auto;">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><strong id="fb2Title" style="font-size:16px;"></strong><button id="fb2Close" style="padding:4px 14px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;">'+t("close")+'</button></div>'+
     '<div style="margin-bottom:4px;font-weight:600;font-size:13px;">'+t("fbContent")+'</div>'+
@@ -785,7 +976,7 @@ if(!es.length){ body.innerHTML='<tr><td colspan="5" style="text-align:center;col
 var now=new Date(); var today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0'); var mine=es.find(function(e){ var byMatch=(e.by||'').toLowerCase()===myName; if(!byMatch)return false; if(e.date&&e.date===today)return true; if(e.time&&e.time.slice(0,10)===today)return true; return false; }); if(mine){fbModal2.querySelector("#fb2Editor").innerHTML=mine.content||"";} 
 pagFb2(wrap, es);
 } }catch(e){} }
-function pagFb2(wrap, es){ var pg={page:1,data:es}; function render(){ var total=pg.data.length; var pages=Math.max(1,Math.ceil(total/PAGE_SIZE)); if(pg.page>pages)pg.page=pages; var s=(pg.page-1)*PAGE_SIZE; var slice=pg.data.slice(s,s+PAGE_SIZE); var b=fbModal2.querySelector("#fb2Body"); b.innerHTML=""; slice.forEach(function(e,i){ var filesHtml=""; if(e.files){ e.files.split(",").filter(Boolean).forEach(function(fn){ var esc=String(fn).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); filesHtml+='<div><a href="javascript:void(0)" class="fb2-file-link" data-f="'+esc+'" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">'+esc.replace(/~[0-9a-f]{8}(\.[^.]*)?$/i,'$1')+'</a></div>'; }); } var tr=document.createElement("tr"); tr.innerHTML='<td style="padding:8px;">'+(total-(s+i))+'</td><td style="padding:8px;">'+(e.content||"")+'</td><td style="padding:8px;">'+(e.by||"")+'</td><td style="padding:8px;">'+(e.time||"")+'</td><td style="padding:8px;">'+filesHtml+'</td>'; b.appendChild(tr); }); b.querySelectorAll("a.fb2-file-link").forEach(function(a){ a.onclick=function(){ openFbFile(a.getAttribute("data-f")); }; }); var pag=wrap.querySelector(".tt-pager2"); if(!pag){pag=document.createElement("div");pag.className="tt-pager2";pag.style.cssText="display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;";wrap.appendChild(pag);} if(total<=PAGE_SIZE){pag.innerHTML="";return;} var html='<span style="font-size:12px;color:#6b7280;margin-right:8px;">'+total+' items</span><button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> '; for(var p=1;p<=pages;p++){html+='<button data-p="'+p+'" style="padding:3px 10px;border:1px solid '+(p===pg.page?'#2563eb':'#d5d9df')+';border-radius:5px;background:'+(p===pg.page?'#2563eb':'#fff')+';color:'+(p===pg.page?'#fff':'#334155')+';font-size:12px;cursor:pointer;margin:0 1px;">'+p+'</button> ';} html+='<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>'; pag.innerHTML=html; pag.querySelectorAll("button[data-p]").forEach(function(btn){ btn.onclick=function(){ var v=btn.getAttribute("data-p"); if(v==="prev")pg.page=Math.max(1,pg.page-1); else if(v==="next")pg.page=Math.min(pages,pg.page+1); else pg.page=parseInt(v,10); render(); }; }); }
+function pagFb2(wrap, es){ var pg={page:1,data:es}; function render(){ var total=pg.data.length; var pages=Math.max(1,Math.ceil(total/PAGE_SIZE)); if(pg.page>pages)pg.page=pages; var s=(pg.page-1)*PAGE_SIZE; var slice=pg.data.slice(s,s+PAGE_SIZE); var b=fbModal2.querySelector("#fb2Body"); b.innerHTML=""; slice.forEach(function(e,i){ var filesHtml=""; if(e.files){ e.files.split(",").filter(Boolean).forEach(function(fn){ var esc=String(fn).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); filesHtml+='<div><a href="javascript:void(0)" class="fb2-file-link" data-f="'+esc+'" style="color:#2563eb;text-decoration:none;font-size:12px;cursor:pointer;">'+esc.replace(/~[0-9a-f]{8}(\.[^.]*)?$/i,'$1')+'</a></div>'; }); } var tr=document.createElement("tr"); tr.innerHTML='<td style="padding:8px;">'+(total-(s+i))+'</td><td style="padding:8px;">'+(e.content||"")+'</td><td style="padding:8px;">'+dispUser(e.by)+'</td><td style="padding:8px;">'+(e.time||"")+'</td><td style="padding:8px;">'+filesHtml+'</td>'; b.appendChild(tr); }); b.querySelectorAll("a.fb2-file-link").forEach(function(a){ a.onclick=function(){ openFbFile(a.getAttribute("data-f")); }; }); var pag=wrap.querySelector(".tt-pager2"); if(!pag){pag=document.createElement("div");pag.className="tt-pager2";pag.style.cssText="display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;";wrap.appendChild(pag);} if(total<=PAGE_SIZE){pag.innerHTML="";return;} var html='<span style="font-size:12px;color:#6b7280;margin-right:8px;">'+total+' items</span><button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">«</button> '; for(var p=1;p<=pages;p++){html+='<button data-p="'+p+'" style="padding:3px 10px;border:1px solid '+(p===pg.page?'#2563eb':'#d5d9df')+';border-radius:5px;background:'+(p===pg.page?'#2563eb':'#fff')+';color:'+(p===pg.page?'#fff':'#334155')+';font-size:12px;cursor:pointer;margin:0 1px;">'+p+'</button> ';} html+='<button data-p="next" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;font-size:12px;cursor:pointer;">»</button>'; pag.innerHTML=html; pag.querySelectorAll("button[data-p]").forEach(function(btn){ btn.onclick=function(){ var v=btn.getAttribute("data-p"); if(v==="prev")pg.page=Math.max(1,pg.page-1); else if(v==="next")pg.page=Math.min(pages,pg.page+1); else pg.page=parseInt(v,10); render(); }; }); }
   render();
 }
 async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor"); var html=editor.innerHTML.trim(); if(!html||html==="<br>"||html==="<div><br></div>"){ alert(t("fbRequired")); return; } var btn=fbModal2.querySelector("#fb2Save"); var spin=fbModal2.querySelector("#fb2SaveSpin"); var txt=fbModal2.querySelector("#fb2SaveTxt"); var msg=fbModal2.querySelector("#fb2Msg"); btn.disabled=true; btn.style.opacity="0.75"; btn.style.cursor="wait"; spin.style.display="inline-block"; txt.textContent=t("saveDone"); msg.style.display="none"; var fd=new FormData(); fd.append("inst",fb2Inst); fd.append("uid",fb2Uid); fd.append("content",html); for(var i=0;i<fb2PendingFiles.length;i++){ fd.append("files",fb2PendingFiles[i]); } var r=await fetch("/api/feedback",{method:"POST",body:fd}); var d=await r.json().catch(function(){return{};}); if(!d.ok){ spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; alert(d.error||"Failed"); return; } fb2PendingFiles=[]; fbModal2.querySelector("#fb2FileInput").value=""; fbModal2.querySelector("#fb2FileChips").innerHTML=""; await loadFeedback2(); spin.style.display="none"; txt.textContent=t("save"); btn.disabled=false; btn.style.opacity="1"; btn.style.cursor="pointer"; msg.textContent=t("saveOk"); msg.style.color="#16a34a"; msg.style.display="inline-block"; setTimeout(function(){msg.style.display="none";},3000); }
@@ -1029,6 +1220,98 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
     applyBar(); renderTasks();
   };
   try { $('#langSel').value = lang; } catch(e){}
+
+  // Assignee tree picker: open on click; close on outside click / Esc.
+  if ($('#fAssigneeBtn')) {
+    $('#fAssigneeBtn').onclick = function(ev){ ev.stopPropagation(); toggleAssigneeMenu(); };
+  }
+  document.addEventListener('click', function(ev){
+    var menu = $('#fAssigneeMenu');
+    if (!menu || !menu.classList.contains('open')) return;
+    var inPicker = ev.target && ev.target.closest && ev.target.closest('.treepick');
+    if (inPicker) return;
+    menu.classList.remove('open');
+  });
+  document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') toggleAssigneeMenu(false); });
+
+  // Inside the workbench's left pane (an iframe) the pane already shows the tab
+  // header, so the page's own top bar (back link / title / language) is dropped and
+  // the table takes the full height.
+  if (window.self !== window.top) {
+    var tb = document.querySelector('.topbar');
+    if (tb) tb.style.display = 'none';
+    var ly = document.querySelector('.layout');
+    if (ly) ly.style.height = '100%';
+    // Embedded in the pane: drop the page's own padding so this table is exactly as
+    // wide as the "Tasks to handle" table stacked above it.
+    var tk = document.querySelector('.tasks');
+    if (tk) tk.style.padding = '0';
+    // ...and its dialogs are CENTRED like the "Tasks to handle" table's dialogs (same
+    // kind of box, same size), with the pane handed over by the host (see below) so
+    // they end up centred in the WHOLE left pane.
+    var sheetStyle = document.createElement('style');
+    sheetStyle.textContent =
+      '.overlay { align-items: center !important; justify-content: center !important; }'
+      + '.overlay .modal { width: min(640px,94vw) !important; max-width: 100% !important; max-height: 86vh !important;'
+      + ' border-radius: 10px !important; box-shadow: 0 12px 40px rgba(0,0,0,.25) !important; }'
+      + '#fbModal2 { align-items: center !important; justify-content: center !important; }'
+      + '#fbModal2 > div { width: min(640px,94vw) !important; max-width: 94vw !important; max-height: 86vh !important;'
+      + ' border-radius: 10px !important; box-shadow: 0 12px 40px rgba(0,0,0,.25) !important; }'
+      + '#imgPreview { align-items: center !important; }';
+    document.head.appendChild(sheetStyle);
+    // Tell the hosting pane whenever one of this page's layers opens or closes: the
+    // pane then hands the WHOLE left pane to this frame, so the layer covers the entire
+    // pane (exactly like the "Tasks to handle" table's dialogs) instead of only the
+    // area of this table. A message is used because an iframe cannot grow past itself.
+    (function(){
+      function anyOpen(){
+        var open = false;
+        document.querySelectorAll('.overlay').forEach(function(o){ if (o.classList.contains('show')) open = true; });
+        var fb = document.getElementById('fbModal2');
+        if (fb && fb.style.display && fb.style.display !== 'none') open = true;
+        // The shared attachment viewer (preview.js) is its own fixed modal.
+        var pv = document.getElementById('ttPreviewModal');
+        if (pv && pv.style.display && pv.style.display !== 'none') open = true;
+        return open;
+      }
+      var last = null;
+      function notify(){
+        var open = anyOpen();
+        if (open === last) return;
+        last = open;
+        try { window.parent.postMessage({ type:'tt-layer', open: open }, '*'); } catch (e) { }
+      }
+      try { new MutationObserver(notify).observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:['class','style'] }); }
+      catch (e) { setInterval(notify, 500); }
+      notify();
+    })();
+  }
+
+  // Member picker: the tree now lives in a pop-up panel opened from the toolbar.
+  // Picking anyone (or clicking anywhere else / Esc) closes it again.
+  (function(){
+    var btn = document.getElementById('memberPickBtn');
+    var panel = document.getElementById('memberPanel');
+    var txt = document.getElementById('memberPickTxt');
+    var src = document.getElementById('curMember');
+    if (!btn || !panel || !txt || !src) return;
+    function sync(){
+      // "#curMember" reads "Current member: <name>"; the button shows just the name.
+      var v = String(src.textContent || '').replace(/^[^:：]*[:：]\s*/, '').trim();
+      txt.textContent = (v && v !== '-') ? v : (lang === 'en' ? 'All' : '全部');
+    }
+    sync();
+    try { new MutationObserver(sync).observe(src, { childList:true, characterData:true, subtree:true }); }
+    catch(e){ setInterval(sync, 1000); }
+    btn.onclick = function(ev){ ev.stopPropagation(); panel.classList.toggle('open'); };
+    panel.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      // A member row was picked -> close the panel (the row's own handler loads the list).
+      if (ev.target.closest && ev.target.closest('.member')) panel.classList.remove('open');
+    });
+    document.addEventListener('click', function(){ panel.classList.remove('open'); });
+    document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') panel.classList.remove('open'); });
+  })();
 
   applyBar();
   loadMembers();

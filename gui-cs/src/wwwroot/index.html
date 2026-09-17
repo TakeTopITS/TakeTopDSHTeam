@@ -105,8 +105,15 @@
   .fm-tab:hover { background:#f5f7fa; }
   .fm-tab.active { background:#2563eb; color:#fff; border-color:#2563eb; }
   .fm-tasks { padding:12px 0; }
-  .fm-task-table { width:99%; min-width:max-content; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  .fm-task-table th, .fm-task-table td { padding:8px 10px; border-bottom:1px solid #eef0f3; text-align:left; vertical-align:top; }
+  /* 任务管理: two stacked cards, each with a left-aligned title. */
+  .fm-card { margin-bottom:16px; }
+  .fm-card-h { display:flex; align-items:center; gap:8px; margin:2px 0 8px; font-size:13px; font-weight:700; color:#1e40af; text-align:left; }
+  .fm-card-h::after { content:""; flex:1; height:1px; background:#e5e7eb; }
+  /* Same card look as the Task-Assignment table below (white box, 1px border,
+     8px radius): the table lives inside this bordered wrapper. */
+  #fmTasksView { background:#fff; border:1px solid #e0e2e6; border-radius:8px; overflow:auto; padding:0; }
+  .fm-task-table { width:100%; min-width:1150px; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .fm-task-table th, .fm-task-table td { padding:9px 12px; border-bottom:1px solid #eef0f3; text-align:left; vertical-align:top; }
   #fmList, #fmTasksView, .fm-tasks { overflow-x:auto; }
   /* Instance Manager: auto columns that fit the card. The workspace cell wraps;
      the action buttons stay together in their left-aligned cell. */
@@ -116,9 +123,22 @@
   #instList td:nth-child(5) { white-space: nowrap; text-align: left; }
   #instList button { padding: 5px 10px; font-size: 13px; }
   .fm-task-table th { background:#f8fafc; color:#475569; font-weight:700; }
-  /* Name column: cap the width so a long task name wraps instead of stretching the table. */
-  .fm-task-table th.fm-th-name { width:440px; max-width:440px; }
-  .fm-task-table td.fm-task-name-cell { width:440px; max-width:440px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+  /* Name column: same proportions as the Task-Assignment table (30%, min 220px) so
+     both tables line up; the table itself still spans the full pane width. */
+  .fm-task-table th.fm-th-name { width:30%; min-width:220px; max-width:none; }
+  .fm-task-table td.fm-task-name-cell { width:30%; min-width:220px; max-width:none; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+  /* Same per-column widths as the Task-Assignment table below it. */
+  .fm-task-table th:nth-child(1) { width:64px; }
+  .fm-task-table th:nth-child(2) { width:110px; }
+  .fm-task-table th:nth-child(4) { width:76px; }
+  .fm-task-table th:nth-child(5) { width:92px; }
+  .fm-task-table th:nth-child(6) { width:22px; }
+  .fm-task-table th:nth-child(7) { width:84px; }
+  .fm-task-table th:nth-child(8) { width:88px; }
+  .fm-task-table th:nth-child(9) { width:116px; }
+  .fm-task-table th:nth-child(10) { width:76px; }
+  .fm-task-table th:nth-child(11) { width:16%; }
+  .fm-task-table th:nth-child(12) { width:116px; }
   .fm-st { font-weight:600; }
   .fm-st.processing { color:#d97706; } .fm-st.done { color:#16a34a; } .fm-st.cancelled { color:#9ca3af; } .fm-st.pending { color:#64748b; }
   .fm-empty { padding:20px; text-align:center; color:#9ca3af; font-size:13px; }
@@ -529,7 +549,7 @@ const I18N = {
     resetPass: "重置密码", resetPassTitle: "重置密码", resetPassDone: "密码已重置",
     resetPassNew: "新密码", resetPassConfirm: "确认新密码",
 
-    fmTabFiles: "文件管理", fmTabTasks: "我的任务",
+    fmTabFiles: "文件管理", fmTabTaskMgr: "任务管理", fmTabTasks: "要处理的任务", fmTabAssign: "我创建的任务",
     thAssign: "继续分派", asgTitle: "继续分派任务", asgAssignee: "受理人", asgType: "任务类型", asgName: "任务名称", asgContent: "任务内容", asgAssigned: "分派时间", asgStatus: "状态", asgFiles: "相关文件（可多选）", asgSave: "保存", asgCancel: "取消", asgSaved: "已分派", asgFail: "保存失败", asgPick: "请选择受理人", asgTypePh: "-- 选择类型 --", asgSelect: "选择文件", asgParent: "上级任务",
     stProcessing: "处理中", stDone: "完成", stCancelled: "取消", stPending: "待处理",
     openDshBtn: "打开DSH", startHint: "首次启动约需 1 分钟，请稍候…",
@@ -570,7 +590,7 @@ const I18N = {
     resetPass: "Reset Password", resetPassTitle: "Reset Password", resetPassDone: "Password reset",
     resetPassNew: "New password", resetPassConfirm: "Confirm new password",
 
-    fmTabFiles: "File Manager", fmTabTasks: "My Tasks",
+    fmTabFiles: "File Manager", fmTabTaskMgr: "Task Management", fmTabTasks: "Tasks to handle", fmTabAssign: "Tasks I created",
     thAssign: "Continue Assign", asgTitle: "Continue Assign", asgAssignee: "Assignee", asgType: "Type", asgName: "Name", asgContent: "Content", asgAssigned: "Assigned At", asgStatus: "Status", asgFiles: "Files (multi-select)", asgSave: "Save", asgCancel: "Cancel", asgSaved: "Assigned", asgFail: "Save failed", asgPick: "Please choose an assignee", asgTypePh: "-- Select type --", asgSelect: "Choose files", asgParent: "Parent task",
     stProcessing: "Processing", stDone: "Done", stCancelled: "Cancelled", stPending: "Pending",
     openDshBtn: "Open DSH", startHint: "First start may take ~1 min, please wait\u2026",
@@ -1175,30 +1195,95 @@ function buildFmTabs() {
   var tabs = document.createElement('div');
   tabs.className = 'fm-tabs';
   tabs.innerHTML = '<button class="fm-tab active" data-v="files" data-i18n="fmTabFiles">文件管理</button>'
-                 + '<button class="fm-tab" data-v="tasks" data-i18n="fmTabTasks">我的任务</button>';
+                 + '<button class="fm-tab" data-v="taskmgr" data-i18n="fmTabTaskMgr">任务管理</button>';
   fc.parentNode.insertBefore(tabs, fc);
+  // 任务管理 holds TWO STACKED CARDS (no sub-tabs): the tasks to handle on top, the
+  // tasks I created (the Task-Assignment page) underneath. Both titles sit on the left.
+  var wrap = document.createElement('div');
+  wrap.id = 'fmTaskMgr'; wrap.style.display = 'none';
   var tv = document.createElement('div');
-  tv.id = 'fmTasksView'; tv.className = 'fm-tasks'; tv.style.display = 'none';
-  fc.parentNode.insertBefore(tv, fc);
+  tv.id = 'fmTasksView'; tv.className = 'fm-tasks';
+  var av = document.createElement('div');
+  av.id = 'fmAssignView';
+  av.innerHTML = '<iframe id="assignFrame" title="Task Assign" style="width:100%;height:70vh;min-height:380px;border:0;display:block;"></iframe>';
+  wrap.innerHTML = '<div class="fm-card"><div class="fm-card-h" data-i18n="fmTabTasks">要处理的任务</div></div>'
+                 + '<div class="fm-card"><div class="fm-card-h" data-i18n="fmTabAssign">我创建的任务</div></div>';
+  var cards = wrap.querySelectorAll('.fm-card');
+  cards[0].appendChild(tv);
+  cards[1].appendChild(av);
+  fc.parentNode.insertBefore(wrap, fc);
 
+  // Widen / restore the pane (only when embedded in the workbench).
+  function paneWidth(want) {
+    try {
+      var fn = window.parent && window.parent !== window && window.parent[want ? 'ttExpandLeft' : 'ttCollapseLeft'];
+      if (typeof fn === 'function') fn();
+    } catch (e) { }
+  }
+  // The Task-Assignment page is loaded the first time 任务管理 is opened.
+  function loadAssignFrame() {
+    var f = av.querySelector('#assignFrame');
+    if (!f || f.getAttribute('src')) return;
+    var qs = new URLSearchParams(location.search);
+    var q = [];
+    var i = qs.get('inst'); if (i) q.push('inst=' + encodeURIComponent(i));
+    var tk = qs.get('launcher_token'); if (tk) q.push('launcher_token=' + encodeURIComponent(tk));
+    f.setAttribute('src', '/taketop_tasks' + (q.length ? '?' + q.join('&') : ''));
+  }
+
+  var cur = 'files';              // 'files' | 'taskmgr'
+  function show() {
+    var inMgr = (cur !== 'files');
+    fc.style.display = inMgr ? 'none' : '';
+    wrap.style.display = inMgr ? '' : 'none';
+    tabs.querySelectorAll('.fm-tab').forEach(function (x) {
+      x.classList.toggle('active', x.getAttribute('data-v') === (inMgr ? 'taskmgr' : 'files'));
+    });
+    if (inMgr) {
+      loadMyTasks(tv);
+      loadAssignFrame();
+      // Ask the parent workbench (if embedded) to widen this left pane to 70%.
+      paneWidth(true);
+    } else {
+      // Back on the file manager: let the parent restore its normal 30% width
+      // (it only shrinks the pane when it is currently wider than that).
+      paneWidth(false);
+    }
+  }
   tabs.querySelectorAll('.fm-tab').forEach(function (b) {
-    b.onclick = function () {
-      tabs.querySelectorAll('.fm-tab').forEach(function (x) { x.classList.remove('active'); });
-      b.classList.add('active');
-      var v = b.getAttribute('data-v');
-      fc.style.display = (v === 'files') ? '' : 'none';
-      tv.style.display = (v === 'tasks') ? '' : 'none';
-      if (v === 'tasks') {
-        loadMyTasks(tv);
-        // Ask the parent workbench (if embedded) to widen this left pane to 70%.
-        try { if (window.parent && window.parent !== window && typeof window.parent.ttExpandLeft === 'function') window.parent.ttExpandLeft(); } catch (e) {}
-      }
-    };
+    b.onclick = function () { cur = (b.getAttribute('data-v') === 'files') ? 'files' : 'taskmgr'; show(); };
+  });
+
+  // The embedded Task-Assignment page tells us when one of its layers opens: we then
+  // give the WHOLE pane to that frame, so the layer covers the entire left pane (like
+  // this page's own dialogs) instead of being limited to the frame's own box.
+  window.addEventListener('message', function (ev) {
+    if (ev.origin !== location.origin) return;
+    var d = ev.data;
+    if (!d || d.type !== 'tt-layer') return;
+    var f = av.querySelector('#assignFrame');
+    if (!f) return;
+    if (d.open) {
+      // Keep the layout exactly where it is: the frame leaves the flow while it covers
+      // the pane, so its slot keeps the old height (nothing jumps, scrollbars stay).
+      if (!av.style.minHeight) av.style.minHeight = f.offsetHeight + 'px';
+      f.style.position = 'fixed';
+      f.style.left = '0'; f.style.right = '0'; f.style.top = '0'; f.style.bottom = '0';
+      f.style.width = '100%'; f.style.height = '100%';
+      f.style.zIndex = '10005';
+      f.style.background = '#fff';
+    } else {
+      av.style.minHeight = '';
+      f.style.position = ''; f.style.left = ''; f.style.right = ''; f.style.top = ''; f.style.bottom = '';
+      f.style.width = '100%'; f.style.height = '70vh';
+      f.style.zIndex = ''; f.style.background = '';
+    }
   });
 }
 
 // Render the logged-in user's assigned tasks (admin may assign to self too).
 async function loadMyTasks(container) {
+  var TASK_PAGE_SIZE = 10;      // this table pages 10 rows at a time
   var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈', thAssign:'继续分派', thAssignee:'受理人', thOps:'操作' };
   var st = { processing:'处理中', done:'完成', cancelled:'取消', pending:'待处理' };
   var lang = preferredLang();
@@ -1210,7 +1295,7 @@ async function loadMyTasks(container) {
     var tasks = [];
     var total = 0;
     async function fetchPage(p) {
-      var d = await (await fetch('/api/tasks?inst=' + encodeURIComponent(inst) + '&page=' + p + '&pageSize=' + PAGE_SIZE)).json();
+      var d = await (await fetch('/api/tasks?inst=' + encodeURIComponent(inst) + '&page=' + p + '&pageSize=' + TASK_PAGE_SIZE)).json();
       tasks = d.tasks || [];
       total = (typeof d.total === 'number') ? d.total : tasks.length;
     }
@@ -1355,11 +1440,11 @@ async function loadMyTasks(container) {
         hint.textContent = en ? 'you can drag a task name into the ai dialog on the right' : '可以把任务名称拖动到右边 AI 会话框中';
         container.appendChild(hint);
       }
-      var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      var pages = Math.max(1, Math.ceil(total / TASK_PAGE_SIZE));
       if (state.page > pages) state.page = pages;
       var pag = container.querySelector('.tt-pager');
       if (!pag) { pag = document.createElement('div'); pag.className = 'tt-pager'; pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:12px;'; container.appendChild(pag); }
-      if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+      if (total <= TASK_PAGE_SIZE) { pag.innerHTML = ''; return; }
       var html = '<span style="color:#6b7280;margin-right:8px;">' + total + ' items</span>';
       html += '<button data-p="prev" style="padding:3px 10px;border:1px solid #d5d9df;border-radius:5px;background:#fff;cursor:pointer;">«</button> ';
       for (var p = 1; p <= pages; p++) {
@@ -2762,6 +2847,116 @@ async function initVersion() {
 }
 initVersion();
 init();
+
+// --- drag handles for the workbench-left My Tasks table / preview / feedback popups ---
+// Every draggable item (task name, file name, preview title/body, feedback content)
+// gets the same dot-grid grip right in front of its text; the dragged value stays the
+// DOUBLE-QUOTED name / workspace-relative path (the product-wide rule).
+(function(){
+  try{
+    var seen=new WeakSet();
+    function add(a){
+      if(!a)return;
+      // The page may re-write a link's text (which wipes the handle) while its data-ttgrip
+      // marker survives - so only skip when the handle is still really inside the element.
+      if(a.getAttribute&&a.getAttribute('data-ttgrip')&&a.querySelector(':scope > .fm-drag-handle'))return;
+      var dPath=a.getAttribute('data-path'), dFile=a.getAttribute('data-file'), dF=a.getAttribute('data-f');
+      var rel=dPath||dFile||dF||'';
+      if(!rel){
+        // Task NAME link: the dragged value is the quoted task name (no path involved).
+        if(a.classList&&a.classList.contains('fm-task-name-link')){
+          var nm=String(a.textContent||'').trim();
+          if(!nm)return;
+          seen.add(a);
+          a.setAttribute('data-ttgrip','1');   // so the universal scan never adds a 2nd grip
+          var sn=document.createElement('span');
+          sn.className='fm-drag-handle';
+          sn.setAttribute('draggable','true');
+          sn.style.cssText='display:inline-block;width:9px;height:15px;vertical-align:middle;margin-right:3px;flex:0 0 auto;cursor:grab;'
+            +'background:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 10 16\'>'
+            +'<circle cx=\'3\' cy=\'3\' r=\'1.4\'/><circle cx=\'7\' cy=\'3\' r=\'1.4\'/>'
+            +'<circle cx=\'3\' cy=\'8\' r=\'1.4\'/><circle cx=\'7\' cy=\'8\' r=\'1.4\'/>'
+            +'<circle cx=\'3\' cy=\'13\' r=\'1.4\'/><circle cx=\'7\' cy=\'13\' r=\'1.4\'/></svg>") center/contain no-repeat;';
+          sn.title=(document.documentElement.lang==='en'?'Drag onto the chat or the DSH dialog':'可拖到右侧聊天或 DSH 对话框');
+          sn.addEventListener('mouseenter',function(){sn.style.opacity='0.55';});
+          sn.addEventListener('mouseleave',function(){sn.style.opacity='1';});
+          sn.addEventListener('dragstart',function(ev){try{ev.dataTransfer.setData('text/plain','"'+nm+'"');ev.dataTransfer.effectAllowed='copy';}catch(e){}});
+          a.insertBefore(sn,a.firstChild);
+        }
+        return;
+      }
+      seen.add(a);
+      if(rel.indexOf('/')<0) rel=(dF?('TaskData/Feedback/'+((window.fbSeq||0))+'/'+rel):('TaskData/Doc/'+rel));
+      var s=document.createElement('span');
+      s.className='fm-drag-handle';
+      s.setAttribute('draggable','true');
+      s.style.cssText='display:inline-block;width:9px;height:15px;vertical-align:middle;margin-right:3px;flex:0 0 auto;cursor:grab;'
+        +'background:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 10 16\'>'
+        +'<circle cx=\'3\' cy=\'3\' r=\'1.4\'/><circle cx=\'7\' cy=\'3\' r=\'1.4\'/>'
+        +'<circle cx=\'3\' cy=\'8\' r=\'1.4\'/><circle cx=\'7\' cy=\'8\' r=\'1.4\'/>'
+        +'<circle cx=\'3\' cy=\'13\' r=\'1.4\'/><circle cx=\'7\' cy=\'13\' r=\'1.4\'/></svg>") center/contain no-repeat;';
+      s.title=(document.documentElement.lang==='en'?'Drag onto the chat or the DSH dialog':'可拖到右侧聊天或 DSH 对话框');
+      s.addEventListener('mouseenter',function(){s.style.opacity='0.55';});
+      s.addEventListener('mouseleave',function(){s.style.opacity='1';});
+      s.addEventListener('dragstart',function(ev){try{ev.dataTransfer.setData('text/plain','"'+rel+'"');ev.dataTransfer.effectAllowed='copy';}catch(e){}});
+      a.insertBefore(s,a.firstChild);
+    }
+    function scan(root){
+      try{ (root.querySelectorAll?root.querySelectorAll('a.fm-task-file,a.view-file,a.fb2-file-link,a.fm-task-name-link,a[data-path]'):[]).forEach(add); }catch(e){}
+    }
+    scan(document);
+    // Universal rule (this is the page the workbench's "My Tasks" pane really shows):
+    // ANYTHING the page itself already made draggable - the preview layer's title/body
+    // (#tcvTitle/#tcvBody) and every feedback record content cell - also gets the ⣿ grip.
+    function gripDrag(el){
+      if(!el||!el.getAttribute||!el.getAttribute('draggable'))return;
+      // The page re-writes some elements' text (e.g. the dialog title) whenever it opens,
+      // and that wipes our handle while the data-ttgrip marker survives - so re-check that
+      // the handle is still really there before skipping.
+      if(el.getAttribute('data-ttgrip')&&el.querySelector(':scope > .fm-drag-handle'))return;
+      el.setAttribute('data-ttgrip','1');
+      if(!el.parentNode)return;
+      var s=document.createElement('span');
+      s.className='fm-drag-handle';
+      // No text content at all: a dot-grid shows as a background image, so reading the
+      // element's text (for the drag value) is never polluted by the handle.
+      s.style.cssText='display:inline-block;width:9px;height:15px;vertical-align:middle;margin-right:3px;flex:0 0 auto;cursor:grab;'
+        +'background:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 10 16\'>'
+        +'<circle cx=\'3\' cy=\'3\' r=\'1.4\'/><circle cx=\'7\' cy=\'3\' r=\'1.4\'/>'
+        +'<circle cx=\'3\' cy=\'8\' r=\'1.4\'/><circle cx=\'7\' cy=\'8\' r=\'1.4\'/>'
+        +'<circle cx=\'3\' cy=\'13\' r=\'1.4\'/><circle cx=\'7\' cy=\'13\' r=\'1.4\'/></svg>") center/contain no-repeat;';
+      s.title=(document.documentElement.lang==='en'?'Drag onto the chat or the DSH dialog':'可拖到右侧聊天或 DSH 对话框');
+      s.addEventListener('mouseenter',function(){s.style.opacity='0.55';});
+      s.addEventListener('mouseleave',function(){s.style.opacity='1';});
+      // Always INSIDE the element, as its very first child: that puts the handle right
+      // in front of the text everywhere (cells, links, blocks) without adding a phantom
+      // table cell and without shifting any column.
+      el.insertBefore(s,el.firstChild);
+    }
+    function scanDrag(root){
+      try{ (root.querySelectorAll?root.querySelectorAll('[draggable="true"][ondragstart]'):[]).forEach(gripDrag); }catch(e){}
+    }
+    scanDrag(document);
+    // Preview layer: the task content should read as plain text - no border box and no
+    // padding - so its left edge lines up with the task title. Font size is untouched.
+    (function(){
+      try{
+        var st=document.createElement('style');
+        st.textContent='#tcvBody{border:0 !important;padding:0 !important;background:transparent !important;box-shadow:none !important;min-height:0 !important;}'
+          +'#tcvTitle{border:0 !important;padding:0 !important;background:transparent !important;}';
+        document.head.appendChild(st);
+      }catch(e){}
+    })();
+    setInterval(function(){ scanDrag(document); }, 1000);
+    new MutationObserver(function(){ scanDrag(document); }).observe(document.body,{childList:true,subtree:true});
+    new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if(!m.addedNodes)return;
+        m.addedNodes.forEach(function(n){ if(n.nodeType===1){ if(n.tagName==='A')add(n); scan(n); } });
+      });
+    }).observe(document.body,{childList:true,subtree:true});
+  }catch(e){}
+})();
 </script>
 </body>
 </html>

@@ -27,6 +27,14 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
+  // Same language source the pages use, so the footer button is localized without
+  // every caller having to pass a label.
+  function lang() {
+    try { var m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/); if (m) return decodeURIComponent(m[1]); } catch (e) { }
+    try { return localStorage.getItem('tt_lang') || ''; } catch (e) { }
+    return '';
+  }
+  function dlLabel(o) { return (o && o.dlText) || (/^en/i.test(lang()) ? 'Download' : '下载'); }
   function extOf(name) { return (String(name).split('.').pop() || '').toLowerCase(); }
   function officeKind(e) {
     if (e === 'docx') return 'word';
@@ -67,10 +75,22 @@
       + '<button id="ttPreviewClose" style="padding:5px 12px;background:#64748b;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:14px;">×</button>'
       + '</div>'
       + '<div id="ttPreviewBody" style="flex:1;overflow:auto;padding:12px 16px;background:#fbfbfc;"></div>'
+      // Footer: the file can always be downloaded from UNDER the preview, whatever
+      // the preview itself can or cannot render.
+      + '<div style="flex:0 0 auto;padding:10px 14px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;">'
+      + '<button id="ttPreviewDl" style="padding:8px 18px;background:#2563eb;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:600;"></button>'
       + '</div>';
     document.body.appendChild(m);
     var close = function () { m.style.display = 'none'; m.querySelector('#ttPreviewBody').innerHTML = ''; };
     m.querySelector('#ttPreviewClose').onclick = close;
+    m.querySelector('#ttPreviewDl').onclick = function () {
+      if (!m._ttDlUrl) return;
+      var a = document.createElement('a');
+      a.href = m._ttDlUrl;
+      a.setAttribute('download', m._ttName || '');
+      a.target = '_blank';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
     m.addEventListener('click', function (ev) { if (ev.target === m) close(); });
     return m;
   }
@@ -108,6 +128,7 @@
     title.textContent = name;
     body.style.background = '#fff';
     body.innerHTML = LOADING;
+    m.querySelector('#ttPreviewDl').textContent = dlLabel(opts);
     m.style.display = 'flex';
 
     // Candidate workspaces, in order (deduped). Falls back to opts.inst or ''.
@@ -130,6 +151,9 @@
       if (kind === 'inline') pairs.push(['inline', 'true']);
       return buildUrl('/api/files/download', pairs);
     }
+    // The footer's Download button always points at the primary workspace.
+    m._ttDlUrl = urlFor('download', insts[0]);
+    m._ttName = name;
     // Probe each candidate workspace; resolve with the first response that is ok.
     function tryGet(kind) {
       var i = 0;

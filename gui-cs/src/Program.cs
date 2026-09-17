@@ -1,4 +1,4 @@
-﻿// TakeTopDshTeam — multi-user DeepSeek Harness platform
+// TakeTopDshTeam — multi-user DeepSeek Harness platform
 // Copyright (C) 2026-2036 泰顶拓鼎信息科技（上海）有限公司
 // EMail: service@taketopits.com
 //
@@ -1559,6 +1559,23 @@ app.MapGet("/api/tasks", (string? inst, string? scope, string? parentUid, string
             if (!isAdmin) all = all.Where(x => string.Equals(x.Task.CreatedBy, username, StringComparison.OrdinalIgnoreCase)).ToList();
             all = all.Where(x => string.Equals(x.Task.ParentUid, parentUid, StringComparison.OrdinalIgnoreCase)).ToList();
         }
+
+        else if (string.Equals(scope, "created", StringComparison.OrdinalIgnoreCase))
+        {
+            // "Tasks I created": every task whose CreatedBy is the caller, collected
+            // across ALL member lists (a task I assigned to someone else lives in
+            // THEIR list). Paginated on the server, so the client never fetches all.
+            all = new List<(TaskRecord Task, string Member)>();
+            foreach (var m in instMgr.List())
+            {
+                foreach (var t in ReadTaskList(m.Id))
+                    all.Add((t, m.Id));
+            }
+            foreach (var t in ReadTaskList("admin"))
+                if (!all.Any(x => x.Member == "admin" && x.Task.Uid == t.Uid))
+                    all.Add((t, "admin"));
+            all = all.Where(x => string.Equals(x.Task.CreatedBy, username, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
         else if (string.IsNullOrWhiteSpace(inst))
         {
             all = new List<(TaskRecord Task, string Member)>();
@@ -2432,6 +2449,8 @@ _ = Task.Run(async () =>
             try { instMgr.Start(inst); } catch { }
         }
     // Background: periodically mirror dsh sessions into docs/ (shared experience).
+    // Background watchdog: restart a member DSH that stopped listening.
+    try { instMgr.StartWatchdog(); } catch { }
     dsh.StartSessionBackup();
     // Publish the actual listen endpoint so launcher scripts (start.bat) never
     // hard-code a port; removed again on clean shutdown.
@@ -2457,6 +2476,8 @@ _ = Task.Run(async () =>
 
 app.Lifetime.ApplicationStopping.Register(() =>
 {
+    // No watchdog restarts while we are going down.
+    try { instMgr.BeginShutdown(); } catch { }
     try { File.Delete(Path.Combine(root, "config", "launcher.runtime.json")); } catch { }
 });
 

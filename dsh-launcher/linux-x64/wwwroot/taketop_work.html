@@ -38,7 +38,6 @@
     <a href="/admin" id="backLink">← 返回管理页</a>
     <span class="title" id="workTitle">工作台</span>
     <span class="spacer"></span>
-    <a href="/taketop_tasks" id="taskAssignLink" style="color:#fff;background:#2563eb;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;text-decoration:none;">任务分派</a>
     <select id="workLang">
       <option value="zh">中文</option>
       <option value="en">English</option>
@@ -85,17 +84,32 @@
     var c = String(currentLang() || '').toLowerCase();
     var zh = (c === 'zh' || c === 'zh-cn' || c === 'zhcn' || c === 'cn');
     document.getElementById('backLink').textContent = zh ? '← 返回管理页' : '← Back to Admin';
-    var titleText = (zh ? '工作台' : 'Workspace') + (inst ? ' · ' + inst : '');
+    // Workspace · <current user> [· <instance> when it is someone else's].
+    var bits = zh ? ['工作台'] : ['Workspace'];
+    if (meLabel) bits.push(meLabel);
+    if (inst && inst.toLowerCase() !== String(meCode || '').toLowerCase()) bits.push(inst);
+    var titleText = bits.join(' · ');
     document.getElementById('workTitle').textContent = titleText;
     desiredTitle = 'TakeTopDshTeam - ' + titleText;
     document.title = desiredTitle;
     try { history.replaceState(history.state, desiredTitle); } catch(e) {}
-    var ta = document.getElementById('taskAssignLink');
-    if (ta) ta.textContent = zh ? '任务分派' : 'Task Assign';
     document.getElementById('fmPane').title = zh ? '文件管理' : 'File Manager';
     document.getElementById('splitter').title = zh ? '拖动调整栏宽' : 'Drag to resize';
   }
-  var desiredTitle = '';
+  // Who am I? Show the signed-in user's name in the header title.
+  var meCode = '', meName = '', meLabel = '';
+  try {
+    var u = '/api/auth/me' + (token ? '?launcher_token=' + encodeURIComponent(token) : '');
+    fetch(u, { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        // The standard edition's /api/auth/me answers with username (no userCode).
+        meCode = String(d.userCode || d.username || ''); meName = String(d.userName || d.name || '');
+        meLabel = meName || meCode;
+        if (meLabel) applyWorkbarLang();
+      }).catch(function () { });
+  } catch (e) { }  var desiredTitle = '';
   applyWorkbarLang();
   // Lock document.title setter so DSH iframe (same-origin) cannot override the tab title
   try {
@@ -138,9 +152,16 @@
     expandBtn.textContent = curW < 50 ? '▶▶' : '◀◀';
   }
   updateExpandIcon();
-  // Let the embedded /fm page widen the left pane (e.g. when its "My Tasks" tab
-  // is opened) so the tasks table has more room.
+  // Let the embedded /fm page widen the left pane (e.g. when Task Management is
+  // opened) so the tasks tables have more room...
   window.ttExpandLeft = function () { setFmWidth(70); updateExpandIcon(); };
+  // ...and put it back to the standard 30% when that page returns to its file list.
+  // Only the >30% case is corrected: a deliberately narrow pane is left alone.
+  function collapseLeftIfWide() {
+    var curW = parseFloat(fm.style.width) || parseFloat(localStorage.getItem('fm_width')) || 30;
+    if (curW > 30) { setFmWidth(30); updateExpandIcon(); }
+  }
+  window.ttCollapseLeft = collapseLeftIfWide;
 
   // A file preview opens as a position:fixed overlay INSIDE the left pane (the
   // iframe), so it never exceeds the pane. When one opens, widen the pane to 70%
