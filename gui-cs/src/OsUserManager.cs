@@ -197,7 +197,28 @@ public static class OsUserManager
     {
         var user = OsUser(id);
         var parts = new List<string>();
-        var grant = $"\"SYSTEM:(OI)(CI)F\" \"Administrators:(OI)(CI)F\" \"{user}:(OI)(CI)F\"";
+        var names = new List<string> { "SYSTEM", "Administrators", user };
+        try
+        {
+            // The account running the launcher must be able to read member files - that is
+            // what serves preview / download. When the launcher is NOT elevated the token is
+            // UAC-filtered, i.e. NOT a member of "Administrators", so the group ACE alone
+            // leaves every workspace unreadable (HTTP 500). Member accounts (dsh-*) are
+            // deliberately never added: members stay isolated.
+            var me = System.Security.Principal.WindowsIdentity.GetCurrent().Name ?? "";
+            if (me.Length > 0 && !me.ToLowerInvariant().Contains("\\dsh-")
+                && !names.Any(n => n.Equals(me, StringComparison.OrdinalIgnoreCase)))
+                names.Add(me);
+        }
+        catch { }
+        var grant = string.Join(" ", names.Select(n => "\"" + n + ":(OI)(CI)F\""));
+        // The SAME accounts without the inheritance flags, granted recursively. (OI)(CI)
+        // only describe inheritance for a CONTAINER, so a recursive /grant that carries
+        // them can leave a FILE with an empty DACL - and an empty DACL denies everyone,
+        // including Administrators, which made such a file impossible to preview or
+        // download (the API answered HTTP 500). This flat pass gives every file and
+        // folder an explicit ACE and REPAIRS the files left unreadable by older builds.
+        var grantFlat = string.Join(" ", names.Select(n => "\"" + n + ":F\""));
         try
         {
             if (!string.IsNullOrWhiteSpace(workspace) && Directory.Exists(workspace))
@@ -205,6 +226,7 @@ public static class OsUserManager
                 // /T so the files already inside lose the inherited broad ACEs too.
                 RunCmd("icacls", $"\"{workspace}\" /inheritance:r /T /C /Q", throwOnError: false);
                 RunCmd("icacls", $"\"{workspace}\" /grant {grant} /T /C /Q", throwOnError: false);
+                RunCmd("icacls", $"\"{workspace}\" /grant {grantFlat} /T /C /Q", throwOnError: false);
                 parts.Add("workspace=hardened");
             }
             if (!string.IsNullOrWhiteSpace(dshHome) && Directory.Exists(dshHome))
