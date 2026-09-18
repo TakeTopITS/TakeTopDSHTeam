@@ -193,6 +193,62 @@ public static class OsUserManager
     /// trees are deliberately left alone: members are meant to read those.
     /// </summary>
     [SupportedOSPlatform("windows")]
+    /// <summary>
+    /// The instance's own DSH writes some files with an ACL that keeps EVERYONE but its own
+    /// OS account (plus an internal SID) out - not even SYSTEM/Administrators. The launcher
+    /// then cannot read the workspace record or seed a session, the watchdog keeps restarting
+    /// the instance and the member reports "cannot open the DSH". Take ownership of whatever
+    /// we cannot read and grant the same accounts the workspace hardening uses.
+    /// Scope: &lt;dshHome&gt;\storages only - that is what the launcher needs.
+    /// </summary>
+    public static string RepairInstanceStorages(string dshHome, string? memberUser)
+    {
+        if (!OperatingSystem.IsWindows()) return "n/a";
+        if (string.IsNullOrWhiteSpace(dshHome)) return "nothing-to-do";
+        var storages = Path.Combine(dshHome, "storages");
+        if (!Directory.Exists(storages)) return "nothing-to-do";
+        try
+        {
+            foreach (var f in Directory.EnumerateFiles(storages, "*", SearchOption.AllDirectories).Take(300))
+                using (var s = File.OpenRead(f)) { }
+            // The DSH re-creates profiles\node_modules on every boot; an unwritable one made
+            // it die with "EPERM: mkdir ...\@deepseek-ai" and the instance never listened.
+            var nm = Path.Combine(dshHome, "profiles", "node_modules");
+            if (Directory.Exists(nm))
+            {
+                var probe = Path.Combine(nm, ".tt-access-probe");
+                File.WriteAllText(probe, "x");
+                File.Delete(probe);
+            }
+            return "ok";
+        }
+        catch { }
+        var names = new List<string> { "SYSTEM", "Administrators" };
+        try
+        {
+            var me = System.Security.Principal.WindowsIdentity.GetCurrent().Name ?? "";
+            if (me.Length > 0 && !me.ToLowerInvariant().Contains("\\dsh-")) names.Add(me);
+        }
+        catch { }
+        if (!string.IsNullOrWhiteSpace(memberUser)) names.Add(memberUser);
+        var inher = string.Join(" ", names.Select(n => "\"" + n + ":(OI)(CI)F\""));
+        var flat = string.Join(" ", names.Select(n => "\"" + n + ":F\""));
+        RunCmd("takeown", $"/f \"{storages}\" /r /d y", throwOnError: false);
+        RunCmd("icacls", $"\"{storages}\" /grant {inher} /T /C /Q", throwOnError: false);
+        RunCmd("icacls", $"\"{storages}\" /grant {flat} /T /C /Q", throwOnError: false);
+        // ...then the directories the DSH itself writes into, non-recursively: the entries
+        // of profiles\node_modules are junctions into the shared install and a /T walk
+        // would follow them.
+        foreach (var dir in new[] { dshHome, Path.Combine(dshHome, "profiles"), Path.Combine(dshHome, "profiles", "node_modules") })
+        {
+            if (!Directory.Exists(dir)) continue;
+            RunCmd("takeown", $"/f \"{dir}\"", throwOnError: false);
+            RunCmd("icacls", $"\"{dir}\" /grant {inher}", throwOnError: false);
+            RunCmd("icacls", $"\"{dir}\" /grant {flat}", throwOnError: false);
+        }
+        return "dsh=repaired";
+    }
+
     public static string HardenMemberAcl(string id, string workspace, string dshHome)
     {
         var user = OsUser(id);
@@ -231,6 +287,13 @@ public static class OsUserManager
             }
             if (!string.IsNullOrWhiteSpace(dshHome) && Directory.Exists(dshHome))
             {
+                // Self-heal first: the DSH's own narrow ACLs (see RepairInstanceStorages)
+                // made it die with "EPERM: mkdir ...\profiles\node_modules\@deepseek-ai"
+                // and the instance never listened - the "cannot open the DSH" reports.
+                // This runs on every start via the isolation pass, unlike EnsureWorkspace
+                // which is only reached when the profile patch is written.
+                var healed = RepairInstanceStorages(dshHome, user);
+                if (healed != "ok" && healed != "nothing-to-do" && healed != "n/a") parts.Add(healed);
                 // No /T: .dsh\profiles\node_modules holds junctions into the shared tree
                 // and /T would walk tens of thousands of files; children inherit from here.
                 RunCmd("icacls", $"\"{dshHome}\" /inheritance:r /Q", throwOnError: false);

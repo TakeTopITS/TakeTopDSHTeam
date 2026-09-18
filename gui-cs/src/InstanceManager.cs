@@ -997,6 +997,10 @@ public class InstanceManager
                         osArgs.Add("--trusted-host");
                         osArgs.Add(th);
                     }
+                    // The DSH's working directory must exist before the process is created: a
+                    // missing .dsh made Process.Start fail with "directory name invalid" and the
+                    // instance never came up. Idempotent, and it runs before either launch path.
+                    try { System.IO.Directory.CreateDirectory(inst.DshHome); } catch { }
                     proc = OsUserManager.StartAsUser(inst.Id, node,
                         osArgs.ToArray(),
                         inst.DshHome, env, inst.OsPassword);
@@ -1031,11 +1035,25 @@ public class InstanceManager
             Task.Run(async () =>
             {
                 try { await Task.Delay(6000); } catch { }
-                if (proc is not { HasExited: true }) return;
+                // Two failure shapes must be diagnosed: the process DIED, and the far more
+                // common "alive but never started listening" (it hangs in startup, so the
+                // watchdog only sees "port not listening" with no clue why).
+                var alive = proc is { HasExited: false };
+                var listening = alive && DshService.IsDshReady(inst.DshPort);
+                if (alive && listening) return;
                 try
                 {
                     var err = string.Join("\n", inst.Logs.Where(l => l.StartsWith("[ERR]")));
-                    File.WriteAllText(diagPath, $"[{DateTime.Now:HH:mm:ss}] dsh exited code={proc.ExitCode} isolated={launchedIsolated}\n{err}\n---tail---\n{string.Join("\n", inst.Logs.TakeLast(40))}");
+                    var text = $"[{DateTime.Now:HH:mm:ss}] dsh {(alive ? "ALIVE but not listening" : "exited code=" + proc!.ExitCode)} isolated={launchedIsolated}\n{err}\n---tail---\n{string.Join("\n", inst.Logs.TakeLast(60))}";
+                    File.WriteAllText(diagPath, text);
+                    // Keep a per-instance copy too (survives the next launch, easy to read).
+                    try
+                    {
+                        var ldir = Path.Combine(inst.DshHome, "logs");
+                        Directory.CreateDirectory(ldir);
+                        File.AppendAllText(Path.Combine(ldir, "dsh.log"), text + Environment.NewLine);
+                    }
+                    catch { }
                 }
                 catch { }
 
@@ -1050,8 +1068,12 @@ public class InstanceManager
                 // remember that decision for the lifetime of this launcher process.
                 if (!launchedIsolated) return;
                 inst.IsolationUnavailable = true;
-                inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] OS-user isolation unavailable (exit {proc.ExitCode}); relaunching without isolation");
-                Trace.WriteLine($"[start:{inst.Id}] isolated launch failed (exit {proc.ExitCode}); falling back to direct launch");
+                // "Alive but never listening" is treated the same as dying: isolation is a
+                // hardening measure, not a requirement, so relaunch once as the launcher's
+                // own account rather than leaving the member stuck on a spinner forever.
+                try { if (alive && !proc!.HasExited) proc.Kill(); } catch { }
+                inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] OS-user launch {(alive ? "never listened" : "exited " + proc!.ExitCode)}; relaunching without isolation");
+                Trace.WriteLine($"[start:{inst.Id}] isolated launch unusable ({(alive ? "no listener" : "exit " + proc!.ExitCode)}); falling back to direct launch");
                 inst.Starting = true;
                 try { Start(inst); }
                 catch (Exception ex) { inst.Logs.Enqueue("[start] " + ex.Message); }
@@ -1328,6 +1350,15 @@ public class InstanceManager
     {
         try
         {
+            // Self-heal the instance's storages ACL first: this edition does not run the
+            // isolation pass, and the DSH's own files there can be unreadable even for
+            // administrators - the launcher then cannot read/seed anything and the member
+            // reports "cannot open the DSH". Idempotent; only repairs when a read is denied.
+            try
+            {
+                OsUserManager.RepairInstanceStorages(inst.DshHome, null);
+            }
+            catch { }
             var storagesDir = Path.Combine(inst.DshHome, "storages");
             Directory.CreateDirectory(storagesDir);
             var wsFile = Path.Combine(storagesDir, "workspace.json");
@@ -1355,7 +1386,30 @@ public class InstanceManager
                                 var stored = (pathEl.GetString() ?? "").Replace('\\', '/');
                                 var requested = norm.Replace('\\', '/');
                                 if (string.Equals(stored, requested, StringComparison.OrdinalIgnoreCase))
-                                    return; // already good — keep the record + its sessions
+                                {
+                                    // Repair the GLOBAL id list before keeping the record.
+                                    // This edition writes the same storages/workspace.json
+                                    // shape (see the template below), and a record whose
+                                    // global.workspaceIds is empty/mismatched left the member
+                                    // on DSH's "Choose a workspace" screen even though the
+                                    // table entry was fine. Keep the table + sessions.
+                                    try
+                                    {
+                                        var doc2 = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(wsFile));
+                                        if (doc2?["global"] is System.Text.Json.Nodes.JsonObject g)
+                                        {
+                                            var arr = g["workspaceIds"] as System.Text.Json.Nodes.JsonArray;
+                                            if (arr == null || arr.Count == 0 ||
+                                                !string.Equals(arr[0]?.GetValue<string>() ?? "", p.Name, StringComparison.Ordinal))
+                                            {
+                                                g["workspaceIds"] = new System.Text.Json.Nodes.JsonArray(p.Name);
+                                                File.WriteAllText(wsFile, doc2.ToJsonString());
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                    return; // keep the record + its sessions
+                                }
                             }
                         }
                     }

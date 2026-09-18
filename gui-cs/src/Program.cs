@@ -244,12 +244,184 @@ app.Use(async (ctx, next) =>
 // (Upgrading should preserve the WorkSpace folder; see the docs.)
 
 // --- API ---
+// ==== prewarm every member's DSH (same behaviour as the other edition) ==================
+// Seed the switch (config\launcher.json "prewarmAll": on by default, never overwrite an
+// existing value), kick the pass as soon as ANY user logs in (their own instance first),
+// cycle instances that run without a token for THIS process, then preselect each member's
+// workspace session server-side so the first open of any device lands straight in it.
+int prewarmKick = 0;
+string? prewarmFirst = null;
+var prewarmOwned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+int prewarmStarted = 0;
+bool PrewarmAllOn()
+{
+    foreach (var baseDir in new[] { Path.Combine(dsh.ReadWorkspacePath(), "config"), Path.Combine(AppContext.BaseDirectory, "config") })
+    {
+        try
+        {
+            var f = Path.Combine(baseDir, "launcher.json");
+            if (!File.Exists(f)) continue;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(f));
+            if (doc.RootElement.TryGetProperty("prewarmAll", out var v) && v.ValueKind == System.Text.Json.JsonValueKind.False) return false;
+            return true;
+        }
+        catch { }
+    }
+    return true;
+}
+void SeedPrewarmConfig()
+{
+    foreach (var baseDir in new[] { Path.Combine(dsh.ReadWorkspacePath(), "config"), Path.Combine(AppContext.BaseDirectory, "config") })
+    {
+        try
+        {
+            Directory.CreateDirectory(baseDir);
+            var f = Path.Combine(baseDir, "launcher.json");
+            System.Text.Json.Nodes.JsonObject jo;
+            if (File.Exists(f))
+            {
+                var parsed = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f));
+                jo = parsed as System.Text.Json.Nodes.JsonObject ?? new System.Text.Json.Nodes.JsonObject();
+            }
+            else jo = new System.Text.Json.Nodes.JsonObject();
+            if (jo.ContainsKey("prewarmAll")) continue;
+            jo["prewarmAll"] = true;
+            File.WriteAllText(f, jo.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            InstanceManager.LogWorkspace(root, $"[prewarm] seeded prewarmAll=true in {f}");
+        }
+        catch { }
+    }
+}
+void PreselectWorkspaceSession(InstanceManager.Instance inst)
+{
+    try
+    {
+        if (!DshService.IsDshReady(inst.DshPort)) return;
+        var wsId = (string?)null;
+        try
+        {
+            var wf = Path.Combine(inst.DshHome, "storages", "workspace.json");
+            if (File.Exists(wf))
+            {
+                using var wd = System.Text.Json.JsonDocument.Parse(File.ReadAllText(wf));
+                if (wd.RootElement.TryGetProperty("global", out var g) && g.TryGetProperty("workspaceIds", out var arr) && arr.GetArrayLength() > 0)
+                    wsId = arr[0].GetString();
+            }
+        }
+        catch { }
+        if (string.IsNullOrWhiteSpace(wsId)) return;
+        using var handler = new System.Net.Http.HttpClientHandler { CookieContainer = new System.Net.CookieContainer(), UseCookies = true };
+        using var http = new System.Net.Http.HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+        var tu = inst.TokenUrl;
+        if (!string.IsNullOrWhiteSpace(tu)) { try { http.GetStringAsync(tu!).GetAwaiter().GetResult(); } catch { } }
+        var body = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "client-request",
+            rpcId = Guid.NewGuid().ToString(),
+            method = "session/create",
+            payload = new { args = new { request = new { workspaceId = wsId } } }
+        });
+        using var content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        var resp = http.PostAsync("http://127.0.0.1:" + inst.DshPort + "/api/session/create", content).GetAwaiter().GetResult();
+        InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: preselected workspace session -> HTTP {(int)resp.StatusCode}");
+    }
+    catch (Exception ex) { InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: preselect failed: {ex.Message}"); }
+}
+void KickPrewarm(string? firstId)
+{
+    if (System.Threading.Interlocked.Exchange(ref prewarmStarted, 1) == 1) return;
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            if (!PrewarmAllOn()) { InstanceManager.LogWorkspace(root, "[prewarm] disabled by config"); return; }
+            InstanceManager.LogWorkspace(root, "[prewarm] pass starting" + (string.IsNullOrWhiteSpace(firstId) ? "" : $" (first: {firstId})"));
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var queue = new List<InstanceManager.Instance>();
+            if (!string.IsNullOrWhiteSpace(firstId))
+            {
+                var mine = instMgr.Get(firstId!);
+                if (mine != null) { queue.Add(mine); seen.Add(mine.Id); }
+            }
+            foreach (var i in instMgr.List()) if (seen.Add(i.Id)) queue.Add(i);
+            foreach (var inst in queue)
+            {
+                try
+                {
+                    if (inst.Running || inst.Starting)
+                    {
+                        if (prewarmOwned.Contains(inst.Id)) { InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: already running (ours)"); continue; }
+                        InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: running without our token -> cycling");
+                        try { instMgr.Stop(inst); } catch (Exception ex) { InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id} stop failed: {ex.Message}"); }
+                        await Task.Delay(TimeSpan.FromSeconds(3));
+                        instMgr.Start(inst);
+                        prewarmOwned.Add(inst.Id);
+                        InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: cycled (token captured)");
+                    }
+                    else
+                    {
+                        instMgr.Start(inst);
+                        prewarmOwned.Add(inst.Id);
+                        InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: start requested");
+                    }
+                }
+                catch (Exception ex) { InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id} failed: {ex.Message}"); }
+                await Task.Delay(TimeSpan.FromSeconds(8));
+            }
+            InstanceManager.LogWorkspace(root, "[prewarm] pass finished");
+            foreach (var inst in queue)
+            {
+                try
+                {
+                    for (var w = 0; w < 20 && !DshService.IsDshReady(inst.DshPort); w++) await Task.Delay(TimeSpan.FromSeconds(3));
+                    PreselectWorkspaceSession(inst);
+                }
+                catch (Exception ex) { InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: preselect step failed: {ex.Message}"); }
+            }
+            InstanceManager.LogWorkspace(root, "[prewarm] preselect pass finished");
+        }
+        catch { }
+    });
+}
+app.MapPost("/api/prewarm", (PrewarmRequest req, HttpContext ctx) =>
+{
+    if ((bool?)ctx.Items["isAdmin"] != true)
+        return Results.Json(new { ok = false, error = L(ctx, "需要管理员才可修改") }, statusCode: 403);
+    try
+    {
+        var dirs = new[] { Path.Combine(dsh.ReadWorkspacePath(), "config"), Path.Combine(AppContext.BaseDirectory, "config") };
+        var baseDir = dirs.FirstOrDefault(Directory.Exists) ?? dirs[0];
+        Directory.CreateDirectory(baseDir);
+        var f = Path.Combine(baseDir, "launcher.json");
+        System.Text.Json.Nodes.JsonObject jo;
+        if (File.Exists(f))
+        {
+            var parsed = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f));
+            jo = parsed as System.Text.Json.Nodes.JsonObject ?? new System.Text.Json.Nodes.JsonObject();
+        }
+        else jo = new System.Text.Json.Nodes.JsonObject();
+        jo["prewarmAll"] = req.PrewarmAll;
+        File.WriteAllText(f, jo.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        InstanceManager.LogWorkspace(root, $"[prewarm] prewarmAll set to {req.PrewarmAll} (takes effect on the next launcher start)");
+        return Results.Ok(new { ok = true, prewarmAll = req.PrewarmAll });
+    }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500); }
+});
+SeedPrewarmConfig();
+_ = Task.Run(async () => { try { await Task.Delay(TimeSpan.FromSeconds(45)); KickPrewarm(null); } catch { } });
+_ = Task.Run(async () => { for (;;) { try { await Task.Delay(2000); if (System.Threading.Volatile.Read(ref prewarmKick) == 1) { System.Threading.Volatile.Write(ref prewarmKick, 2); KickPrewarm(prewarmFirst); } } catch { } } });
 app.MapPost("/api/login", (LoginRequest req, HttpContext ctx) =>
 {
-    req = req with { Username = req.Username?.ToLowerInvariant() };
+    // The login page posts `userCode` (that is the field name the other edition uses),
+    // while this edition's record is `username` - accept BOTH, otherwise the web login
+    // can never succeed even with the right password.
+    req = req with { Username = (req.Username ?? req.UserCode)?.ToLowerInvariant() };
     if (req.Username == null || req.Password == null || !auth.Verify(req.Username, req.Password))
         return Results.Json(new { ok = false, error = L(ctx, "用户名或密码错误") }, statusCode: 401);
     var user = auth.Find(req.Username)!;
+    // Ask for the (once-per-process) prewarm pass: consumed by the watcher above, so the
+    // login itself never waits.
+    try { prewarmFirst = user.Username; System.Threading.Volatile.Write(ref prewarmKick, 1); } catch { }
     var token = auth.CreateSession(user.Username);
     ctx.Response.Cookies.Append("tt_session", token, new CookieOptions
     {
@@ -2163,6 +2335,7 @@ app.Use(async (ctx, next) =>
         path.StartsWith("/api/logs") ||
         path.StartsWith("/api/token") ||
         path.StartsWith("/api/config") ||
+    path.StartsWith("/api/prewarm") ||
         path.StartsWith("/api/port-check") ||
         path == "/api/workspace" ||
         path.StartsWith("/api/browse") ||
@@ -2876,6 +3049,13 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
       }, 250);
       return;
     }
+    // If the app is ALREADY usable (composer enabled and not on the choose-workspace screen)
+    // there is nothing to create and no reason to reload - just reveal it. Matches the
+    // launcher's server-side session preselect.
+    var editor0 = document.querySelector('[contenteditable=""true""], [role=""textbox""], textarea');
+    var txt0 = (document.body ? (document.body.innerText || '') : '');
+    var bad0 = txt0.indexOf('Choose a workspace') >= 0 || txt0.indexOf('选择工作区') >= 0;
+    if (editor0 && !editor0.disabled && !bad0) { if (window.__ttHideOv) window.__ttHideOv(); try{ sessionStorage.removeItem('ttAutoOpenTry'); }catch(e){ } return; }
     // A session is current and the composer is enabled -> app is ready.
     var editor = document.querySelector('[contenteditable=""true""], [role=""textbox""], textarea');
     if (stored.sessionId && editor && !editor.disabled) { if (window.__ttHideOv) window.__ttHideOv(); return; }
@@ -3250,7 +3430,9 @@ static string? ExtractQueryParam(string query, string key)
 record StartRequest(int? Port);
 record ConfigRequest(string? Url, string? ExternalUrl, string? DefaultLanguage, int? LauncherPort);
 record WorkspaceRequest(string? Workspace);
-record LoginRequest(string? Username, string? Password);
+// UserCode is the alias the login page sends (see the /api/login handler).
+record PrewarmRequest(bool PrewarmAll);
+record LoginRequest(string? Username, string? Password, string? UserCode = null);
 record CreateInstanceRequest(string? Id, string? Name, string? Workspace, string? Password);
 record ChangePasswordRequest(string? OldPassword, string? NewPassword);
 record ResetPasswordRequest(string? Username, string? NewPassword);

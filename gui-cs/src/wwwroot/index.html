@@ -10,6 +10,25 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>TakeTopDshTeam Launcher</title>
+<style>html.tt-boot body { visibility: hidden; }</style>
+<script>
+// Do not paint until the saved language is applied: the page renders with the DEFAULT
+// language first, so anything visible in between flashes in the wrong one. Revealed on
+// load (the app's init ran by then) with a timeout as a safety net.
+(function () {
+  var root = document.documentElement;
+  function show() { try { root.classList.remove('tt-boot'); } catch (e) { } }
+  try {
+    root.classList.add('tt-boot');
+    var m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);
+    var l = m ? decodeURIComponent(m[1]) : '';
+    if (!l) { try { l = localStorage.getItem('tt_lang') || ''; } catch (e) { } }
+    if (l) root.lang = l;
+  } catch (e) { }
+  window.addEventListener('load', function () { setTimeout(show, 0); });
+  setTimeout(show, 3000);
+})();
+</script>
 <!-- MIT-licensed libs for file viewer: highlight.js (code highlight), marked (Markdown) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -216,6 +235,43 @@
       </div>
       <div class="row" style="margin-top:14px;align-items:center;">
         <button id="saveConfigBtn" data-i18n="save">保存</button>
+<script>
+// "prewarm all instances at start-up" switch (self-contained; the endpoint /api/prewarm
+// writes config\launcher.json, the same key the launcher reads at start-up).
+(function () {
+  try {
+    var btn = document.getElementById('saveConfigBtn');
+    if (!btn || document.getElementById('cfgPrewarm')) return;
+    function zh() {
+      try {
+        var m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);
+        var v = decodeURIComponent(m ? m[1] : (localStorage.getItem('tt_lang') || 'zh'));
+        return !/^en/i.test(v);
+      } catch (e) { return true; }
+    }
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin:10px 0;';
+    wrap.innerHTML = '<input type="checkbox" id="cfgPrewarm" style="width:16px;height:16px;cursor:pointer"/>'
+      + '<label for="cfgPrewarm" style="cursor:pointer;font-size:14px"></label>';
+    btn.parentNode.insertBefore(wrap, btn);
+    document.querySelector('label[for="cfgPrewarm"]').textContent =
+      zh() ? '启动时预热全部实例（让成员首开即进）' : 'Prewarm all instances at startup';
+    fetch('/api/config', { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { document.getElementById('cfgPrewarm').checked = !(d && d.prewarmAll === false); })
+      .catch(function () { });
+    btn.addEventListener('click', function () {
+      try {
+        fetch('/api/prewarm', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prewarmAll: !!document.getElementById('cfgPrewarm').checked })
+        });
+      } catch (e) { }
+    });
+  } catch (e) { }
+})();
+</script>
         <span id="configSaved" class="muted" style="margin-left:8px;"></span>
       </div>
       <div class="muted" style="margin-top:4px" id="configHint"></div>
@@ -1089,9 +1145,28 @@ async function checkAuth() {
 async function doLogin() {
   const u = $('#loginUser').value.trim();
   const p = $('#loginPass').value;
-  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
-  if (r.ok) { location.href = '/admin'; }
-    else { const j = await r.json(); $('#loginMsg').textContent = j.error || t('loginFail'); }
+  // Hide everything for the whole transition: the page paints with the default language
+  // first and only then applies the saved one, so a visible repaint would flash in the
+  // other language. Restored only when the login fails (so the error can be read).
+  const prevVis = document.documentElement.style.visibility;
+  document.documentElement.style.visibility = 'hidden';
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userCode: u, password: p }) });
+  if (r.ok) {
+    // A regular member goes straight into the workbench (their own instance is keyed by
+    // their user code); the admin keeps the management page, and the gear button in the
+    // workbench bar leads back here. The login answer already carries `admin`, so no
+    // extra round trip is needed.
+    try {
+      const j = await r.json();
+      if (j && j.admin === false) {
+        const code = String(j.username || j.userCode || '');
+        location.href = '/taketop_work' + (code ? ('?inst=' + encodeURIComponent(code)) : '');
+        return;
+      }
+    } catch (e) { }
+    location.href = '/admin';
+  }
+    else { document.documentElement.style.visibility = prevVis || ''; const j = await r.json(); $('#loginMsg').textContent = j.error || t('loginFail'); }
 }
 
 // ================= My Instance (non-admin) =================

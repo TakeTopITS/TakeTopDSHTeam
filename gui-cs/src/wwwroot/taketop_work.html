@@ -13,6 +13,22 @@
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 <title>TakeTopDshTeam</title>
+<style>html.tt-boot body { visibility: hidden; }</style>
+<script>
+// Do not paint until the saved language is known: the bar and the waiting text would
+// otherwise show the default language first and switch a moment later.
+(function () {
+  var root = document.documentElement;
+  try {
+    root.classList.add('tt-boot');
+    var m = document.cookie.match(/(?:^|;\s*)tt_lang=([^;]+)/);
+    var l = m ? decodeURIComponent(m[1]) : '';
+    if (!l) { try { l = localStorage.getItem('tt_lang') || ''; } catch (e) { } }
+    if (l) root.lang = l;
+  } catch (e) { }
+  setTimeout(function () { try { root.classList.remove('tt-boot'); } catch (e) { } }, 3000);
+})();
+</script>
 <style>
   html, body { height: 100%; margin: 0; }
   body { font-family: system-ui, sans-serif; background: #e9ebef; display: flex; flex-direction: column; }
@@ -22,6 +38,13 @@
   .bar .title { font-weight: 600; font-size: 15px; color: #1c1e21; }
   .bar .spacer { flex: 1; }
   .bar select { padding: 5px 8px; border: 1px solid #c8ccd2; border-radius: 6px; font-size: 13px; background: #fff; }
+  .bar .set { padding: 5px 9px; border: 1px solid #c8ccd2; border-radius: 6px; background: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
+  .bar .set:hover { background: #f1f5f9; }
+  /* Waiting layer shown while the member's service is still starting. */
+  .boot { position: fixed; inset: 0; z-index: 90; background: rgba(255,255,255,.94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; font-family: system-ui, sans-serif; }
+  .boot .spin { width: 46px; height: 46px; border: 5px solid #e2e6ec; border-top-color: #2563eb; border-radius: 50%; animation: bootspin 1s linear infinite; }
+  .boot .txt { color: #4b5563; font-size: 15px; }
+  @keyframes bootspin { to { transform: rotate(360deg); } }
   .split { flex: 1; display: flex; min-height: 0; position: relative; }
   .pane { border: 0; }
   .pane.fm { width: 30%; min-width: 220px; max-width: 70%; background: #f5f6f8; }
@@ -35,18 +58,24 @@
 </head>
 <body>
   <div class="bar">
-    <a href="/admin" id="backLink">← 返回管理页</a>
-    <span class="title" id="workTitle">工作台</span>
+    <!-- Left empty on purpose: applyWorkbarLang() fills these from the chosen language. -->
+    <a href="/admin" id="backLink"></a>
+    <span class="title" id="workTitle"></span>
     <span class="spacer"></span>
+    <button id="settingsBtn" class="set" title="">⚙</button>
     <select id="workLang">
       <option value="zh">中文</option>
       <option value="en">English</option>
     </select>
   </div>
   <div class="split" id="split">
-    <iframe class="pane fm" id="fmPane" title="文件管理"></iframe>
-    <div class="splitter" id="splitter" title="拖动调整栏宽"><button id="expandBtn" class="split-arrow" title="放大/缩小">▶▶</button></div>
+    <iframe class="pane fm" id="fmPane" title=""></iframe>
+    <div class="splitter" id="splitter" title=""><button id="expandBtn" class="split-arrow" title="">▶▶</button></div>
     <iframe class="pane dsh" id="dshPane" title="DSH"></iframe>
+  </div>
+  <div class="boot" id="bootMask">
+    <div class="spin"></div>
+    <div class="txt" id="bootTxt"></div>
   </div>
 
 <script>
@@ -95,6 +124,10 @@
     try { history.replaceState(history.state, desiredTitle); } catch(e) {}
     document.getElementById('fmPane').title = zh ? '文件管理' : 'File Manager';
     document.getElementById('splitter').title = zh ? '拖动调整栏宽' : 'Drag to resize';
+    var sb = document.getElementById('settingsBtn');
+    if (sb) sb.title = zh ? '设置' : 'Settings';
+    var eb = document.getElementById('expandBtn');
+    if (eb) eb.title = zh ? '放大/缩小' : 'Expand / restore';
   }
   // Who am I? Show the signed-in user's name in the header title.
   var meCode = '', meName = '', meLabel = '';
@@ -235,6 +268,179 @@
     reloadPane('fmPane', fmSrc + (fmSrc.indexOf('?') >= 0 ? bust : '?' + bust.slice(1)));
     reloadPane('dshPane', dshSrc + (dshSrc.indexOf('?') >= 0 ? bust : '?' + bust.slice(1)));
   };
+
+  // The standard edition has no ttApi helper: append the token the same way the pane
+  // URLs do, so these calls authenticate even without a session cookie.
+  function ttu(u) {
+    return u + (token ? ((u.indexOf('?') >= 0 ? '&' : '?') + 'launcher_token=' + encodeURIComponent(token)) : '');
+  }
+  function bootZh() {
+    var c = String(currentLang() || '').toLowerCase();
+    return (c === 'zh' || c === 'zh-cn' || c === 'zhcn' || c === 'cn');
+  }
+  function bootLabel(secs) {
+    var s = secs > 0 ? (bootZh() ? ('（已等待 ' + secs + ' 秒）') : (' (' + secs + 's)')) : '';
+    bootTxt.textContent = (bootZh()
+      ? '首次启动服务，最多需要 1 分钟，请稍候…'
+      : 'Starting the service - this can take up to a minute, please wait\u2026') + s;
+  }
+  function bootSlowLabel(secs) {
+    bootTxt.innerHTML = (bootZh() ? '启动超时，可到 ' : 'Taking longer than expected. Open ')
+      + '<a href="/admin" style="color:#2563eb;">' + (bootZh() ? '管理页面' : 'the management page') + '</a>'
+      + (bootZh() ? ' 手动启动或查看状态。' : ' to start it or check its status.')
+      + (secs > 0 ? (bootZh() ? ('（已等待 ' + secs + ' 秒）') : (' (' + secs + 's)')) : '');
+  }
+  function bootHide() { if (bootMask) bootMask.style.display = 'none'; }
+  // Reload once using a URL marker: unlike sessionStorage it survives a reload, so this
+  // can never turn into a refresh loop.
+  function bootReloadOnce(marker) {
+    var href = location.href.split('#')[0];
+    var re = new RegExp('([?&])' + marker + '=1');
+    if (re.test(href)) return;
+    location.href = href + (href.indexOf('?') >= 0 ? '&' : '?') + marker + '=1';
+  }
+
+  // ---- settings button: back to the management page --------------------------------
+  var setBtn = document.getElementById('settingsBtn');
+  if (setBtn) setBtn.onclick = function () { location.href = '/admin'; };
+
+  // ---- waiting layer: start the instance, then open the workbench ------------------
+  var bootMask = document.getElementById('bootMask');
+  var bootTxt = document.getElementById('bootTxt');
+  var bootTries = 0, bootAskedAt = 0, bootSawDown = false, bootSlow = false;
+  function bootCheck() {
+    bootTries++;
+    if (!bootMask || bootMask.style.display === 'none') return;
+    // (bootSawDown is set below, only when the launcher reports running:false)
+    var secs = (bootTries - 1) * 3;
+    if (bootTries >= 20) bootSlow = true;
+    if (bootSlow) bootSlowLabel(secs); else bootLabel(secs);
+    // Match the instance by id OR name (the URL may carry a member name), the same way
+    // the management page lists them.
+    var want = String(inst || meCode || '').toLowerCase();
+    fetch(ttu('/api/instances'), { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var list = (j && j.instances) || [], mine = null;
+        for (var i = 0; i < list.length; i++) {
+          var it = list[i];
+          if (String(it.id || '').toLowerCase() === want ||
+              String(it.name || '').toLowerCase() === want ||
+              String(it.userName || '').toLowerCase() === want) { mine = it; break; }
+        }
+        try { console.log('[boot]', bootTries, 'inst=' + inst, mine ? JSON.stringify({ id: mine.id, running: mine.running }) : 'not-found'); } catch (e) { }
+        if (!mine) { if (!inst) bootHide(); return; }
+        // Only refresh the workbench for an instance we actually had to start: refreshing
+        // on "we waited a tick" made an already-running instance reload the page ~3s after
+        // it had opened - the extra flash after the workspace was already up.
+        if (!mine.running) bootSawDown = true;
+        if (mine.running) { bootHide(); if (bootSawDown) bootReloadOnce('ttboot'); return; }
+        // Start it once, then at most every 15s - a tight repeat loop kept instances
+        // that used to come up from ever reaching Running.
+        var now = Date.now();
+        if (bootAskedAt && (now - bootAskedAt) < 15000) return;
+        bootAskedAt = now;
+        fetch(ttu('/api/instances/' + encodeURIComponent(mine.id) + '/start'), { method: 'POST', credentials: 'same-origin' })
+          .then(function (r) {
+            try { console.log('[boot] start', mine.id, '-> HTTP', r.status); } catch (e) { }
+            if (!r.ok) return;
+            bootHide();
+            bootReloadOnce('ttboot');   // started: open the workbench (marker prevents loops)
+          })
+          .catch(function () { });
+      })
+      .catch(function () { });
+  }
+  setTimeout(bootCheck, 300);
+  setInterval(bootCheck, 3000);
+
+  // The DSH pane can come back empty on the very first open after a restart: the instance
+  // process is already "running" but its web service is not serving yet, so the iframe loads
+  // a not-ready page. Reload ONLY the pane a couple of times (bounded, in sessionStorage, so
+  // it can never loop). No overlay, no workspace logic touched.
+  (function () {
+    var el = document.getElementById('dshPane');
+    if (!el) return;
+    var key = 'ttDshRetry:' + String(inst || location.pathname);
+    function looksEmpty() {
+      try {
+        var d = el.contentDocument;
+        if (!d || !d.body) return true;
+        var t = (d.body.innerText || '');
+        // Not-ready pages count as empty too: the launcher answers these while the
+        // instance is still starting, and they carry text/buttons so a plain text
+        // check misses them.
+        if (t.indexOf('实例未运行') >= 0 || t.indexOf('Instance is not running') >= 0 || t.indexOf('DSH is starting') >= 0 || t.indexOf('DSH 正在启动') >= 0 || (d.body.innerHTML || '').indexOf('ttStartTry') >= 0) return true;
+        t = t.trim();
+        return t.length < 40 && !d.querySelector('[contenteditable="true"],[role="textbox"],textarea,button');
+      } catch (e) { return false; }
+    }
+    var n = 0;
+    var iv = setInterval(function () {
+      n++;
+      if (n > 14) { clearInterval(iv); try { sessionStorage.removeItem(key); } catch (e) { } return; }
+      if (!looksEmpty()) { clearInterval(iv); try { sessionStorage.removeItem(key); } catch (e) { } return; }
+      var tries = 0; try { tries = parseInt(sessionStorage.getItem(key) || '0', 10) || 0; } catch (e) { }
+      if (tries >= 3) return;
+      try { sessionStorage.setItem(key, String(tries + 1)); } catch (e) { }
+      // Full page reload, not just the pane: the launcher_token in this page URL is minted
+      // per page load, so it goes stale when the launcher restarts - a full reload is
+      // exactly the manual refresh that always fixed this. Bounded by the counter above.
+      // Reload ONLY the DSH pane - never the whole page.
+      // Reload the pane WITHOUT touching its URL: the launcher forwards this URL upstream
+      // verbatim and DSH matches its bundle route exactly, so a cache-buster query
+      // (&_ttr=...) made the pane 404 -> blank. A same-URL reload is what we want.
+      try { el.contentWindow.location.reload(); }
+      catch (e) { try { el.src = el.getAttribute('src') || el.src; } catch (e2) { } }
+    }, 3000);
+  })();
+
+  // ---- "this member has no workspace record yet" hint + auto-refresh ---------------
+  var wsHintShown = false, wsReloaded = false, wsHits = 0;
+  function wsHintCheck() {
+    var doc = null;
+    try { doc = document.getElementById('dshPane').contentDocument; } catch (e) { }
+    var txt = '';
+    try { txt = (doc && doc.body) ? (doc.body.innerText || '') : ''; } catch (e) { }
+    var needs = txt.indexOf('Choose a workspace') >= 0 || txt.indexOf('\u9009\u62e9\u5de5\u4f5c\u533a') >= 0
+      || txt.indexOf('Create workspace') >= 0 || txt.indexOf('\u521b\u5efa\u5de5\u4f5c\u533a') >= 0;
+    var el = document.getElementById('wsHint');
+    if (!needs) {
+      wsHits = 0;
+      if (el) el.style.display = 'none';
+      if (wsHintShown && !wsReloaded) { wsReloaded = true; bootReloadOnce('ttws'); }
+      return;
+    }
+    // Only believe it after it stays true for a few checks: the words "Create workspace"
+    // (and their Chinese form) occur TRANSIENTLY while the DSH boots, and treating that
+    // as "no workspace record" made the page refresh itself once - the flash the user saw.
+    wsHits++;
+    if (wsHits < 3 && !wsHintShown) return;
+    wsHintShown = true;
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'wsHint';
+      el.style.cssText = 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:95;max-width:min(92vw,780px);'
+        + 'background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:10px;padding:9px 32px 9px 13px;'
+        + 'font:14px/1.55 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.12);white-space:pre-wrap';
+      var x = document.createElement('span');
+      x.textContent = '\u2715';
+      x.style.cssText = 'position:absolute;right:8px;top:5px;cursor:pointer;font-weight:700';
+      x.onclick = function () { el.style.display = 'none'; };
+      el.appendChild(x);
+      document.body.appendChild(el);
+    }
+    el.firstChild.nodeValue = bootZh()
+      ? '这个成员还没有工作区记录：请在右上角「选择工作区 / 创建工作区」里点“创建工作区”，创建后会自动进入。'
+      : 'This member has no workspace record yet: click "Create workspace" ("Choose workspace", top right) - you will enter automatically.';
+    el.style.display = '';
+  }
+  setInterval(wsHintCheck, 3000);
+  setTimeout(wsHintCheck, 1500);
+
+  // Everything above ran (language applied, waiting text localized): show the page.
+  bootLabel(0);
+  try { document.documentElement.classList.remove('tt-boot'); } catch (e) { }
 })();
 </script>
 </body>

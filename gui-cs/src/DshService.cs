@@ -955,8 +955,19 @@ public class DshService
 
     public void AddLog(string line)
     {
-        _logs.Enqueue($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {line}");
+        var stamped = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {line}";
+        _logs.Enqueue(stamped);
         while (_logs.Count > _maxLog) _logs.TryDequeue(out _);
+        // Persist as well: this ring only lives in memory, so a DSH that died during
+        // startup left no trace anywhere (its stdout/stderr - and our [ERR] lines - went
+        // here). One file per DSH home, so each instance can be diagnosed separately.
+        try
+        {
+            var dir = Path.Combine(_dshHome, "logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "dsh.log"), stamped + Environment.NewLine);
+        }
+        catch { }
     }
 
     public string CurrentVersion()
