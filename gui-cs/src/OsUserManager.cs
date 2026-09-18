@@ -220,6 +220,18 @@ public static class OsUserManager
                 File.WriteAllText(probe, "x");
                 File.Delete(probe);
             }
+            // The member-owned "sessions" tree must be listable by the launcher: the
+            // workspace self-heal decides "healthy record vs stale" by looking for a
+            // session file, and an unreadable tree made it re-seed + restart the
+            // instance on every visit. Probe it here so a broken ACL triggers the
+            // repair below.
+            var sessions = Path.Combine(dshHome, "sessions");
+            if (Directory.Exists(sessions))
+            {
+                var probe = Path.Combine(sessions, ".tt-access-probe");
+                File.WriteAllText(probe, "x");
+                File.Delete(probe);
+            }
             return "ok";
         }
         catch { }
@@ -236,6 +248,17 @@ public static class OsUserManager
         RunCmd("takeown", $"/f \"{storages}\" /r /d y", throwOnError: false);
         RunCmd("icacls", $"\"{storages}\" /grant {inher} /T /C /Q", throwOnError: false);
         RunCmd("icacls", $"\"{storages}\" /grant {flat} /T /C /Q", throwOnError: false);
+        // The session tree is owned by the member account and can deny the launcher /
+        // Administrators, which made the workspace self-heal re-seed + restart the
+        // instance on every visit. Heal it too. Deep is safe here: unlike
+        // profiles\node_modules there are no junctions inside "sessions".
+        var sessionsDir = Path.Combine(dshHome, "sessions");
+        if (Directory.Exists(sessionsDir))
+        {
+            RunCmd("takeown", $"/f \"{sessionsDir}\" /r /d y", throwOnError: false);
+            RunCmd("icacls", $"\"{sessionsDir}\" /grant {inher} /T /C /Q", throwOnError: false);
+            RunCmd("icacls", $"\"{sessionsDir}\" /grant {flat} /T /C /Q", throwOnError: false);
+        }
         // ...then the directories the DSH itself writes into, non-recursively: the entries
         // of profiles\node_modules are junctions into the shared install and a /T walk
         // would follow them.

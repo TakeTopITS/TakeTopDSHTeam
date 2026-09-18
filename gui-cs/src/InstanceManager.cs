@@ -867,6 +867,18 @@ public class InstanceManager
 
     public void Start(Instance inst)
     {
+        try { StartCore(inst); }
+        catch (Exception ex)
+        {
+            inst.Running = false;
+            try { LogWorkspace(_root, $"[start] {inst.Id}: FAILED: {ex.Message}"); } catch { }
+            try { inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] FAILED: {ex.Message}"); } catch { }
+            throw;
+        }
+    }
+
+    private void StartCore(Instance inst)
+    {
         lock (_gate)
         {
             inst.Stopping = false;     // a fresh start is never a deliberate stop
@@ -1022,7 +1034,29 @@ public class InstanceManager
 
             proc.OutputDataReceived += (_, e) => { if (e.Data != null) { inst.Logs.Enqueue(e.Data); CaptureToken(inst, e.Data); } };
             proc.ErrorDataReceived += (_, e) => { if (e.Data != null) inst.Logs.Enqueue("[ERR] " + e.Data); };
-            proc.Start();
+            try
+            {
+                proc.Start();
+            }
+            catch (Exception ex)
+            {
+                // The OS-user launch can fail at Start() for account-specific reasons
+                // (e.g. the stored password no longer matches the local account, or a
+                // broken profile). Historically that exception escaped the background
+                // start task and only reached the in-memory ring buffer, so launcher.log
+                // had no trace and the member sat on "DSH is starting up" forever.
+                // Fall back to a direct (non-isolated) launch so the instance comes up.
+                LogWorkspace(_root, $"[start] {inst.Id}: process start failed (isolated={launchedIsolated}): {ex.Message}");
+                try { inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] process start failed (isolated={launchedIsolated}): {ex.Message}"); } catch { }
+                if (!launchedIsolated) throw;
+                inst.IsolationUnavailable = true;
+                try { System.IO.Directory.CreateDirectory(inst.DshHome); } catch { }
+                proc = new Process { StartInfo = psi };
+                proc.OutputDataReceived += (_, e) => { if (e.Data != null) { inst.Logs.Enqueue(e.Data); CaptureToken(inst, e.Data); } };
+                proc.ErrorDataReceived += (_, e) => { if (e.Data != null) inst.Logs.Enqueue("[ERR] " + e.Data); };
+                proc.Start();
+                launchedIsolated = false;
+            }
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
             inst.Logs.Enqueue($"[{DateTime.Now:HH:mm:ss}] [start] dsh started (pid {proc.Id})");
@@ -1537,14 +1571,13 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
             // The record alone is NOT enough: if the blank session it points at is gone
             // (e.g. it was seeded while the bundled node runtime was missing - that step
             // used to be skipped silently), DSH still shows the "Choose workspace" hero.
-            var hasRealSession = false;
-            try
-            {
-                var sessDir = Path.Combine(dshHome, "sessions");
-                if (Directory.Exists(sessDir))
-                    hasRealSession = Directory.EnumerateFiles(sessDir, "session.jsonl*", SearchOption.AllDirectories).Any();
-            }
-            catch { }
+            // The session tree is owned by the member's OS account, so the launcher may
+            // not be able to read it at all. Directory.EnumerateFiles(..., AllDirectories)
+            // aborts on the first unreadable subdir and a bare `catch {}` then reported
+            // "no session" for a perfectly healthy instance - re-seeding AND restarting
+            // it on every visit ("DSH takes ages to open"). null (unreadable) must be
+            // treated as "assume valid", only a readable-but-empty store is stale.
+            var hasRealSession = HasSessionFile(Path.Combine(dshHome, "sessions")) != false;
             if (hasTarget && hasRealSession)
             {
                 LogWorkspace(root, $"ok   {dshHome} -> {nativePath} (record already valid)");
@@ -1577,6 +1610,43 @@ fs.writeFileSync(path.join(dir,'session.jsonl.zstd'),z.zstdCompressSync(Buffer.f
             LogWorkspace(root, $"FAIL {dshHome}: {ex.Message}");
             return false;
         }
+    }
+
+    // ACL-tolerant probe for a real session file under a DSH "sessions" tree.
+    // Returns true  -> at least one session file found;
+    //         false -> the tree was readable (at least partly) but held none;
+    //         null  -> nothing under it could be read at all (member-owned ACL),
+    //                  i.e. "unknown" and the caller must not assume "stale".
+    // A hand-rolled walk is used because Directory.EnumerateFiles(AllDirectories)
+    // throws as soon as ONE subdirectory denies access, which would hide every
+    // session and make the caller re-seed + restart the instance on every visit.
+    private static bool? HasSessionFile(string sessionsDir)
+    {
+        try { if (!Directory.Exists(sessionsDir)) return false; }
+        catch { return null; }
+        var anyReadable = false;
+        var sawDenied = false;
+        var stack = new Stack<string>();
+        stack.Push(sessionsDir);
+        var guard = 0;
+        while (stack.Count > 0 && guard++ < 50000)
+        {
+            var dir = stack.Pop();
+            string[] files;
+            try { files = Directory.GetFiles(dir); anyReadable = true; }
+            catch { sawDenied = true; files = Array.Empty<string>(); }
+            foreach (var f in files)
+                if (Path.GetFileName(f).StartsWith("session.jsonl", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            string[] subs;
+            try { subs = Directory.GetDirectories(dir); anyReadable = true; }
+            catch { sawDenied = true; subs = Array.Empty<string>(); }
+            foreach (var s in subs) stack.Push(s);
+        }
+        // Any unreadable part means the view is incomplete: report "unknown" so the
+        // caller never mistakes a permission problem for a missing session.
+        if (sawDenied) return null;
+        return anyReadable ? false : (bool?)null;
     }
 
     // Repair attempts are rate-limited per instance so a DSH that keeps rewriting
