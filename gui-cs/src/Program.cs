@@ -323,7 +323,22 @@ void PreselectWorkspaceSession(InstanceManager.Instance inst)
         });
         using var content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json");
         var resp = http.PostAsync("http://127.0.0.1:" + inst.DshPort + "/api/session/create", content).GetAwaiter().GetResult();
-        InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: preselected workspace session -> HTTP {(int)resp.StatusCode}");
+        // Capture the created session id and hand it to the proxy, which injects it into
+        // the page so the browser opens it DIRECTLY (no client session/create and no full
+        // page reload -> no "Entering workspace..." delay, no pile-up of sessions).
+        var sid = "";
+        try
+        {
+            var txt = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var doc = System.Text.Json.JsonDocument.Parse(txt);
+            if (doc.RootElement.TryGetProperty("result", out var res)
+                && res.TryGetProperty("value", out var val)
+                && val.TryGetProperty("sessionId", out var sidEl))
+                sid = sidEl.GetString() ?? "";
+        }
+        catch { }
+        if (!string.IsNullOrEmpty(sid)) PreselectStore.Set(wsId, sid);
+        InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: preselected workspace session -> HTTP {(int)resp.StatusCode}" + (sid.Length > 0 ? " sid=" + sid.Substring(0, 8) : " (no sessionId)"));
     }
     catch (Exception ex) { InstanceManager.LogWorkspace(root, $"[prewarm] {inst.Id}: preselect failed: {ex.Message}"); }
 }
@@ -3201,12 +3216,23 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
             var ovSecTpl = (!string.IsNullOrEmpty(ttLocale) && ttLocale!.StartsWith("zh", StringComparison.OrdinalIgnoreCase)) ? "已等待 {0} 秒" : "{0}s elapsed";
             var ovScript = "<script>(function(){try{var st=document.createElement('style');st.textContent='#ttAutoOv{position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f8f9fa;color:#555;font-family:system-ui,sans-serif}#ttAutoOv .ttsp{width:48px;height:48px;border:5px solid #e0e0e0;border-top-color:#4a90d9;border-radius:50%;animation:ttspin 1s linear infinite}#ttAutoOv .ttm{font-size:15px}#ttAutoOv .ttsec{font-size:13px;color:#a0a0a0;font-variant-numeric:tabular-nums}@keyframes ttspin{to{transform:rotate(360deg)}}';document.head.appendChild(st);var ov=document.createElement('div');ov.id='ttAutoOv';ov.innerHTML='<div class=\"ttsp\"></div><div class=\"ttm\">" + ovText + "</div><div class=\"ttsec\" id=\"ttOvSec\"></div>';document.documentElement.appendChild(ov);var __sec=0;var __tpl=\"" + ovSecTpl + "\";var __iv=setInterval(function(){try{__sec++;var e=document.getElementById('ttOvSec');if(e)e.textContent=__tpl.replace('{0}',__sec)}catch(e){}},1000);var obs=new MutationObserver(function(){try{if(!ov.isConnected)document.documentElement.appendChild(ov)}catch(e){}});try{obs.observe(document.documentElement,{childList:true})}catch(e){}window.__ttHideOv=function(){try{clearInterval(__iv)}catch(e){}try{obs.disconnect();ov.remove()}catch(e){}};setTimeout(function(){try{window.__ttHideOv()}catch(e){}},120000);}catch(e){}})();</script>";
             var restScripts = autoOpenScript.Replace("__WSID__", wsIdJs ?? "") + authReloadScript + fmDropScript;
+            // Set the DSH's CURRENT session to the one the launcher already preselected
+            // server-side (PreselectWorkspaceSession) BEFORE the SPA boots. The client then
+            // opens straight into that session and never runs its own session/create + full
+            // page reload - which used to make "Entering workspace..." take ages and pile up
+            // hundreds of sessions for a busy member (each open created several).
+            var preselectedSid = PreselectStore.Get(workspaceId);
+            var sessionJs = string.IsNullOrEmpty(preselectedSid) ? "" :
+                "<script>(function(){try{var sid='" + preselectedSid + "';" +
+                "localStorage.setItem('dsh.sessions.current',JSON.stringify({sessionId:sid}));" +
+                "localStorage.setItem('dsh.launcher.autoopened:" + (workspaceId ?? "") + "',sid);" +
+                "}catch(e){}})();</script>";
             if (html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase) >= 0)
-                html = html.Replace("<head>", "<head>" + ttLocaleJs + ovScript, StringComparison.OrdinalIgnoreCase);
+                html = html.Replace("<head>", "<head>" + sessionJs + ttLocaleJs + ovScript, StringComparison.OrdinalIgnoreCase);
             if (html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase) >= 0)
                 html = html.Replace("</head>", restScripts + "</head>", StringComparison.OrdinalIgnoreCase);
             else if (html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase) >= 0)
-                html = html.Replace("</body>", ttLocaleJs + ovScript + restScripts + "</body>", StringComparison.OrdinalIgnoreCase);
+                html = html.Replace("</body>", sessionJs + ttLocaleJs + ovScript + restScripts + "</body>", StringComparison.OrdinalIgnoreCase);
 
             var modifiedBytes = System.Text.Encoding.UTF8.GetBytes(html);
             // Strip Content-Encoding since we decompressed and send uncompressed.
@@ -3548,6 +3574,24 @@ class TaskDataCache
 static class TaskCleanupHolder
 {
     public static System.Threading.Timer? Timer;
+}
+
+// The workspace session the launcher pre-created SERVER-SIDE for an instance
+// (PreselectWorkspaceSession), keyed by workspace id. The DSH proxy injects it into the
+// page BEFORE the SPA boots, so the client opens straight into that session and never
+// runs its own session/create + full page reload.
+static class PreselectStore
+{
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> Map = new(StringComparer.OrdinalIgnoreCase);
+
+    public static void Set(string? workspaceId, string? sessionId)
+    {
+        if (!string.IsNullOrWhiteSpace(workspaceId) && !string.IsNullOrWhiteSpace(sessionId))
+            Map[workspaceId!] = sessionId!;
+    }
+
+    public static string? Get(string? workspaceId)
+        => !string.IsNullOrWhiteSpace(workspaceId) && Map.TryGetValue(workspaceId!, out var v) ? v : null;
 }
 
 // Shared HTTP client for the DSH proxy. A single pooled handler (instead of a new

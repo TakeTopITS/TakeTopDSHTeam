@@ -411,11 +411,14 @@
       if (wsHintShown && !wsReloaded) { wsReloaded = true; bootReloadOnce('ttws'); }
       return;
     }
-    // Only believe it after it stays true for a few checks: the words "Create workspace"
-    // (and their Chinese form) occur TRANSIENTLY while the DSH boots, and treating that
-    // as "no workspace record" made the page refresh itself once - the flash the user saw.
+    // Only believe it after it stays true for a LONG time: the words "Create workspace"
+    // (and their Chinese form) appear TRANSIENTLY while the DSH boots, and treating that
+    // as "no workspace record" made the page reload itself right after the workspace was
+    // selected - the single flash the user saw. The launcher now preselects + injects the
+    // session, so a normal boot clears the hero well before this threshold (8 checks,
+    // ~25s); only a member who is GENUINELY stuck on the hero reaches it.
     wsHits++;
-    if (wsHits < 3 && !wsHintShown) return;
+    if (wsHits < 8 && !wsHintShown) return;
     wsHintShown = true;
     if (!el) {
       el = document.createElement('div');
