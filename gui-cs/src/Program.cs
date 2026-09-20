@@ -3045,15 +3045,19 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
     // DSH settings.yaml) and applied when DSH starts; do NOT override it here per
     // browser, otherwise DSH flips between its stored locale and the browser one.
     if (!WORKSPACE_ID) return; // no workspace configured; nothing to auto-open
-    var marker = 'dsh.launcher.autoopened';
+    // Scope the marker (we already chose a session for THIS workspace) and keep it in
+    // OUR own tt. namespace: the DSH rewrites its own dsh.sessions.current while it
+    // boots, so comparing the two made the auto-open fall back to session/create +
+    // reload on EVERY load - an endless enter -> refresh -> enter loop.
+    var marker = 'tt.session.chosen:' + WORKSPACE_ID;
     var stored;
     try { stored = JSON.parse(localStorage.getItem('dsh.sessions.current') || '{}'); } catch(e) { stored = {}; }
 
 
-    // Already pivoted to a session for this workspace: keep the overlay up until
-    // the composer is actually enabled (workspace attached), then reveal — so the
-    // unselected frame is never shown. Never create another session here.
-    if (stored.sessionId && localStorage.getItem(marker) === stored.sessionId) {
+    // Already pivoted to a session for this workspace (injected by the launcher OR
+    // created earlier): keep the overlay up until the composer is actually enabled,
+    // then reveal. NEVER create another session here; OUR marker alone decides.
+    if (localStorage.getItem(marker)) {
       var __n = 0;
       var __t = setInterval(function(){
         __n++;
@@ -3225,7 +3229,7 @@ static async Task ProxyToPort(HttpContext ctx, int port, string path, string? to
             var sessionJs = string.IsNullOrEmpty(preselectedSid) ? "" :
                 "<script>(function(){try{var sid='" + preselectedSid + "';" +
                 "localStorage.setItem('dsh.sessions.current',JSON.stringify({sessionId:sid}));" +
-                "localStorage.setItem('dsh.launcher.autoopened:" + (workspaceId ?? "") + "',sid);" +
+                "localStorage.setItem('tt.session.chosen:" + (workspaceId ?? "") + "',sid);" +
                 "}catch(e){}})();</script>";
             if (html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase) >= 0)
                 html = html.Replace("<head>", "<head>" + sessionJs + ttLocaleJs + ovScript, StringComparison.OrdinalIgnoreCase);
