@@ -1130,6 +1130,10 @@ public class DshService
     // Merges into settings.yaml so other DSH settings (welcome notice, …) survive.
     public void ApplyDshLocaleFromDefault() => WriteLocalePreference(_dshHome, DefaultLocaleCode());
 
+    // Mirror the product default Appearance (Light) into the admin DSH home so the
+    // DSH right pane opens in Light instead of DSH's built-in "system" default.
+    public void ApplyDshTheme() => WriteThemePreference(_dshHome, "light");
+
     // "zh" or "en" derived from the launcher's 缺省语言 first entry.
     public string DefaultLocaleCode()
     {
@@ -1140,19 +1144,78 @@ public class DshService
     // Write locale.preference (zh/en) into a specific DSH home's settings.yaml,
     // merging so other keys survive. Static so member instances can reuse it.
     public static void WriteLocalePreference(string dshHome, string code)
+        => MergeTopLevelSetting(dshHome, "locale", "preference", code);
+
+    // The DSH web client's Appearance (Settings -> General -> Appearance) is persisted
+    // in its own settings.yaml as "ui-theme.preference" (light|dark|system). DSH's own
+    // default is "system", so on a dark OS the panel opens dark. The product default is
+    // Light, so write it into every DSH home (admin + members) on start.
+    public static void WriteThemePreference(string dshHome, string preference)
+        => MergeTopLevelSetting(dshHome, "ui-theme", "preference", preference);
+
+    // Merge "<namespace>:\n  <field>: <value>" into <dshHome>/settings.yaml, editing
+    // ONLY that namespace's field (never another namespace's same-named field) and
+    // creating the file/namespace when missing. Keeps the rest of the file intact.
+    private static void MergeTopLevelSetting(string dshHome, string ns, string field, string value)
     {
         try
         {
+            Directory.CreateDirectory(dshHome);
             var file = Path.Combine(dshHome, "settings.yaml");
             var text = File.Exists(file) ? File.ReadAllText(file) : "";
-            if (System.Text.RegularExpressions.Regex.IsMatch(text, "(?m)^\\s*preference:\\s*.*$"))
-                text = System.Text.RegularExpressions.Regex.Replace(text, "(?m)^(\\s*preference:\\s*).*$", "${1}" + code);
-            else if (System.Text.RegularExpressions.Regex.IsMatch(text, "(?m)^locale:\\s*$"))
-                text = System.Text.RegularExpressions.Regex.Replace(text, "(?m)^(locale:\\s*)$", "$1\n  preference: " + code);
+            var nl = text.Contains("\r\n") ? "\r\n" : "\n";
+            var lines = text.Replace("\r\n", "\n").Split('\n').ToList();
+
+            // Locate the top-level "<ns>:" line (column 0, not indented).
+            int nsIdx = -1;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var raw = lines[i];
+                if (raw.Length == 0 || char.IsWhiteSpace(raw[0])) continue;
+                var key = raw.TrimEnd();
+                var c = key.IndexOf(':');
+                if (c >= 0) key = key.Substring(0, c).Trim();
+                if (string.Equals(key, ns, StringComparison.Ordinal)) { nsIdx = i; break; }
+            }
+
+            if (nsIdx < 0)
+            {
+                // Append a fresh namespace block.
+                if (lines.Count > 0 && lines[lines.Count - 1] == "") lines.RemoveAt(lines.Count - 1);
+                lines.Add(ns + ":");
+                lines.Add("  " + field + ": " + value);
+                lines.Add("");
+            }
             else
-                text += (text.Length > 0 && !text.EndsWith("\n") ? "\n" : "") + "locale:\n  preference: " + code + "\n";
-            Directory.CreateDirectory(dshHome);
-            File.WriteAllText(file, text);
+            {
+                // Flow style on one line ("ui-theme: {preference: light}"): keep it flow
+                // style. This also makes the value immune to the OLDER regex-based locale
+                // writer (which replaced every "preference:" line) until the launcher is
+                // rebuilt.
+                if (lines[nsIdx].Contains('{'))
+                {
+                    lines[nsIdx] = ns + ": {" + field + ": " + value + "}";
+                    File.WriteAllText(file, string.Join(nl, lines));
+                    return;
+                }
+                // Block spans until the next non-indented line.
+                int end = lines.Count;
+                for (int i = nsIdx + 1; i < lines.Count; i++)
+                {
+                    var raw = lines[i];
+                    if (raw.Trim().Length == 0) continue;
+                    if (!char.IsWhiteSpace(raw[0])) { end = i; break; }
+                }
+                int fieldIdx = -1;
+                for (int i = nsIdx + 1; i < end; i++)
+                {
+                    if (lines[i].TrimStart().StartsWith(field + ":", StringComparison.Ordinal)) { fieldIdx = i; break; }
+                }
+                if (fieldIdx >= 0) lines[fieldIdx] = "  " + field + ": " + value;
+                else lines.Insert(nsIdx + 1, "  " + field + ": " + value);
+            }
+
+            File.WriteAllText(file, string.Join(nl, lines));
         }
         catch { }
     }

@@ -1151,6 +1151,13 @@ async function saveFeedback2(){ var editor=fbModal2.querySelector("#fb2Editor");
   $('#addTaskBtn').onclick = function(){
     openModal(null);
   };
+  // The /fm pane's "我创建的任务" card header asks us (via postMessage) to open the
+  // very same "new task" form, so the entry is reachable without the toolbar.
+  window.addEventListener('message', function (ev) {
+    if (ev.origin !== location.origin) return;
+    var d = ev.data;
+    if (d && d.type === 'tt-task-new') openModal(null);
+  });
   $('#modalCancel').onclick = closeModal;
   $('#viewClose').onclick = closeView;
   $('#imgPreviewClose').onclick = closeImgPreview;

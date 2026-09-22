@@ -128,9 +128,12 @@
   .fm-card { margin-bottom:16px; }
   .fm-card-h { display:flex; align-items:center; gap:8px; margin:2px 0 8px; font-size:13px; font-weight:700; color:#1e40af; text-align:left; }
   .fm-card-h::after { content:""; flex:1; height:1px; background:#e5e7eb; }
+  /* Card header that carries a right-aligned action button (no auto divider). */
+  .fm-card-h-actions::after { content:none; }
+  .fm-newtask { margin-left:auto; flex:0 0 auto; padding:3px 12px; border:0; border-radius:6px; background:#2563eb; color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
   /* Same card look as the Task-Assignment table below (white box, 1px border,
      8px radius): the table lives inside this bordered wrapper. */
-  #fmTasksView { background:#fff; border:1px solid #e0e2e6; border-radius:8px; overflow:auto; padding:0; }
+  #fmTasksView, #fmCreatedView { background:#fff; border:1px solid #e0e2e6; border-radius:8px; overflow:auto; padding:0; }
   .fm-task-table { width:100%; min-width:1150px; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .fm-task-table th, .fm-task-table td { padding:9px 12px; border-bottom:1px solid #eef0f3; text-align:left; vertical-align:top; }
   #fmList, #fmTasksView, .fm-tasks { overflow-x:auto; }
@@ -605,7 +608,7 @@ const I18N = {
     resetPass: "重置密码", resetPassTitle: "重置密码", resetPassDone: "密码已重置",
     resetPassNew: "新密码", resetPassConfirm: "确认新密码",
 
-    fmTabFiles: "文件管理", fmTabTaskMgr: "任务管理", fmTabTasks: "要处理的任务", fmTabAssign: "我创建的任务",
+    fmTabFiles: "文件管理", fmTabTaskMgr: "任务管理", fmTabTasks: "要处理的任务", fmTabAssign: "我创建的任务", fmNewTask: "＋ 新建任务",
     thAssign: "继续分派", asgTitle: "继续分派任务", asgAssignee: "受理人", asgType: "任务类型", asgName: "任务名称", asgContent: "任务内容", asgAssigned: "分派时间", asgStatus: "状态", asgFiles: "相关文件（可多选）", asgSave: "保存", asgCancel: "取消", asgSaved: "已分派", asgFail: "保存失败", asgPick: "请选择受理人", asgTypePh: "-- 选择类型 --", asgSelect: "选择文件", asgParent: "上级任务",
     stProcessing: "处理中", stDone: "完成", stCancelled: "取消", stPending: "待处理",
     openDshBtn: "打开工作台", startHint: "首次启动约需 1 分钟，请稍候…",
@@ -646,7 +649,7 @@ const I18N = {
     resetPass: "Reset Password", resetPassTitle: "Reset Password", resetPassDone: "Password reset",
     resetPassNew: "New password", resetPassConfirm: "Confirm new password",
 
-    fmTabFiles: "File Manager", fmTabTaskMgr: "Task Management", fmTabTasks: "Tasks to handle", fmTabAssign: "Tasks I created",
+    fmTabFiles: "File Manager", fmTabTaskMgr: "Task Management", fmTabTasks: "Tasks to handle", fmTabAssign: "Tasks I created", fmNewTask: "+ New Task",
     thAssign: "Continue Assign", asgTitle: "Continue Assign", asgAssignee: "Assignee", asgType: "Type", asgName: "Name", asgContent: "Content", asgAssigned: "Assigned At", asgStatus: "Status", asgFiles: "Files (multi-select)", asgSave: "Save", asgCancel: "Cancel", asgSaved: "Assigned", asgFail: "Save failed", asgPick: "Please choose an assignee", asgTypePh: "-- Select type --", asgSelect: "Choose files", asgParent: "Parent task",
     stProcessing: "Processing", stDone: "Done", stCancelled: "Cancelled", stPending: "Pending",
     openDshBtn: "Open Workbench", startHint: "First start may take ~1 min, please wait\u2026",
@@ -768,6 +771,8 @@ function applyLang(lang) {
   if (typeof loadInstances === 'function') { try { loadInstances(); } catch (e) { } }
 
   if (typeof fmLoad === 'function') { try { fmLoad(); } catch (e) { } }
+  // Re-render the native task lists so their table headers follow the language too.
+  if (typeof window.ttRefreshFmTasks === 'function') { try { window.ttRefreshFmTasks(); } catch (e) { } }
   // Persist the chosen language so login page -> admin page -> DSH stay in sync.
   // Use a cookie (cross-page, cross-navigation) AND localStorage.
   try {
@@ -1273,16 +1278,15 @@ function buildFmTabs() {
                  + '<button class="fm-tab" data-v="taskmgr" data-i18n="fmTabTaskMgr">任务管理</button>';
   fc.parentNode.insertBefore(tabs, fc);
   // 任务管理 holds TWO STACKED CARDS (no sub-tabs): the tasks to handle on top, the
-  // tasks I created (the Task-Assignment page) underneath. Both titles sit on the left.
+  // tasks I created underneath. Both are rendered natively (no embedded iframe).
   var wrap = document.createElement('div');
   wrap.id = 'fmTaskMgr'; wrap.style.display = 'none';
   var tv = document.createElement('div');
   tv.id = 'fmTasksView'; tv.className = 'fm-tasks';
   var av = document.createElement('div');
-  av.id = 'fmAssignView';
-  av.innerHTML = '<iframe id="assignFrame" title="Task Assign" style="width:100%;height:70vh;min-height:380px;border:0;display:block;"></iframe>';
+  av.id = 'fmCreatedView'; av.className = 'fm-tasks';
   wrap.innerHTML = '<div class="fm-card"><div class="fm-card-h" data-i18n="fmTabTasks">要处理的任务</div></div>'
-                 + '<div class="fm-card"><div class="fm-card-h" data-i18n="fmTabAssign">我创建的任务</div></div>';
+                 + '<div class="fm-card"><div class="fm-card-h fm-card-h-actions"><span data-i18n="fmTabAssign">我创建的任务</span><button type="button" id="fmNewTaskBtn" class="fm-newtask" data-i18n="fmNewTask">＋ 新建任务</button></div></div>';
   var cards = wrap.querySelectorAll('.fm-card');
   cards[0].appendChild(tv);
   cards[1].appendChild(av);
@@ -1295,16 +1299,15 @@ function buildFmTabs() {
       if (typeof fn === 'function') fn();
     } catch (e) { }
   }
-  // The Task-Assignment page is loaded the first time 任务管理 is opened.
-  function loadAssignFrame() {
-    var f = av.querySelector('#assignFrame');
-    if (!f || f.getAttribute('src')) return;
-    var qs = new URLSearchParams(location.search);
-    var q = [];
-    var i = qs.get('inst'); if (i) q.push('inst=' + encodeURIComponent(i));
-    var tk = qs.get('launcher_token'); if (tk) q.push('launcher_token=' + encodeURIComponent(tk));
-    f.setAttribute('src', '/taketop_tasks' + (q.length ? '?' + q.join('&') : ''));
-  }
+  // Card-header shortcut: create a new task with THIS page's own task form (the same
+  // dialog used for Continue Assign / Edit). Independent of the embedded Task-
+  // Assignment pane, which is lazily loaded and may not have rendered.
+  var ntb = wrap.querySelector('#fmNewTaskBtn');
+  if (ntb) ntb.onclick = function () {
+    var lc = String(preferredLang() || '').toLowerCase();
+    var en = !(lc === 'zh' || lc === 'zh-cn' || lc === 'zhcn' || lc === 'cn');
+    openNewTaskDialog(en, function () { try { loadMyTasks(tv); loadMyTasks(av, { scope: 'created' }); } catch (e) { } });
+  };
 
   var cur = 'files';              // 'files' | 'taskmgr'
   function show() {
@@ -1316,7 +1319,7 @@ function buildFmTabs() {
     });
     if (inMgr) {
       loadMyTasks(tv);
-      loadAssignFrame();
+      loadMyTasks(av, { scope: 'created' });
       // Ask the parent workbench (if embedded) to widen this left pane to 70%.
       paneWidth(true);
     } else {
@@ -1329,35 +1332,14 @@ function buildFmTabs() {
     b.onclick = function () { cur = (b.getAttribute('data-v') === 'files') ? 'files' : 'taskmgr'; show(); };
   });
 
-  // The embedded Task-Assignment page tells us when one of its layers opens: we then
-  // give the WHOLE pane to that frame, so the layer covers the entire left pane (like
-  // this page's own dialogs) instead of being limited to the frame's own box.
-  window.addEventListener('message', function (ev) {
-    if (ev.origin !== location.origin) return;
-    var d = ev.data;
-    if (!d || d.type !== 'tt-layer') return;
-    var f = av.querySelector('#assignFrame');
-    if (!f) return;
-    if (d.open) {
-      // Keep the layout exactly where it is: the frame leaves the flow while it covers
-      // the pane, so its slot keeps the old height (nothing jumps, scrollbars stay).
-      if (!av.style.minHeight) av.style.minHeight = f.offsetHeight + 'px';
-      f.style.position = 'fixed';
-      f.style.left = '0'; f.style.right = '0'; f.style.top = '0'; f.style.bottom = '0';
-      f.style.width = '100%'; f.style.height = '100%';
-      f.style.zIndex = '10005';
-      f.style.background = '#fff';
-    } else {
-      av.style.minHeight = '';
-      f.style.position = ''; f.style.left = ''; f.style.right = ''; f.style.top = ''; f.style.bottom = '';
-      f.style.width = '100%'; f.style.height = '70vh';
-      f.style.zIndex = ''; f.style.background = '';
-    }
-  });
+  // Re-render both native task lists (used on language switch).
+  window.ttRefreshFmTasks = function () { try { loadMyTasks(tv); loadMyTasks(av, { scope: 'created' }); } catch (e) { } };
 }
 
 // Render the logged-in user's assigned tasks (admin may assign to self too).
-async function loadMyTasks(container) {
+async function loadMyTasks(container, opts) {
+  opts = opts || {};
+  var scope = opts.scope || '';   // '' = tasks assigned to me; 'created' = tasks I created
   var TASK_PAGE_SIZE = 10;      // this table pages 10 rows at a time
   var dict = { thSeq:'序号', thType:'任务类型', thName:'任务名称', thCreator:'创建者', thAssigned:'分派时间', thStatus:'状态', thFiles:'相关文件', thFeedback:'反馈', thAssign:'继续分派', thAssignee:'受理人', thOps:'操作' };
   var st = { processing:'处理中', done:'完成', cancelled:'取消', pending:'待处理' };
@@ -1370,7 +1352,11 @@ async function loadMyTasks(container) {
     var tasks = [];
     var total = 0;
     async function fetchPage(p) {
-      var d = await (await fetch('/api/tasks?inst=' + encodeURIComponent(inst) + '&page=' + p + '&pageSize=' + TASK_PAGE_SIZE)).json();
+      var qurl = '/api/tasks?' + (scope === 'created'
+        ? 'scope=created&'
+        : ('inst=' + encodeURIComponent(inst) + '&'))
+        + 'page=' + p + '&pageSize=' + TASK_PAGE_SIZE;
+      var d = await (await fetch(qurl)).json();
       tasks = d.tasks || [];
       total = (typeof d.total === 'number') ? d.total : tasks.length;
     }
@@ -1395,6 +1381,7 @@ async function loadMyTasks(container) {
         return '<div><a href="javascript:void(0)" class="fm-task-fbfile" data-name="' + String(raw).replace(/"/g,'&quot;') + '" data-path="' + String(p).replace(/"/g,'&quot;') + '" draggable="true" ondragstart="fmFileDragStart(event)" style="color:#7c3aed;text-decoration:none;font-size:12.5px;cursor:pointer;">' + b + '</a></div>';
       }).join('');
       var tr = document.createElement('tr');
+      var tinst = task.member || inst;   // workspace the task (and its files) belong to
       var indent = depth ? ('padding-left:' + (10 + depth*16) + 'px;') : '';
       // Edit/Delete are only offered for tasks this user created (自己分派的任务)
       // and that have no sub-tasks (a parent task hides them so delegating work
@@ -1421,7 +1408,7 @@ async function loadMyTasks(container) {
         + '<td>' + filesHtml + '</td>'
         + '<td class="fm-ops" style="white-space:nowrap;">' + opsHtml + '</td>';
       tr.querySelectorAll('a.fm-task-file').forEach(function(a){
-        a.onclick = function(){ TTPreview.open({ insts: [inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: dispName(a.getAttribute('data-file')) }); };
+        a.onclick = function(){ TTPreview.open({ insts: [task.member || inst, inst, 'admin'], path: 'TaskData/Doc/' + a.getAttribute('data-file'), name: dispName(a.getAttribute('data-file')) }); };
       });
       tr.querySelectorAll('a.fm-task-fbfile').forEach(function(a){
         a.onclick = function(){ var nm = String(a.getAttribute('data-name')).split('/').pop(); TTPreview.open({ insts: [task.member || inst, inst, 'admin'], path: 'TaskData/Feedback/' + (task.seq || 0) + '/' + nm, name: dispName(nm) }); };
@@ -1431,14 +1418,14 @@ async function loadMyTasks(container) {
         var tk = tasks.find(function(t){ return t.uid === task.uid; }) || task;
         showTaskView(tk, en);
       };
-      tr.querySelector('button.fm-feedback-btn').onclick = function(){ openFeedback(inst, task, en); };
-      tr.querySelector('button.fm-assign-btn').onclick = function(){ openAssignDialog(task, inst, en, function(){ expanded[task.uid] = true; loadMyTasks(container); }); };
+      tr.querySelector('button.fm-feedback-btn').onclick = function(){ openFeedback(tinst, task, en); };
+      tr.querySelector('button.fm-assign-btn').onclick = function(){ openAssignDialog(task, tinst, en, function(){ expanded[task.uid] = true; loadMyTasks(container, opts); }); };
       var stb = tr.querySelector('button.fm-sub-toggle');
       if (stb) stb.onclick = function(){ toggleSubRow(tr, task, depth || 0); };
       var eb = tr.querySelector('button.fm-edit-btn');
-      if (eb) eb.onclick = function(){ openEditDialog(task, inst, en, function(){ loadMyTasks(container); }); };
+      if (eb) eb.onclick = function(){ openEditDialog(task, tinst, en, function(){ loadMyTasks(container, opts); }); };
       var db = tr.querySelector('button.fm-del-btn');
-      if (db) db.onclick = function(){ deleteMyTask(task, inst, en, function(){ loadMyTasks(container); }); };
+      if (db) db.onclick = function(){ deleteMyTask(task, tinst, en, function(){ loadMyTasks(container, opts); }); };
       return tr;
     }
 
@@ -1730,6 +1717,33 @@ async function openAssignDialog(task, inst, en, onSaved) {
   q('asgStatus').value = 'processing';
   var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
   q('asgAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  q('asgMsg').style.display = 'none';
+  asgRenderChips();
+  asgModal.style.display = 'flex';
+}
+// Create a NEW top-level task (no parent) with this page's own task form - the same
+// dialog used by Continue Assign / Edit. Used by the "Tasks I created" card header
+// button so the entry works even when the embedded Task-Assignment pane is blank.
+async function openNewTaskDialog(en, onSaved) {
+  var members = await asgLoadMembers();
+  ensureAsgModal();
+  asgEn = en; asgParent = null; asgOnSaved = onSaved || null; asgPendingFiles = [];
+  asgEditUid = ''; asgEditInst = '';
+  var q = function (id) { return asgModal.querySelector('#' + id); };
+  q('asgTitle').textContent = en ? 'New Task' : '\u65b0\u5efa\u4efb\u52a1';
+  asgSetLabels(en);
+  q('asgAssigneeBtn').disabled = false;
+  asgSetAssignee(currentUser || (members[0] && members[0].id) || '');
+  asgRenderAssigneePicker();
+  q('asgType').value = '';
+  asgRefreshTypeOptions('');
+  q('asgName').value = '';
+  q('asgContent').innerHTML = '';
+  q('asgStatus').value = 'processing';
+  var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  q('asgAssigned').value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  var dd = new Date(d.getTime() + 5*24*3600*1000);
+  q('asgDue').value = dd.getFullYear() + '-' + pad(dd.getMonth()+1) + '-' + pad(dd.getDate()) + 'T' + pad(dd.getHours()) + ':' + pad(dd.getMinutes());
   q('asgMsg').style.display = 'none';
   asgRenderChips();
   asgModal.style.display = 'flex';
@@ -2669,7 +2683,7 @@ async function loadInstances() {
       for (var idx = 0; idx < slice.length; idx++) {
         var i = slice[idx];
         const stateColor = i.running ? '#16a34a' : '#6b7280';
-        var tr = document.createElement('tr');
+      var tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid #eee';
         var ops = '';
         if (i.running) {

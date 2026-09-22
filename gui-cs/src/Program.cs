@@ -2610,6 +2610,7 @@ _ = Task.Run(async () =>
     // Retry up to 3 times with delays since DSH may need a moment after
     // patching to be ready.
     dsh.ApplyDshLocaleFromDefault();
+    dsh.ApplyDshTheme();
     var cfgPort = dsh.EnsureAdminDshPort();
     for (var attempt = 1; attempt <= 3; attempt++)
     {

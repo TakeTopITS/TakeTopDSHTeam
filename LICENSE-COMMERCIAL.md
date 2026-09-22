@@ -1,4 +1,4 @@
-﻿# Licensing
+# Licensing
 
 TakeTopDshTeam has two editions:
 
@@ -6,12 +6,12 @@ TakeTopDshTeam has two editions:
   (see [LICENSE](LICENSE) / [COPYING](COPYING)). Free to use, modify and
   distribute, including for commercial use, provided the copyright notice is
   retained.
-- **Enterprise edition** (paid) — a commercial edition that adds governance
+- **Advanced edition** (paid) — a commercial edition that adds governance
   features on top of the standard edition (see below).
 
-## Enterprise edition (paid)
+## Advanced edition (paid)
 
-The Enterprise edition adds:
+The Advanced edition adds:
 
 - **Per-member token control** — see and control each member's token usage.
 - **Hierarchical (pyramid) member management** — a normal member can create and
@@ -22,7 +22,7 @@ The Enterprise edition adds:
 
 ### Pricing
 
-- The Enterprise edition is a **paid** product, priced at **USD 10 per user per
+- The Advanced edition is a **paid** product, priced at **USD 10 per user per
   month** (e.g. 10 users = USD 100/month, 15 users = USD 150/month, 20 users =
   USD 200/month).
 - Contact: **service@taketopits.com**

@@ -430,6 +430,8 @@ public class InstanceManager
             if (inst == null || string.IsNullOrWhiteSpace(inst.DshHome)) return;
             var code = DefaultLocaleProvider?.Invoke() ?? "en";
             DshService.WriteLocalePreference(inst.DshHome, code);
+            // Product default Appearance = Light, so member DSH opens in Light too.
+            DshService.WriteThemePreference(inst.DshHome, "light");
         }
         catch { }
     }

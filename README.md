@@ -1,4 +1,4 @@
-﻿# TakeTopDSHTeam
+# TakeTopDSHTeam
 
 ![TakeTopDshTeam — split-screen workbench: File Manager (left) + DSH chat (right)](assets/workbench.png)
 
@@ -24,7 +24,7 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 🚀 One-click, offline installation — Copy the folder and run; no compilation, no extra downloads.
 
-> **MIT License (open source).** Licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — you are free to use, modify and distribute it, including for commercial purposes, provided the copyright notice is retained. For larger teams that need **per-member token control** and **hierarchical member management**, we also offer a paid **Enterprise edition** (see below).
+> **MIT License (open source).** Licensed under the **MIT License** (see [LICENSE](LICENSE) / [COPYING](COPYING)) — you are free to use, modify and distribute it, including for commercial purposes, provided the copyright notice is retained. For larger teams that need **per-member token control** and **hierarchical member management**, we also offer a paid **Advanced edition** (see below).
 
 ---
 
@@ -145,9 +145,9 @@ Topics: `deepseek-harness` · `multi-user` · `self-hosted` · `ai-agent` · `ll
 
 ---
 
-## Enterprise edition (paid)
+## Advanced edition (paid)
 
-This repository is the **Standard** edition, and it is **MIT-licensed and free**. For teams that need more governance, we offer a paid **Enterprise edition** that adds:
+This repository is the **Standard** edition, and it is **MIT-licensed and free**. For teams that need more governance, we offer a paid **Advanced edition** that adds:
 
 - **🧮 Per-member token control** — see and control each member's token usage.
 - **🏛️ Hierarchical (pyramid) member management** — a normal member can create and manage sub-members work, and each sub-member can, in turn, create further sub-members and manage their work, forming a pyramid-style management structure.
@@ -165,7 +165,7 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 This project (the **Standard** edition) is licensed under the **MIT License** — see [LICENSE](LICENSE) / [COPYING](COPYING).
 
 - You may use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, including for commercial purposes, provided the copyright notice and this permission notice are retained.
-- A paid **Enterprise edition** is also available (see [Enterprise edition](#enterprise-edition-paid) above); its commercial terms are described in [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
+- A paid **Advanced edition** is also available (see [Advanced edition](#advanced-edition-paid) above); its commercial terms are described in [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 
 The intellectual property of this software — including its source code, design, documentation and related materials — is vested in **TaiDingTuoDing Information Technology (Shanghai) Co., Ltd.** (Email: service@taketopits.com). The license grants usage rights but does not transfer ownership of the intellectual property, which remains with the copyright holder.
 
