@@ -12,7 +12,7 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 **🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
 <video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
-**📱 手机 APP** —— 手机上同样的团队工作台：一个标签一个功能（AI 会话、任务、文件、DSH），与团队共享同一份数据。
+**📱 手机 APP** —— 手机工作台：一个标签一个功能（AI 会话、任务、文件、DSH），随时随地工作。
 <video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
 ## 亮点
 
