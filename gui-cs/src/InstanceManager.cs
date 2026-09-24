@@ -704,7 +704,8 @@ public class InstanceManager
                 // records/browser-session secret on first boot (strict format).
                 var y = new System.Text.StringBuilder();
                 y.AppendLine("version: 1");
-                foreach (var kv in srcRefs) y.AppendLine($"{kv.Key}: \"{kv.Value}\"");
+                y.AppendLine("refs:");
+                foreach (var kv in srcRefs) y.AppendLine($"  {kv.Key}: \"{kv.Value}\"");
                 File.WriteAllText(destCred, y.ToString());
                 Chmod600IfUnix(destCred);
                 return true;
@@ -720,6 +721,26 @@ public class InstanceManager
             foreach (var ln in destLines)
             {
                 var trimmed = ln.TrimStart();
+                // Heal a malformed file: a secret key written at column 0 (e.g. a
+                // stray top-level "DEEPSEEK_API_KEY:") is illegal - the DSH
+                // credentials-local parser rejects it and the instance never boots.
+                // Drop it; the real value lives in the indented refs: block below.
+                if (ln.Length > 0 && !char.IsWhiteSpace(ln[0]))
+                {
+                    var c0 = ln.IndexOf(':');
+                    if (c0 > 0)
+                    {
+                        var k0 = ln.Substring(0, c0).Trim().Trim('"');
+                        if (!k0.Equals("version", StringComparison.OrdinalIgnoreCase)
+                            && !k0.Equals("refs", StringComparison.OrdinalIgnoreCase)
+                            && !k0.Equals("records", StringComparison.OrdinalIgnoreCase)
+                            && srcRefs.ContainsKey(k0))
+                        {
+                            changed = true;
+                            continue;
+                        }
+                    }
+                }
                 if (trimmed.StartsWith("refs:")) { inRefs = true; newLines.Add(ln); continue; }
                 if (inRefs)
                 {

@@ -322,14 +322,48 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         var list = (j && j.instances) || [], mine = null;
-        for (var i = 0; i < list.length; i++) {
-          var it = list[i];
-          if (String(it.id || '').toLowerCase() === want ||
-              String(it.name || '').toLowerCase() === want ||
-              String(it.userName || '').toLowerCase() === want) { mine = it; break; }
+        // Never match on an EMPTY key: the instances payload has no userName field, so an empty
+        // `want` (admin, before /api/auth/me resolves) used to match the first member and skip
+        // starting the admin's DEFAULT DSH entirely.
+        if (want) {
+          for (var i = 0; i < list.length; i++) {
+            var it = list[i];
+            var uid = String(it.id || '').toLowerCase();
+            var unm = String(it.name || '').toLowerCase();
+            var uun = String(it.userName || '').toLowerCase();
+            if (uid === want || unm === want || (uun && uun === want)) { mine = it; break; }
+          }
         }
         try { console.log('[boot]', bootTries, 'inst=' + inst, mine ? JSON.stringify({ id: mine.id, running: mine.running }) : 'not-found'); } catch (e) { }
-        if (!mine) { if (!inst) bootHide(); return; }
+        if (!mine) {
+          // No member instance matched. For a MEMBER (inst set) there is nothing to start
+          // here. For the ADMIN (no inst) make sure the DEFAULT DSH is running - otherwise
+          // the right pane stays blank ("cannot enter the DSH").
+          if (inst) { bootHide(); return; }
+          fetch(ttu('/api/status'), { cache: 'no-store', credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (s) {
+              var running = !!(s && (s.state === 'running' || s.running === true || s.running === 'running'));
+              if (running) {
+                bootHide();
+                // The pane was loaded while the DSH was still down: reload it once it is up.
+                reloadPane('dshPane', dshSrc);
+                return;
+              }
+              var now = Date.now();
+              if (bootAskedAt && (now - bootAskedAt) < 15000) return;
+              bootAskedAt = now;
+              return fetch(ttu('/api/start'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+                .then(function (r) {
+                  try { console.log('[boot] start default DSH -> HTTP', r.status); } catch (e) { }
+                  if (!r.ok) return;
+                  bootHide();
+                  reloadPane('dshPane', dshSrc);
+                });
+            })
+            .catch(function () { });
+          return;
+        }
         // Only refresh the workbench for an instance we actually had to start: refreshing
         // on "we waited a tick" made an already-running instance reload the page ~3s after
         // it had opened - the extra flash after the workspace was already up.
