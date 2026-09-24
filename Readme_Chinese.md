@@ -11,15 +11,9 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 高级版完整操作演示（中文界面 + 语音讲解）：
 
 **🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
-<video src="assets/TakeTopDSHTeamDesktopChinese.mp4" controls preload="metadata" width="100%"></video>
-
-▶ [观看桌面端演示（MP4）](assets/TakeTopDSHTeamDesktopChinese.mp4)
-
+<video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
 **📱 手机 APP** —— 手机上同样的团队工作台：一个标签一个功能（AI 会话、任务、文件、DSH），与团队共享同一份数据。
-<video src="assets/TakeTopDShTeamAPPChinese.mp4" controls preload="metadata" width="100%"></video>
-
-▶ [观看 APP 演示（MP4）](assets/TakeTopDShTeamAPPChinese.mp4)
-
+<video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
 ## 亮点
 
 - 🧠 **团队经验共享** ——每个成员的工作经验，会成为全团队可复用的知识，越用越好用！
