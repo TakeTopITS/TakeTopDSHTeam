@@ -7,17 +7,6 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 > 👥 **Who it's for:** Teams already using (or wanting to use) AI agents but needing **multi-user collaboration and full data control** — they don't want to install a separate AI agent for each person, nor hand their data over to a cloud service.
 
-## 🎬 Advanced Edition — Video Guide
-
-A complete walk-through of the Advanced Edition (English UI, with voice-over):
-
-**🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
-
-<video src="https://github.com/user-attachments/assets/fca82e8e-bab5-4a3a-ad5c-c79985750a5a" controls preload="metadata" width="100%"></video>
-
-**📱 Mobile APP** — the Mobile Workbench: one tab, one function (AI Chat, Tasks, Files, DSH) — work anytime, anywhere.
-<video src="https://github.com/user-attachments/assets/3d3f3e32-bb2a-413f-8468-446472413597" controls preload="metadata" width="100%"></video>
-
 ## Highlights
 
 🧠 Team experience sharing — Every member's work experience becomes reusable knowledge for the whole team. The more it's used, the better it gets!
@@ -32,7 +21,6 @@ A complete walk-through of the Advanced Edition (English UI, with voice-over):
 
 📁 Built-in file manager — Upload, folders, tree browsing, compress/decompress, rename, move, delete, online preview, download — right-click menu for everything.
 
-🌐 Multilingual interface — supports all languages, switch anytime on every page!
 
 🚀 One-click, offline installation — Copy the folder and run; no compilation, no extra downloads.
 
@@ -166,9 +154,21 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 - **📱 Mobile APP pages** — built-in touch-optimized mobile interface; access the workbench and get all kinds of work done anytime, anywhere through your mobile phone.
 - **📚 Shared team knowledge base** — a built-in team library (documents, reference books and curated session notes) that every member can browse, search and learn from, so team know-how keeps accumulating and new members grow fast.
 - **💬 Instant chat** — 1:1 and group chat, fully connected with the file manager, task manager and AI chat — communication without limits!
+- **🌐 Multilingual support** — supports all the world's languages, switch anytime on every page!
 - **🛠️ Support** — during the paid period we provide uninterrupted service and quickly help resolve any usage issues.
 
 **Pricing:** **USD 10 per user per month** (e.g. 10 users = USD 100/month; 15 users = USD 150/month; 20 users = USD 200/month). Contact **service@taketopits.com** — see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
+
+🎬 Advanced Edition — Video Guide
+
+A complete walk-through of the Advanced Edition (English UI, with voice-over):
+
+**🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
+
+<video src="https://github.com/user-attachments/assets/fca82e8e-bab5-4a3a-ad5c-c79985750a5a" controls preload="metadata" width="100%"></video>
+
+**📱 Mobile APP** — the Mobile Workbench: one tab, one function (AI Chat, Tasks, Files, DSH) — work anytime, anywhere.
+<video src="https://github.com/user-attachments/assets/3d3f3e32-bb2a-413f-8468-446472413597" controls preload="metadata" width="100%"></video>
 
 ---
 

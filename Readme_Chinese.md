@@ -6,14 +6,6 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 > 👥 **适合谁用：** 已经在用（或想用）AI agent，但需要**多用户协作、数据完全自控**的团队 —— 既不想给每个人各装一个 AI agent，也不想把数据交给云服务。
 
-## 🎬 高级版功能介绍视频
-
-高级版完整操作演示（中文界面 + 语音讲解）：
-
-**🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
-<video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
-**📱 手机APP** —— 移动工作台：一个标签一个功能（AI 会话、任务、文件、DSH），随时随地工作。
-<video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
 ## 亮点
 
 - 🧠 **团队经验共享** ——每个成员的工作经验，会成为全团队可复用的知识，越用越好用！
@@ -22,7 +14,6 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 - 🔌 **单一入口、单一端口** —— 所有成员共用一个登录网址，一个启动器反向代理到每位成员的DSH。
 - ✅ **任务分配与派发** —— 管理员按成员分配任务（富文本 + 图片 + 附件）；支持「继续分派」逐级派发，并可内联展开**上级 / 子任务树**。统一存放在共同的数据库中。
 - 📁 **内置文件管理器** —— 上传、文件夹、树形浏览、压缩/解压、重命名、移动、删除、在线预览、下载，右键菜单操作一切。
-- 🌐 **多语言界面** ——支持世界所有语言，所有页面随时切换！
 - 🚀 **一键、离线安装** —— 复制文件夹即运行；无需编译、无需额外下载。
 - 🧩 **升级不失效** —— 一键升级，即时享用新功能！
 - 📦 **跨平台** —— 支持Windows / macOS / Linux多平台，安全可靠！
@@ -162,9 +153,18 @@ Linux   : bash start.sh
 - **📱 移动应用页面** — 内置触控优化的移动界面；随时随地通过手机等移动设备访问工作台并进行各项工作。
 - **📚 团队知识库共享** —— 内置团队共享库（文档、参考书籍与精选会话笔记），所有成员均可随时浏览、检索与学习；团队经验持续沉淀，新人快速成长。
 - **💬 即时聊天功能** — 包含单聊、群聊功能，和文件管理、任务管理、AI会话全部打通，沟通无界限！
+- **🌐 多语言支持** —— 支持世界各种语言，所有页面可随时切换！
 - **🛠️ 服务支持** —— 收费期间，提供不间断的服务，快速帮助解决使用问题。
-
 **收费方式：** 按**每人每月 USD 10** 计价（例如 10 人 = USD 100/月；15 人 = USD 150/月；20 人 = USD 200/月）。联系 **service@taketopits.com** —— 见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。
+
+🎬 功能介绍视频
+
+高级版完整操作演示（中文界面 + 语音讲解）：
+
+**🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
+<video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
+**📱 手机APP** —— 移动工作台：一个标签一个功能（AI 会话、任务、文件、DSH），随时随地工作。
+<video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
 
 ---
 
