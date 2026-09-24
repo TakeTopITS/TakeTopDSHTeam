@@ -6,6 +6,20 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 > 👥 **Who it's for:** Teams already using (or wanting to use) AI agents but needing **multi-user collaboration and full data control** — they don't want to install a separate AI agent for each person, nor hand their data over to a cloud service.
 
+## 🎬 Advanced Edition — Video Guide
+
+A complete walk-through of the Advanced Edition (English UI, with voice-over):
+
+**🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
+<video src="assets/TakeTopDSHTeamDesktopEnglish.mp4" controls preload="metadata" width="100%"></video>
+
+▶ [Watch the Desktop guide (MP4)](assets/TakeTopDSHTeamDesktopEnglish.mp4)
+
+**📱 Mobile APP** — the same team workspace on a phone: one feature per tab (AI chat, tasks, files, DSH), sharing the same team data.
+<video src="assets/TakeTopDShTeamAPPEnglish.mp4" controls preload="metadata" width="100%"></video>
+
+▶ [Watch the APP guide (MP4)](assets/TakeTopDShTeamAPPEnglish.mp4)
+
 ## Highlights
 
 🧠 Team experience sharing — Every member's work experience becomes reusable knowledge for the whole team. The more it's used, the better it gets!
@@ -20,7 +34,7 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 📁 Built-in file manager — Upload, folders, tree browsing, compress/decompress, rename, move, delete, online preview, download — right-click menu for everything.
 
-🌐 Bilingual interface — Full English / Chinese support across all pages, switch anytime!
+🌐 Multilingual interface — supports all languages, switch anytime on every page!
 
 🚀 One-click, offline installation — Copy the folder and run; no compilation, no extra downloads.
 
