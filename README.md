@@ -15,7 +15,7 @@ A complete walk-through of the Advanced Edition (English UI, with voice-over):
 
 <video src="https://github.com/user-attachments/assets/fca82e8e-bab5-4a3a-ad5c-c79985750a5a" controls preload="metadata" width="100%"></video>
 
-**📱 Mobile APP** — the same team workspace on a phone: one feature per tab (AI chat, tasks, files, DSH), sharing the same team data.
+**📱 Mobile APP** — Mobile Workbench: one tab, one function (AI Chat, Tasks, Files, DSH) — work anytime, anywhere.
 <video src="https://github.com/user-attachments/assets/3d3f3e32-bb2a-413f-8468-446472413597" controls preload="metadata" width="100%"></video>
 
 ## Highlights
