@@ -13,14 +13,13 @@ A complete walk-through of the Advanced Edition (English UI, with voice-over):
 
 **🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
 <video src="
-https://github.com/user-attachments/assets/de5cc988-ed1c-4498-9e15-714f0202f845" width="100%"></video>
+https://github.com/user-attachments/assets/de5cc988-ed1c-4498-9e15-714f0202f845" controls preload="metadata" width="100%"></video>
 
-▶ [Watch the Desktop guide (MP4)](assets/TakeTopDSHTeamDesktopEnglish.mp4)
 
 **📱 Mobile APP** — the same team workspace on a phone: one feature per tab (AI chat, tasks, files, DSH), sharing the same team data.
 <video src="https://github.com/user-attachments/assets/bfa33ea2-decf-4abc-b3fa-0b7a7cddf739" controls preload="metadata" width="100%"></video>
 
-▶ [Watch the APP guide (MP4)](assets/TakeTopDShTeamAPPEnglish.mp4)
+
 
 ## Highlights
 
