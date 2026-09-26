@@ -157,7 +157,6 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 - **🌐 Multilingual support** — supports all the world's languages, switch anytime on every page!
 - **🛠️ Support** — during the paid period we provide uninterrupted service and quickly help resolve any usage issues.
 
-**Pricing:** **USD 10 per user per month** (e.g. 10 users = USD 100/month; 15 users = USD 150/month; 20 users = USD 200/month). Contact **service@taketopits.com** — see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 
 🎬 Advanced Edition — Video Guide
 
@@ -170,6 +169,9 @@ A complete walk-through of the Advanced Edition (English UI, with voice-over):
 **📱 Mobile APP** — the Mobile Workbench: one tab, one function (AI Chat, Tasks, Files, DSH) — work anytime, anywhere.
 <video src="https://github.com/user-attachments/assets/3d3f3e32-bb2a-413f-8468-446472413597" controls preload="metadata" width="100%"></video>
 
+
+
+**Pricing:** **USD 10 per user per month** (e.g. 10 users = USD 100/month; 15 users = USD 150/month; 20 users = USD 200/month). Contact **service@taketopits.com** — see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 ---
 
 ## License
