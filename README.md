@@ -153,7 +153,7 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 - **🏛️ Hierarchical (pyramid) member management** — a normal member can create and manage sub-members work, and each sub-member can, in turn, create further sub-members and manage their work, forming a pyramid-style management structure.
 - **📱 Mobile APP pages** — built-in touch-optimized mobile interface; access the workbench and get all kinds of work done anytime, anywhere through your mobile phone.
 - **📚 Shared team knowledge base** — a built-in team library (documents, reference books and curated session notes) that every member can browse, search and learn from, so team know-how keeps accumulating and new members grow fast.
-- **💬 Instant chat** — 1:1 and group chat, fully connected with the file manager, task manager and AI chat — communication without limits!
+- **💬 Instant Chat** — Includes one-on-one and group chat, fully integrated with File Management, Task Management, and AI Chat. Anything you ask the AI assistant to do will automatically invoke DSH to complete it and return the result — communication without boundaries!
 - **🌐 Multilingual support** — supports all the world's languages, switch anytime on every page!
 - **🛠️ Support** — during the paid period we provide uninterrupted service and quickly help resolve any usage issues.
 
