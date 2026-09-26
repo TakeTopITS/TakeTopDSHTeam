@@ -155,10 +155,6 @@ Linux   : bash start.sh
 - **💬 即时聊天功能** — 包含单聊、群聊功能，和文件管理、任务管理、AI会话全部打通，沟通无界限！
 - **🌐 多语言支持** —— 支持世界各种语言，所有页面可随时切换！
 - **🛠️ 服务支持** —— 收费期间，提供不间断的服务，快速帮助解决使用问题。
-**收费方式：** 按**每人每月 USD 10** 计价（例如 10 人 = USD 100/月；15 人 = USD 150/月；20 人 = USD 200/月）。联系 **service@taketopits.com** —— 见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。
-
-🎬 功能介绍视频
-
 高级版完整操作演示（中文界面 + 语音讲解）：
 
 **🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
@@ -166,6 +162,9 @@ Linux   : bash start.sh
 **📱 手机APP** —— 移动工作台：一个标签一个功能（AI 会话、任务、文件、DSH），随时随地工作。
 <video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
 
+**收费方式：** 按**每人每月 USD 10** 计价（例如 10 人 = USD 100/月；15 人 = USD 150/月；20 人 = USD 200/月）。联系 **service@taketopits.com** —— 见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。
+
+🎬 功能介绍视频
 ---
 
 ## 许可
