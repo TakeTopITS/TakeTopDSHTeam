@@ -7,6 +7,19 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 > 👥 **Who it's for:** Teams already using (or wanting to use) AI agents but needing **multi-user collaboration and full data control** — they don't want to install a separate AI agent for each person, nor hand their data over to a cloud service.
 
+🎬 Advanced Edition — Video Guide
+
+A complete walk-through of the Advanced Edition (English UI, with voice-over):
+
+**🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
+
+<video src="https://github.com/user-attachments/assets/fca82e8e-bab5-4a3a-ad5c-c79985750a5a" controls preload="metadata" width="100%"></video>
+
+**📱 Mobile APP** — the Mobile Workbench: one tab, one function (AI Chat, Tasks, Files, DSH) — work anytime, anywhere.
+<video src="https://github.com/user-attachments/assets/3d3f3e32-bb2a-413f-8468-446472413597" controls preload="metadata" width="100%"></video>
+
+
+
 ## Highlights
 
 🧠 Team experience sharing — Every member's work experience becomes reusable knowledge for the whole team. The more it's used, the better it gets!
@@ -157,17 +170,6 @@ This repository is the **Standard** edition, and it is **MIT-licensed and free**
 - **🌐 Multilingual support** — supports all the world's languages, switch anytime on every page!
 - **🛠️ Support** — during the paid period we provide uninterrupted service and quickly help resolve any usage issues.
 
-
-🎬 Advanced Edition — Video Guide
-
-A complete walk-through of the Advanced Edition (English UI, with voice-over):
-
-**🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
-
-<video src="https://github.com/user-attachments/assets/fca82e8e-bab5-4a3a-ad5c-c79985750a5a" controls preload="metadata" width="100%"></video>
-
-**📱 Mobile APP** — the Mobile Workbench: one tab, one function (AI Chat, Tasks, Files, DSH) — work anytime, anywhere.
-<video src="https://github.com/user-attachments/assets/3d3f3e32-bb2a-413f-8468-446472413597" controls preload="metadata" width="100%"></video>
 
 
 
