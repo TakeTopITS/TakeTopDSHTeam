@@ -9,8 +9,6 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 🎬 Advanced Edition — Video Guide
 
-A complete walk-through of the Advanced Edition (English UI, with voice-over):
-
 **🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
 
 <video src="https://github.com/user-attachments/assets/fca82e8e-bab5-4a3a-ad5c-c79985750a5a" controls preload="metadata" width="100%"></video>
