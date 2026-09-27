@@ -6,7 +6,7 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 > 👥 **适合谁用：** 已经在用（或想用）AI agent，但需要**多用户协作、数据完全自控**的团队 —— 既不想给每个人各装一个 AI agent，也不想把数据交给云服务。
 
-高级版完整操作演示（中文界面 + 语音讲解）：
+高级版---视频讲解：
 
 **🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
 <video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
