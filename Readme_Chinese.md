@@ -6,6 +6,13 @@ TakeTopDSHTeam 把 DeepSeek Harness（DSH）变成面向团队的多用户 AI �
 
 > 👥 **适合谁用：** 已经在用（或想用）AI agent，但需要**多用户协作、数据完全自控**的团队 —— 既不想给每个人各装一个 AI agent，也不想把数据交给云服务。
 
+高级版完整操作演示（中文界面 + 语音讲解）：
+
+**🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
+<video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
+**📱 手机APP** —— 移动工作台：一个标签一个功能（AI 会话、任务、文件、DSH），随时随地工作。
+<video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
+
 ## 亮点
 
 - 🧠 **团队经验共享** ——每个成员的工作经验，会成为全团队可复用的知识，越用越好用！
@@ -155,12 +162,6 @@ Linux   : bash start.sh
 - **💬 即时会话功能** — 包含单聊、群聊功能，和文件管理、任务管理、AI会话全部打通，交待AI助手办的事，会自动调用DSH去完成并返回结果，沟通无界限！
 - **🌐 多语言支持** —— 支持世界各种语言，所有页面可随时切换！
 - **🛠️ 服务支持** —— 收费期间，提供不间断的服务，快速帮助解决使用问题。
-高级版完整操作演示（中文界面 + 语音讲解）：
-
-**🖥️ 桌面端** —— 分屏工作台：工作区文件管理、任务管理、AI 会话与 DeepSeek Harness，同屏展示。
-<video src="https://github.com/user-attachments/assets/09f67050-a08e-49ab-956e-9e572b6c7c70" controls preload="metadata" width="100%"></video>
-**📱 手机APP** —— 移动工作台：一个标签一个功能（AI 会话、任务、文件、DSH），随时随地工作。
-<video src="https://github.com/user-attachments/assets/e96b23cc-0ee2-4279-81f2-8d8a60ed5028" controls preload="metadata" width="100%"></video>
 
 **收费方式：** 按**每人每月 USD 10** 计价（例如 10 人 = USD 100/月；15 人 = USD 150/月；20 人 = USD 200/月）。联系 **service@taketopits.com** —— 见 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。
 
