@@ -7,7 +7,7 @@ TakeTopDSHTeam turns DeepSeek Harness (DSH) into a team-oriented, multi-user AI 
 
 > 👥 **Who it's for:** Teams already using (or wanting to use) AI agents but needing **multi-user collaboration and full data control** — they don't want to install a separate AI agent for each person, nor hand their data over to a cloud service.
 
-🎬 Advanced Edition — Video Guide
+🎬 Advanced Edition — Video Tutorial (Please do not watch using FireFox; use EDGE, Chrome, Safari, or other browsers):
 
 **🖥️ Desktop** — the split-screen workbench: workspace file manager, task management, the AI chat and the DeepSeek Harness, all on one screen.
 
